@@ -1,249 +1,198 @@
-import { useEffect } from "react";
-import type {
-  ActionFunctionArgs,
-  HeadersFunction,
-  LoaderFunctionArgs,
-} from "react-router";
-import { useFetcher } from "react-router";
-import { useAppBridge } from "@shopify/app-bridge-react";
+import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
+import { useLoaderData } from "react-router";
+
+import { getDashboardStats } from "../lib/dashboard.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+  const stats = await getDashboardStats(session.shop);
 
-  return null;
+  return { stats };
 };
 
-export const action = async ({ request }: ActionFunctionArgs) => {
-  const { admin } = await authenticate.admin(request);
-  const color = ["Red", "Orange", "Yellow", "Green"][
-    Math.floor(Math.random() * 4)
-  ];
-  const response = await admin.graphql(
-    `#graphql
-      mutation populateProduct($product: ProductCreateInput!) {
-        productCreate(product: $product) {
-          product {
-            id
-            title
-            handle
-            status
-            variants(first: 10) {
-              edges {
-                node {
-                  id
-                  price
-                  barcode
-                  createdAt
-                }
-              }
-            }
-          }
-        }
-      }`,
-    {
-      variables: {
-        product: {
-          title: `${color} Snowboard`,
-        },
-      },
-    },
-  );
-  const responseJson = await response.json();
-
-  const product = responseJson.data!.productCreate!.product!;
-  const variantId = product.variants.edges[0]!.node!.id!;
-
-  const variantResponse = await admin.graphql(
-    `#graphql
-    mutation shopifyReactRouterTemplateUpdateVariant($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
-      productVariantsBulkUpdate(productId: $productId, variants: $variants) {
-        productVariants {
-          id
-          price
-          barcode
-          createdAt
-        }
-      }
-    }`,
-    {
-      variables: {
-        productId: product.id,
-        variants: [{ id: variantId, price: "100.00" }],
-      },
-    },
-  );
-
-  const variantResponseJson = await variantResponse.json();
-
-  return {
-    product: responseJson!.data!.productCreate!.product,
-    variant:
-      variantResponseJson!.data!.productVariantsBulkUpdate!.productVariants,
-  };
+type SetupStep = {
+  id: string;
+  title: string;
+  description: string;
+  done: boolean;
+  href: string;
 };
 
 export default function Index() {
-  const fetcher = useFetcher<typeof action>();
+  const { stats } = useLoaderData<typeof loader>();
 
-  const shopify = useAppBridge();
-  const isLoading =
-    ["loading", "submitting"].includes(fetcher.state) &&
-    fetcher.formMethod === "POST";
+  const setupSteps: SetupStep[] = [
+    {
+      id: "texts",
+      title: "Customize storefront text",
+      description:
+        "Edit delivery instructions, postage notes, and pickup labels shown on product pages.",
+      done: stats.widgetTextsCustomized || stats.hasSavedSettings,
+      href: "/app/settings",
+    },
+    {
+      id: "protection",
+      title: "Choose damage protection product",
+      description:
+        "Select your Accidental Damage protection product from the store catalog.",
+      done: stats.damageProtectionConfigured,
+      href: "/app/settings",
+    },
+    {
+      id: "blocked",
+      title: "Block unavailable dates",
+      description:
+        "Add public holidays or closure days so customers cannot book those dates.",
+      done: stats.blockedDateCount > 0,
+      href: "/app/blocked-dates",
+    },
+    {
+      id: "cart",
+      title: "Enable GK.Drobe Cart embed",
+      description:
+        "In Online Store → Themes → Customize → App embeds, turn on GK.Drobe Cart so cart cleanup and hide duplicate size lines work.",
+      done: false,
+      href: "/app/settings",
+    },
+    {
+      id: "theme",
+      title: "Add the booking block to your theme",
+      description:
+        "In Online Store → Themes → Customize, add the GK.Drobe Booking block to product pages.",
+      done: true,
+      href: "/app/settings",
+    },
+  ];
 
-  useEffect(() => {
-    if (fetcher.data?.product?.id) {
-      shopify.toast.show("Product created");
-    }
-  }, [fetcher.data?.product?.id, shopify]);
-
-  const generateProduct = () => fetcher.submit({}, { method: "POST" });
+  const completedSteps = setupSteps.filter((step) => step.done).length;
 
   return (
-    <s-page heading="Shopify app template">
-      <s-button slot="primary-action" onClick={generateProduct}>
-        Generate a product
-      </s-button>
-
-      <s-section heading="Congrats on creating a new Shopify app 🎉">
-        <s-paragraph>
-          This embedded app template uses{" "}
-          <s-link
-            href="https://shopify.dev/docs/apps/tools/app-bridge"
-            target="_blank"
-          >
-            App Bridge
-          </s-link>{" "}
-          interface examples like an{" "}
-          <s-link href="/app/additional">additional page in the app nav</s-link>
-          , as well as an{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
-          >
-            Admin GraphQL
-          </s-link>{" "}
-          mutation demo, to provide a starting point for app development.
-        </s-paragraph>
-      </s-section>
-      <s-section heading="Get started with products">
-        <s-paragraph>
-          Generate a product with GraphQL and get the JSON output for that
-          product. Learn more about the{" "}
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql/latest/mutations/productCreate"
-            target="_blank"
-          >
-            productCreate
-          </s-link>{" "}
-          mutation in our API references.
-        </s-paragraph>
-        <s-stack direction="inline" gap="base">
-          <s-button
-            onClick={generateProduct}
-            {...(isLoading ? { loading: true } : {})}
-          >
-            Generate a product
-          </s-button>
-          {fetcher.data?.product && (
-            <s-button
-              onClick={() => {
-                shopify.intents.invoke?.("edit:shopify/Product", {
-                  value: fetcher.data?.product?.id,
-                });
-              }}
-              target="_blank"
-              variant="tertiary"
-            >
-              Edit product
-            </s-button>
-          )}
-        </s-stack>
-        {fetcher.data?.product && (
-          <s-section heading="productCreate mutation">
-            <s-stack direction="block" gap="base">
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.product, null, 2)}</code>
-                </pre>
-              </s-box>
-
-              <s-heading>productVariantsBulkUpdate mutation</s-heading>
-              <s-box
-                padding="base"
-                borderWidth="base"
-                borderRadius="base"
-                background="subdued"
-              >
-                <pre style={{ margin: 0 }}>
-                  <code>{JSON.stringify(fetcher.data.variant, null, 2)}</code>
-                </pre>
-              </s-box>
+    <s-page heading="Dashboard">
+      <s-section heading="Overview">
+        <s-grid gridTemplateColumns="repeat(3, 1fr)" gap="base">
+          <s-box padding="base" background="subdued" borderRadius="base">
+            <s-stack direction="block" gap="small-200">
+              <s-text tone="neutral">Total bookings</s-text>
+              <s-heading>{stats.bookingCount}</s-heading>
             </s-stack>
-          </s-section>
-        )}
+          </s-box>
+          <s-box padding="base" background="subdued" borderRadius="base">
+            <s-stack direction="block" gap="small-200">
+              <s-text tone="neutral">Upcoming hires</s-text>
+              <s-heading>{stats.upcomingBookingCount}</s-heading>
+            </s-stack>
+          </s-box>
+          <s-box padding="base" background="subdued" borderRadius="base">
+            <s-stack direction="block" gap="small-200">
+              <s-text tone="neutral">Blocked dates</s-text>
+              <s-heading>{stats.blockedDateCount}</s-heading>
+            </s-stack>
+          </s-box>
+        </s-grid>
       </s-section>
 
-      <s-section slot="aside" heading="App template specs">
-        <s-paragraph>
-          <s-text>Framework: </s-text>
-          <s-link href="https://reactrouter.com/" target="_blank">
-            React Router
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>Interface: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/app-home/using-polaris-components"
-            target="_blank"
+      <s-section heading="Quick actions">
+        <s-grid gridTemplateColumns="repeat(2, 1fr)" gap="base">
+          <s-clickable
+            href="/app/settings"
+            padding="base"
+            background="subdued"
+            borderRadius="base"
           >
-            Polaris web components
-          </s-link>
-        </s-paragraph>
-        <s-paragraph>
-          <s-text>API: </s-text>
-          <s-link
-            href="https://shopify.dev/docs/api/admin-graphql"
-            target="_blank"
+            <s-stack direction="block" gap="small-200">
+              <s-text type="strong">Edit storefront text</s-text>
+              <s-paragraph tone="neutral" color="subdued">
+                Delivery instructions, postage note, pickup label, and button
+                labels.
+              </s-paragraph>
+            </s-stack>
+          </s-clickable>
+          <s-clickable
+            href="/app/blocked-dates"
+            padding="base"
+            background="subdued"
+            borderRadius="base"
           >
-            GraphQL
-          </s-link>
-        </s-paragraph>
+            <s-stack direction="block" gap="small-200">
+              <s-text type="strong">Manage blocked dates</s-text>
+              <s-paragraph tone="neutral" color="subdued">
+                Prevent bookings on holidays and closure days.
+              </s-paragraph>
+            </s-stack>
+          </s-clickable>
+          <s-clickable
+            href="/app/bookings"
+            padding="base"
+            background="subdued"
+            borderRadius="base"
+          >
+            <s-stack direction="block" gap="small-200">
+              <s-text type="strong">View bookings</s-text>
+              <s-paragraph tone="neutral" color="subdued">
+                See recent hire bookings from the storefront widget.
+              </s-paragraph>
+            </s-stack>
+          </s-clickable>
+          <s-clickable
+            href="/app/settings"
+            padding="base"
+            background="subdued"
+            borderRadius="base"
+          >
+            <s-stack direction="block" gap="small-200">
+              <s-text type="strong">Widget & damage protection</s-text>
+              <s-paragraph tone="neutral" color="subdued">
+                Configure damage protection product and cart button text.
+              </s-paragraph>
+            </s-stack>
+          </s-clickable>
+        </s-grid>
+      </s-section>
+
+      <s-section heading={`Setup guide (${completedSteps}/${setupSteps.length})`}>
+        <s-stack direction="block" gap="base">
+          {setupSteps.map((step) => (
+            <s-box
+              key={step.id}
+              padding="base"
+              background="base"
+              border="base"
+              borderRadius="base"
+            >
+              <s-stack direction="inline" gap="base" alignItems="start">
+                <s-badge tone={step.done ? "success" : "warning"}>
+                  {step.done ? "Done" : "To do"}
+                </s-badge>
+                <s-stack direction="block" gap="small-200">
+                  <s-text type="strong">{step.title}</s-text>
+                  <s-paragraph tone="neutral" color="subdued">
+                    {step.description}
+                  </s-paragraph>
+                  {!step.done ? (
+                    <s-link href={step.href}>Complete this step →</s-link>
+                  ) : null}
+                </s-stack>
+              </s-stack>
+            </s-box>
+          ))}
+        </s-stack>
+      </s-section>
+
+      <s-section slot="aside" heading="How DrobeBook works">
         <s-paragraph>
-          <s-text>Database: </s-text>
-          <s-link href="https://www.prisma.io/" target="_blank">
-            Prisma
-          </s-link>
+          Products, orders, and payments stay in Shopify. This app adds hire
+          scheduling, availability checks, and the storefront booking widget on
+          top.
         </s-paragraph>
       </s-section>
 
-      <s-section slot="aside" heading="Next steps">
-        <s-unordered-list>
-          <s-list-item>
-            Build an{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/getting-started/build-app-example"
-              target="_blank"
-            >
-              example app
-            </s-link>
-          </s-list-item>
-          <s-list-item>
-            Explore Shopify&apos;s API with{" "}
-            <s-link
-              href="https://shopify.dev/docs/apps/tools/graphiql-admin-api"
-              target="_blank"
-            >
-              GraphiQL
-            </s-link>
-          </s-list-item>
-        </s-unordered-list>
+      <s-section slot="aside" heading="Storefront API">
+        <s-paragraph>
+          Availability is checked via the app proxy at{" "}
+          <s-text>/apps/gk-drobe/api/availability</s-text>
+        </s-paragraph>
       </s-section>
     </s-page>
   );

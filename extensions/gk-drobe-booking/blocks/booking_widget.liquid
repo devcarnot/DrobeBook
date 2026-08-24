@@ -1,0 +1,253 @@
+{% if block.settings.product != blank %}
+
+  {% assign booking_product = block.settings.product %}
+
+{% else %}
+
+  {% assign booking_product = product %}
+
+{% endif %}
+
+
+
+{% if booking_product == blank %}
+
+  <div class="gk-drobe-booking" {{ block.shopify_attributes }}>
+
+    <p>Select a product or use this block on a product page.</p>
+
+  </div>
+
+{% else %}
+
+  <div
+    class="gk-drobe-booking"
+    data-gk-drobe-booking
+    data-product-id="{{ booking_product.id }}"
+    data-product-title="{{ booking_product.title | escape }}"
+    data-variants='{{ booking_product.variants | json }}'
+    data-options='{{ booking_product.options_with_values | json }}'
+    data-color-pattern='{{ booking_product.metafields.shopify.color-pattern.value | json }}'
+    data-proxy-base="/apps/gk-drobe"
+    data-heading="{{ block.settings.heading | escape }}"
+    {{ block.shopify_attributes }}
+  >
+
+    <h3 class="gk-drobe-booking__title">{{ block.settings.heading }}</h3>
+
+
+
+    <div class="gk-drobe-booking__group">
+
+      <span class="gk-drobe-booking__label">{{ 'booking.size' | t }}</span>
+
+      <div class="gk-drobe-booking__buttons" data-gk-size-buttons role="group" aria-label="{{ 'booking.size' | t }}"></div>
+
+    </div>
+
+
+
+    <div class="gk-drobe-booking__group">
+
+      <span class="gk-drobe-booking__label">{{ 'booking.duration' | t }}</span>
+
+      <div class="gk-drobe-booking__buttons" data-gk-duration-buttons role="group" aria-label="{{ 'booking.duration' | t }}"></div>
+
+    </div>
+
+
+
+    <div class="gk-drobe-booking__group" data-gk-color-group>
+      <span class="gk-drobe-booking__label">{{ 'booking.color' | t }}</span>
+      <div class="gk-drobe-booking__buttons" data-gk-color-buttons role="group" aria-label="{{ 'booking.color' | t }}"></div>
+    </div>
+
+    <div class="gk-drobe-booking__group">
+      <span class="gk-drobe-booking__label">{{ 'booking.delivery_method' | t }}</span>
+      <div class="gk-drobe-booking__buttons" data-gk-delivery-buttons role="group" aria-label="{{ 'booking.delivery_method' | t }}"></div>
+    </div>
+
+
+
+    <p class="gk-drobe-booking__instructions" data-gk-instructions hidden></p>
+
+
+
+    <div class="gk-drobe-booking__calendar">
+
+      <div class="gk-drobe-booking__calendar-header">
+
+        <button type="button" class="gk-drobe-booking__nav" data-gk-prev-month aria-label="Previous month">&larr;</button>
+
+        <strong data-gk-calendar-label></strong>
+
+        <button type="button" class="gk-drobe-booking__nav" data-gk-next-month aria-label="Next month">&rarr;</button>
+
+      </div>
+
+      <div class="gk-drobe-booking__loading" data-gk-loading hidden>
+
+        {{ 'booking.loading_availability' | t }}
+
+      </div>
+
+      <div class="gk-drobe-booking__calendar-grid" data-gk-calendar-grid></div>
+
+    </div>
+
+
+
+    <p class="gk-drobe-booking__postage" data-gk-postage hidden></p>
+
+
+
+    <div class="gk-drobe-booking__summary">
+
+      <div class="gk-drobe-booking__summary-row">
+
+        <div class="gk-drobe-booking__summary-item">
+
+          <span class="gk-drobe-booking__summary-label">{{ 'booking.delivery_date' | t }}</span>
+
+          <strong data-gk-delivery-date-display>…</strong>
+
+        </div>
+
+        <div class="gk-drobe-booking__summary-item gk-drobe-booking__summary-item--right">
+
+          <span class="gk-drobe-booking__summary-label">{{ 'booking.hire_cost' | t }}</span>
+
+          <strong data-gk-hire-cost>—</strong>
+
+        </div>
+
+      </div>
+
+      <div class="gk-drobe-booking__summary-row">
+
+        <div class="gk-drobe-booking__summary-item">
+
+          <span class="gk-drobe-booking__summary-label">{{ 'booking.return_date' | t }}</span>
+
+          <strong data-gk-return-date-display>…</strong>
+
+        </div>
+
+        <div class="gk-drobe-booking__summary-item gk-drobe-booking__summary-item--right">
+
+          <label class="gk-drobe-booking__protection">
+
+            <input type="checkbox" data-gk-damage-protection checked>
+
+            <span data-gk-damage-label>{{ 'booking.damage_protection' | t }}</span>
+
+            <a href="#" data-gk-damage-info hidden>{{ 'booking.more_info' | t }}</a>
+
+          </label>
+
+          <strong data-gk-damage-price>—</strong>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+
+    <div class="gk-drobe-booking__group">
+
+      <label class="gk-drobe-booking__label" for="gk-event-date-{{ block.id }}">{{ 'booking.event_date' | t }}</label>
+
+      <input
+
+        id="gk-event-date-{{ block.id }}"
+
+        class="gk-drobe-booking__event-input"
+
+        type="date"
+
+        data-gk-event-date
+
+        required
+
+      >
+
+    </div>
+
+
+
+    <button type="button" class="gk-drobe-booking__submit" data-gk-submit disabled>
+
+      {{ block.settings.button_label }}
+
+    </button>
+
+
+
+    <div class="gk-drobe-booking__error" data-gk-error hidden></div>
+
+  </div>
+
+  <script src="/apps/gk-drobe/api/cart-behavior.js" defer></script>
+
+{% endif %}
+
+
+
+{% schema %}
+
+{
+
+  "name": "GK.Drobe Booking",
+
+  "target": "section",
+
+  "stylesheet": "booking-widget.css",
+
+  "javascript": "booking-widget.js",
+
+  "settings": [
+
+    {
+
+      "type": "product",
+
+      "id": "product",
+
+      "label": "Product",
+
+      "autofill": true
+
+    },
+
+    {
+
+      "type": "text",
+
+      "id": "heading",
+
+      "label": "Heading",
+
+      "default": "Book this gown"
+
+    },
+
+    {
+
+      "type": "text",
+
+      "id": "button_label",
+
+      "label": "Add to cart button label (fallback)",
+
+      "default": "Add hire to cart"
+
+    }
+
+  ]
+
+}
+
+{% endschema %}
+

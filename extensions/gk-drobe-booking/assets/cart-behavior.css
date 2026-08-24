@@ -1,0 +1,21 @@
+[data-gk-drobe-booking="true"] .caption-with-letter-spacing,
+[data-gk-drobe-booking="true"] .cart-item__variant,
+[data-gk-drobe-booking="true"] .cart-item__options--variant,
+[data-gk-drobe-booking="true"] .product-option--inline,
+.gk-drobe-hide-variant-summary {
+  display: none !important;
+}
+
+.gk-drobe-cart-item--booking .cart-item__variant,
+.gk-drobe-cart-item--booking .cart-item__options--variant,
+.gk-drobe-cart-item--booking .product-option--inline,
+.gk-drobe-cart-item--booking .gk-drobe-hide-variant-summary {
+  display: none !important;
+}
+
+.cart-count-bubble.gk-drobe-cart-empty,
+[data-cart-count].gk-drobe-cart-empty,
+#cart-icon-bubble.gk-drobe-cart-empty,
+.cart-link__bubble.gk-drobe-cart-empty {
+  display: none !important;
+}

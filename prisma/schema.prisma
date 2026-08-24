@@ -5,30 +5,78 @@ generator client {
   provider = "prisma-client-js"
 }
 
-// Note that some adapters may set a maximum length for the String type by default, please ensure your strings are long
-// enough when changing adapters.
-// See https://www.prisma.io/docs/orm/reference/prisma-schema-reference#string for more information
+// SQLite for local dev; use Postgres in production (set DATABASE_URL env var).
 datasource db {
   provider = "sqlite"
-  url      = "file:dev.sqlite"
+  url      = env("DATABASE_URL")
 }
 
 model Session {
-  id            String    @id
-  shop          String
-  state         String
-  isOnline      Boolean   @default(false)
-  scope         String?
-  expires       DateTime?
-  accessToken   String
-  userId        BigInt?
-  firstName     String?
-  lastName      String?
-  email         String?
-  accountOwner  Boolean   @default(false)
-  locale        String?
-  collaborator  Boolean?  @default(false)
-  emailVerified Boolean?  @default(false)
+  id                  String    @id
+  shop                String
+  state               String
+  isOnline            Boolean   @default(false)
+  scope               String?
+  expires             DateTime?
+  accessToken         String
+  userId              BigInt?
+  firstName           String?
+  lastName            String?
+  email               String?
+  accountOwner        Boolean   @default(false)
+  locale              String?
+  collaborator        Boolean?  @default(false)
+  emailVerified       Boolean?  @default(false)
   refreshToken        String?
   refreshTokenExpires DateTime?
+}
+
+model Booking {
+  id             String   @id @default(cuid())
+  shop           String
+  productId      String
+  variantId      String
+  size           String
+  startDate      DateTime // delivery date
+  endDate        DateTime // last day of hire (startDate + duration - 1 day)
+  deliveryMethod String // "post" | "pickup"
+  eventDate      DateTime
+  orderId        String?
+  status         String // "pending" | "confirmed" | "cancelled"
+  createdAt      DateTime @default(now())
+
+  @@index([shop, productId, variantId, status])
+  @@index([shop, startDate, endDate])
+}
+
+model AppointmentSlot {
+  id              String   @id @default(cuid())
+  shop            String
+  date            DateTime
+  time            String
+  durationMinutes Int // 50 or 20
+  changeRoomId    String
+  capacity        Int      @default(1)
+  bookedCount     Int      @default(0)
+  orderId         String?
+
+  @@index([shop, date, durationMinutes, changeRoomId])
+}
+
+model BlockedDate {
+  id        String   @id @default(cuid())
+  shop      String
+  productId String?
+  variantId String?
+  date      DateTime
+  reason    String?
+
+  @@index([shop, productId, variantId, date])
+}
+
+model ShopSettings {
+  id        String   @id @default(cuid())
+  shop      String   @unique
+  config    String
+  updatedAt DateTime @updatedAt
 }

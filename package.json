@@ -1,8 +1,10 @@
 {
-  "name": "app",
+  "name": "gk-drobe-booking",
   "private": true,
   "scripts": {
     "build": "react-router build",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "dev": "shopify app dev",
     "config:link": "shopify app config link",
     "generate": "shopify app generate",
@@ -57,7 +59,8 @@
     "graphql-config": "^5.1.1",
     "prettier": "^3.6.2",
     "typescript": "^5.9.3",
-    "vite": "^7.3.1"
+    "vite": "^7.3.1",
+    "vitest": "^3.2.7"
   },
   "workspaces": {
     "packages": [

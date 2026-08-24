@@ -1,0 +1,289 @@
+.gk-drobe-booking {
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 0;
+  padding: 1.5rem 1.25rem;
+  margin: 1rem 0;
+  font-family: inherit;
+  color: #111;
+}
+
+.gk-drobe-booking__title {
+  font-size: 1.125rem;
+  font-weight: 600;
+  margin: 0 0 1.25rem;
+  letter-spacing: 0.01em;
+}
+
+.gk-drobe-booking__group {
+  margin-bottom: 1.1rem;
+}
+
+.gk-drobe-booking__label {
+  display: block;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  margin-bottom: 0.45rem;
+  color: rgba(0, 0, 0, 0.72);
+}
+
+.gk-drobe-booking__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.gk-drobe-booking__choice {
+  appearance: none;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  border-radius: 2px;
+  padding: 0.55rem 0.85rem;
+  font: inherit;
+  font-size: 0.875rem;
+  line-height: 1.2;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: 2.5rem;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.gk-drobe-booking__choice:hover:not(.gk-drobe-booking__choice--selected) {
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.gk-drobe-booking__choice--selected {
+  background: #111;
+  color: #fff;
+  border-color: #111;
+}
+
+.gk-drobe-booking__choice--color .gk-drobe-booking__swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  flex-shrink: 0;
+}
+
+.gk-drobe-booking__choice--selected .gk-drobe-booking__swatch {
+  border-color: rgba(255, 255, 255, 0.65);
+}
+
+.gk-drobe-booking__instructions,
+.gk-drobe-booking__postage {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: rgba(0, 0, 0, 0.58);
+  margin: 0 0 1rem;
+}
+
+.gk-drobe-booking__calendar {
+  margin: 0.5rem 0 1rem;
+}
+
+.gk-drobe-booking__calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.gk-drobe-booking__nav {
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  background: #fff;
+  border-radius: 2px;
+  padding: 0.25rem 0.55rem;
+  cursor: pointer;
+  font: inherit;
+}
+
+.gk-drobe-booking__calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.2rem;
+}
+
+.gk-drobe-booking__weekday,
+.gk-drobe-booking__day {
+  text-align: center;
+  padding: 0.55rem 0;
+  font-size: 0.8125rem;
+}
+
+.gk-drobe-booking__weekday {
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 0.75rem;
+}
+
+.gk-drobe-booking__day {
+  border: 1px solid transparent;
+  border-radius: 2px;
+  background: #fff;
+  cursor: pointer;
+  position: relative;
+  min-height: 2.35rem;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+
+.gk-drobe-booking__day--empty {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.gk-drobe-booking__day--unavailable {
+  color: rgba(0, 0, 0, 0.28);
+  background: rgba(0, 0, 0, 0.03);
+  cursor: not-allowed;
+  text-decoration: line-through;
+}
+
+/* Hover preview: light tan block for full hire range */
+.gk-drobe-booking__day--preview-range {
+  background: #d8c4a8;
+  color: #111;
+}
+
+/* Selected range: solid black like reference */
+.gk-drobe-booking__day--selected-range {
+  background: #111;
+  color: #fff;
+}
+
+.gk-drobe-booking__day--range-start::before,
+.gk-drobe-booking__day--range-end::after {
+  content: "";
+  position: absolute;
+  width: 0.45rem;
+  height: 0.45rem;
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.gk-drobe-booking__day--range-start::before {
+  top: 0.15rem;
+  left: 0.15rem;
+}
+
+.gk-drobe-booking__day--range-end::after {
+  right: 0.15rem;
+  bottom: 0.15rem;
+}
+
+.gk-drobe-booking__summary {
+  border-top: 1px solid rgba(0, 0, 0, 0.12);
+  padding-top: 1rem;
+  margin: 1rem 0;
+}
+
+.gk-drobe-booking__summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+}
+
+.gk-drobe-booking__summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.gk-drobe-booking__summary-item--right {
+  align-items: flex-end;
+  text-align: right;
+}
+
+.gk-drobe-booking__summary-label {
+  font-size: 0.75rem;
+  color: rgba(0, 0, 0, 0.52);
+}
+
+.gk-drobe-booking__protection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+}
+
+.gk-drobe-booking__protection a {
+  font-size: 0.75rem;
+  color: inherit;
+}
+
+.gk-drobe-booking__event-input {
+  width: 100%;
+  max-width: 100%;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  border-radius: 2px;
+  font: inherit;
+}
+
+.gk-drobe-booking__submit {
+  width: 100%;
+  padding: 0.95rem 1rem;
+  border: none;
+  border-radius: 2px;
+  background: #111;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 0.5rem;
+}
+
+.gk-drobe-booking__submit:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.gk-drobe-booking__error {
+  color: #b00020;
+  font-size: 0.875rem;
+  margin-top: 0.75rem;
+}
+
+.gk-drobe-booking__loading {
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.55);
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 480px) {
+  .gk-drobe-booking {
+    padding: 1.15rem 0.9rem;
+  }
+
+  .gk-drobe-booking__buttons {
+    gap: 0.4rem;
+  }
+
+  .gk-drobe-booking__choice {
+    flex: 1 1 calc(50% - 0.4rem);
+    justify-content: center;
+    padding-left: 0.65rem;
+    padding-right: 0.65rem;
+  }
+
+  .gk-drobe-booking__summary-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .gk-drobe-booking__summary-item--right {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .gk-drobe-booking__day {
+    min-height: 2rem;
+    font-size: 0.75rem;
+  }
+}

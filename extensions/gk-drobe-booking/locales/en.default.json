@@ -1,0 +1,19 @@
+{
+  "booking": {
+    "size": "Size",
+    "duration": "Duration",
+    "duration_4": "4 days",
+    "duration_8": "8 days",
+    "color": "Color",
+    "delivery_method": "Delivery method",
+    "delivery_post": "Post",
+    "delivery_pickup": "Local pickup",
+    "delivery_date": "Delivery Date",
+    "return_date": "Return Date",
+    "hire_cost": "Hire Cost",
+    "event_date": "Enter your Event Date",
+    "damage_protection": "Add Damage Protection",
+    "more_info": "More Info",
+    "loading_availability": "Checking availability..."
+  }
+}
