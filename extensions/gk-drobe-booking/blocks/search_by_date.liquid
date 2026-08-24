@@ -1,0 +1,148 @@
+{% assign search_collection = collections[block.settings.collection] %}
+
+<div
+  class="gk-drobe-search"
+  data-gk-drobe-search
+  data-proxy-base="/apps/gk-drobe"
+  data-collection-handle="{{ block.settings.collection | default: 'all' }}"
+  data-money-format="{{ shop.money_format | escape }}"
+  data-root-url="{{ routes.root_url }}"
+  {{ block.shopify_attributes }}
+>
+  <header class="gk-drobe-search__header">
+    <h1 class="gk-drobe-search__title">{{ block.settings.heading | default: 'Search By Date' }}</h1>
+  </header>
+
+  <form class="gk-drobe-search__form" data-gk-search-form>
+    <div class="gk-drobe-search__field">
+      <label class="gk-drobe-search__label" for="gk-search-event-date">{{ 'search.event_date' | t }}</label>
+      <input
+        id="gk-search-event-date"
+        class="gk-drobe-search__input"
+        type="date"
+        name="eventDate"
+        required
+      >
+    </div>
+
+    <div class="gk-drobe-search__field">
+      <label class="gk-drobe-search__label" for="gk-search-size">{{ 'search.size' | t }}</label>
+      <select id="gk-search-size" class="gk-drobe-search__input" name="size" required>
+        <option value="">{{ 'search.size_placeholder' | t }}</option>
+        {% assign size_values = block.settings.sizes | split: ',' %}
+        {% for size in size_values %}
+          {% assign trimmed = size | strip %}
+          {% if trimmed != blank %}
+            <option value="{{ trimmed }}">{{ trimmed }}</option>
+          {% endif %}
+        {% endfor %}
+      </select>
+    </div>
+
+    <button type="submit" class="gk-drobe-search__button">{{ block.settings.button_label | default: "Find your dream 'Fit" }}</button>
+  </form>
+
+  <div class="gk-drobe-search__results" data-gk-results hidden>
+    <div class="gk-drobe-search__filters-bar">
+      <div class="gk-drobe-search__filters">
+        <div class="gk-drobe-search__filter">
+          <span class="gk-drobe-search__filter-label">{{ 'search.duration' | t }}</span>
+          <select data-gk-filter-duration>
+            <option value="4">4 days</option>
+            <option value="8">8 days</option>
+          </select>
+        </div>
+        <div class="gk-drobe-search__filter">
+          <span class="gk-drobe-search__filter-label">{{ 'search.delivery_method' | t }}</span>
+          <select data-gk-filter-delivery>
+            <option value="post">{{ 'search.post' | t }}</option>
+            <option value="pickup">{{ 'search.pickup' | t }}</option>
+          </select>
+        </div>
+        <div class="gk-drobe-search__filter">
+          <span class="gk-drobe-search__filter-label">{{ 'search.delivery_date' | t }}</span>
+          <input type="text" readonly data-gk-filter-delivery-date>
+        </div>
+        <div class="gk-drobe-search__filter">
+          <span class="gk-drobe-search__filter-label">{{ 'search.return_date' | t }}</span>
+          <input type="text" readonly data-gk-filter-return-date>
+        </div>
+        <div class="gk-drobe-search__filter">
+          <span class="gk-drobe-search__filter-label">{{ 'search.size' | t }}</span>
+          <input type="text" readonly data-gk-filter-size>
+        </div>
+        <button type="button" class="gk-drobe-search__button gk-drobe-search__button--compact" data-gk-refine-search>
+          {{ 'search.search_button' | t }}
+        </button>
+      </div>
+    </div>
+
+    <div class="gk-drobe-search__layout">
+      <aside class="gk-drobe-search__sidebar">
+        <div class="gk-drobe-search__sidebar-group">
+          <h3>{{ 'search.refine' | t }}</h3>
+          <strong>{{ 'search.sidebar_size' | t }}</strong>
+          <div class="gk-drobe-search__checks" data-gk-sidebar-sizes></div>
+        </div>
+        <div class="gk-drobe-search__sidebar-group">
+          <strong>{{ 'search.sidebar_colour' | t }}</strong>
+          <div class="gk-drobe-search__checks" data-gk-sidebar-colours></div>
+        </div>
+        <div class="gk-drobe-search__sidebar-group">
+          <strong>{{ 'search.sidebar_designer' | t }}</strong>
+          <div class="gk-drobe-search__checks" data-gk-sidebar-designers></div>
+        </div>
+      </aside>
+
+      <section class="gk-drobe-search__main">
+        <div class="gk-drobe-search__results-head">
+          <p data-gk-results-count></p>
+          <select data-gk-sort>
+            <option value="newest">{{ 'search.sort_newest' | t }}</option>
+            <option value="price-asc">{{ 'search.sort_price_low' | t }}</option>
+            <option value="price-desc">{{ 'search.sort_price_high' | t }}</option>
+          </select>
+        </div>
+        <div class="gk-drobe-search__loading" data-gk-results-loading hidden>{{ 'search.loading' | t }}</div>
+        <div class="gk-drobe-search__grid" data-gk-results-grid></div>
+        <p class="gk-drobe-search__empty" data-gk-results-empty hidden>{{ 'search.no_results' | t }}</p>
+      </section>
+    </div>
+  </div>
+
+  <p class="gk-drobe-search__error" data-gk-error hidden></p>
+</div>
+
+{% schema %}
+{
+  "name": "GK.Drobe Search By Date",
+  "target": "section",
+  "stylesheet": "search-by-date.css",
+  "javascript": "search-by-date.js",
+  "settings": [
+    {
+      "type": "text",
+      "id": "heading",
+      "label": "Page heading",
+      "default": "Search By Date"
+    },
+    {
+      "type": "text",
+      "id": "button_label",
+      "label": "Search button label",
+      "default": "Find your dream 'Fit"
+    },
+    {
+      "type": "collection",
+      "id": "collection",
+      "label": "Hire collection"
+    },
+    {
+      "type": "text",
+      "id": "sizes",
+      "label": "Size options (comma separated)",
+      "default": "4,6,8,10,12,14"
+    }
+  ]
+}
+{% endschema %}

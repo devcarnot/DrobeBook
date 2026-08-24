@@ -1,19 +1,56 @@
-{
-  "booking": {
-    "size": "Size",
-    "duration": "Duration",
-    "duration_4": "4 days",
-    "duration_8": "8 days",
-    "color": "Color",
-    "delivery_method": "Delivery method",
-    "delivery_post": "Post",
-    "delivery_pickup": "Local pickup",
-    "delivery_date": "Delivery Date",
-    "return_date": "Return Date",
-    "hire_cost": "Hire Cost",
-    "event_date": "Enter your Event Date",
-    "damage_protection": "Add Damage Protection",
-    "more_info": "More Info",
-    "loading_availability": "Checking availability..."
-  }
-}
+{
+  "booking": {
+    "size": "Size",
+    "duration": "Duration",
+    "duration_4": "4 days",
+    "duration_8": "8 days",
+    "color": "Color",
+    "delivery_method": "Delivery method",
+    "delivery_post": "Post",
+    "delivery_pickup": "Local pickup",
+    "delivery_date": "Delivery Date",
+    "return_date": "Return Date",
+    "hire_cost": "Hire Cost",
+    "event_date": "Enter your Event Date",
+    "damage_protection": "Add Damage Protection",
+    "more_info": "More Info",
+    "loading_availability": "Checking availability..."
+  },
+  "try_on": {
+    "day": "Day",
+    "duration": "Appointment duration",
+    "time_slot": "Available times",
+    "price": "Price:",
+    "select_time": "Select a Time",
+    "book_checkout": "Book & Checkout",
+    "change_timezone": "Change timezone",
+    "back": "Back",
+    "confirm_title": "Book an appointment",
+    "confirm_subtitle": "Please confirm the following appointment",
+    "additional_info": "Additional information",
+    "event_date": "Your Event Date:",
+    "specific_items": "Please list any specific items you would like to try on:",
+    "loading": "Loading availability..."
+  },
+  "search": {
+    "event_date": "Event Date",
+    "size": "Size",
+    "size_placeholder": "Select...",
+    "duration": "Duration",
+    "delivery_method": "Delivery Method",
+    "delivery_date": "Delivery Date",
+    "return_date": "Return Date",
+    "post": "Post",
+    "pickup": "Local Pickup",
+    "search_button": "Search",
+    "refine": "Refine results",
+    "sidebar_size": "SIZE",
+    "sidebar_colour": "COLOUR",
+    "sidebar_designer": "DESIGNER",
+    "sort_newest": "Newest to Oldest",
+    "sort_price_low": "Price: Low to High",
+    "sort_price_high": "Price: High to Low",
+    "loading": "Searching available gowns...",
+    "no_results": "No gowns found for these dates. Try another size or event date."
+  }
+}

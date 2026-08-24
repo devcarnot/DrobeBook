@@ -1,0 +1,224 @@
+.gk-drobe-tryon {
+  max-width: 36rem;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 2rem;
+  color: #111;
+  font-family: inherit;
+}
+
+.gk-drobe-tryon__intro,
+.gk-drobe-tryon__confirm-title {
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 500;
+  margin: 0 0 1.25rem;
+}
+
+.gk-drobe-tryon__confirm-sub {
+  text-align: center;
+  margin: 0 0 1.25rem;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.gk-drobe-tryon__group {
+  margin-bottom: 1.25rem;
+}
+
+.gk-drobe-tryon__label,
+.gk-drobe-tryon__section-title {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.gk-drobe-tryon__section-title {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
+.gk-drobe-tryon__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.gk-drobe-tryon__buttons--stack {
+  flex-direction: column;
+}
+
+.gk-drobe-tryon__choice {
+  appearance: none;
+  border: 1px solid #111;
+  background: #fff;
+  color: #111;
+  border-radius: 0;
+  padding: 0.85rem 1rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  cursor: pointer;
+  text-align: center;
+  transition: background 0.15s ease;
+}
+
+.gk-drobe-tryon__choice--selected {
+  background: #d8cdb8;
+  border-color: #d8cdb8;
+  color: #111;
+}
+
+.gk-drobe-tryon__calendar {
+  margin: 1rem 0;
+}
+
+.gk-drobe-tryon__calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.gk-drobe-tryon__nav {
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.gk-drobe-tryon__calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.15rem;
+}
+
+.gk-drobe-tryon__weekday,
+.gk-drobe-tryon__day {
+  text-align: center;
+  padding: 0.65rem 0;
+  font-size: 0.875rem;
+}
+
+.gk-drobe-tryon__weekday {
+  color: rgba(0, 0, 0, 0.45);
+  font-weight: 600;
+}
+
+.gk-drobe-tryon__day {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.gk-drobe-tryon__day--selected {
+  background: #d8cdb8;
+  font-weight: 700;
+}
+
+.gk-drobe-tryon__day--unavailable,
+.gk-drobe-tryon__day--empty {
+  color: rgba(0, 0, 0, 0.25);
+  cursor: default;
+}
+
+.gk-drobe-tryon__select,
+.gk-drobe-tryon__input {
+  width: 100%;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  border-radius: 999px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  background: #fff;
+}
+
+.gk-drobe-tryon__price-row {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.35rem;
+  margin: 1rem 0;
+  font-size: 0.9375rem;
+}
+
+.gk-drobe-tryon__submit {
+  width: 100%;
+  border: 0;
+  background: #111;
+  color: #fff;
+  padding: 1rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.gk-drobe-tryon__submit:disabled {
+  background: rgba(0, 0, 0, 0.2);
+  cursor: not-allowed;
+}
+
+.gk-drobe-tryon__submit--confirm {
+  background: #d8cdb8;
+  color: #111;
+}
+
+.gk-drobe-tryon__timezone {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 1rem;
+  font-size: 0.8125rem;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.gk-drobe-tryon__link,
+.gk-drobe-tryon__back {
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-decoration: underline;
+  cursor: pointer;
+  color: inherit;
+}
+
+.gk-drobe-tryon__summary-card {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 0.85rem;
+  align-items: start;
+  padding: 1rem 0;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 1.25rem;
+}
+
+.gk-drobe-tryon__summary-copy p {
+  margin: 0.35rem 0 0;
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.gk-drobe-tryon__note {
+  font-size: 0.875rem;
+  margin: 1rem 0 0.5rem;
+}
+
+.gk-drobe-tryon__checkbox {
+  display: flex;
+  gap: 0.65rem;
+  align-items: flex-start;
+  font-size: 0.875rem;
+}
+
+.gk-drobe-tryon__loading,
+.gk-drobe-tryon__error {
+  font-size: 0.875rem;
+}
+
+.gk-drobe-tryon__error {
+  color: #b00020;
+}
+
+.gk-drobe-tryon__loading {
+  text-align: center;
+  color: rgba(0, 0, 0, 0.55);
+}

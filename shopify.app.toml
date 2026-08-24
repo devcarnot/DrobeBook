@@ -1,7 +1,7 @@
 # DrobeBook — GK.Drobe booking app
 client_id = "27d4e102059dee2122a57d3f1cc57057"
 name = "DrobeBook"
-application_url = "https://ringtones-lighter-surprising-contamination.trycloudflare.com"
+application_url = "https://ringtones-lighter-surprising-contamination.trycloudflare.com/app"
 embedded = true
 
 [build]

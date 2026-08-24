@@ -1,73 +1,155 @@
-.index {
-  align-items: center;
+.page {
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at top right, rgba(216, 205, 184, 0.35), transparent 32%),
+    linear-gradient(180deg, #faf9f7 0%, #f3f1ec 100%);
+  padding: 2rem 1rem;
+}
+
+.shell {
+  max-width: 72rem;
+  margin: 0 auto;
+}
+
+.header {
   display: flex;
-  justify-content: center;
-  height: 100%;
-  width: 100%;
-  text-align: center;
-  padding: 1rem;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
-.heading,
-.text {
-  padding: 0;
-  margin: 0;
-}
-
-.text {
-  font-size: 1.2rem;
-  padding-bottom: 2rem;
-}
-
-.content {
+.logoMark {
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 1rem;
   display: grid;
-  gap: 2rem;
+  place-items: center;
+  background: #111;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.eyebrow {
+  margin: 0;
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.title {
+  margin: 0.15rem 0 0;
+  font-size: 2rem;
+  font-weight: 700;
+}
+
+.hero {
+  max-width: 44rem;
+  margin-bottom: 2rem;
+}
+
+.heroTitle {
+  margin: 0 0 0.75rem;
+  font-size: clamp(1.75rem, 4vw, 2.5rem);
+  line-height: 1.15;
+  font-weight: 600;
+}
+
+.heroText {
+  margin: 0;
+  font-size: 1.0625rem;
+  line-height: 1.6;
+  color: rgba(0, 0, 0, 0.68);
+}
+
+.loginCard {
+  background: #fff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 1rem;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+}
+
+.loginTitle {
+  margin: 0 0 0.35rem;
+  font-size: 1.25rem;
+}
+
+.loginText {
+  margin: 0 0 1rem;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .form {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  margin: 0 auto;
+  display: grid;
   gap: 1rem;
 }
 
 .label {
   display: grid;
-  gap: 0.2rem;
-  max-width: 20rem;
-  text-align: left;
-  font-size: 1rem;
+  gap: 0.35rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
 }
 
 .input {
-  padding: 0.4rem;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.75rem;
+  padding: 0.85rem 1rem;
+  font: inherit;
 }
 
 .button {
-  padding: 0.4rem;
+  justify-self: start;
+  border: 0;
+  border-radius: 999px;
+  background: #111;
+  color: #fff;
+  padding: 0.85rem 1.4rem;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
 }
 
-.list {
-  list-style: none;
-  padding: 0;
-  padding-top: 3rem;
+.features {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.featureCard {
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 1rem;
+  padding: 1.25rem;
+}
+
+.featureCard h3 {
+  margin: 0.75rem 0 0.35rem;
+  font-size: 1.0625rem;
+}
+
+.featureCard p {
   margin: 0;
-  display: flex;
-  gap: 2rem;
+  line-height: 1.55;
+  color: rgba(0, 0, 0, 0.65);
+  font-size: 0.9375rem;
 }
 
-.list > li {
-  max-width: 20rem;
-  text-align: left;
+.featureIcon {
+  font-size: 1.5rem;
 }
 
-@media only screen and (max-width: 50rem) {
-  .list {
-    display: block;
-  }
+.footer {
+  margin-top: 2rem;
+  color: rgba(0, 0, 0, 0.45);
+  font-size: 0.875rem;
+}
 
-  .list > li {
-    padding-bottom: 1rem;
+@media (max-width: 900px) {
+  .features {
+    grid-template-columns: 1fr;
   }
 }
