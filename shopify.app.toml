@@ -27,8 +27,14 @@ api_version = "2025-10"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
+  # Requires Protected customer data access in Partner Dashboard → API access requests.
+  # After enabling (Step 1 is enough for dev stores), uncomment and run shopify app dev.
+  # [[webhooks.subscriptions]]
+  # topics = ["orders/create"]
+  # uri = "/webhooks/orders/create"
+
 [access_scopes]
-scopes = "write_app_proxy,read_products,read_orders"
+scopes = "write_app_proxy,read_products,read_orders,read_inventory"
 
 [auth]
 redirect_urls = [

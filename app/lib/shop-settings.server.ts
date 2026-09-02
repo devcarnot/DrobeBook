@@ -1,8 +1,12 @@
 import prisma from "../db.server";
 import {
   DEFAULT_SHOP_CONFIG,
+  DEFAULT_APPOINTMENT_CONFIG,
+  DEFAULT_SEARCH_CONFIG,
   parseShopConfig,
   serializeShopConfig,
+  type AppointmentConfig,
+  type SearchConfig,
   type ShopConfig,
 } from "./shop-config";
 import {
@@ -55,4 +59,45 @@ export async function saveShopWidgetConfig(
   return widget;
 }
 
-export { DEFAULT_WIDGET_CONFIG, DEFAULT_SHOP_CONFIG };
+export async function getShopAppointmentConfig(
+  shop: string,
+): Promise<AppointmentConfig> {
+  const config = await getShopConfig(shop);
+  return config.appointment;
+}
+
+export async function saveShopAppointmentConfig(
+  shop: string,
+  appointment: AppointmentConfig,
+): Promise<AppointmentConfig> {
+  const existing = await getShopConfig(shop);
+  await saveShopConfig(shop, {
+    ...existing,
+    appointment,
+  });
+  return appointment;
+}
+
+export async function getShopSearchConfig(shop: string): Promise<SearchConfig> {
+  const config = await getShopConfig(shop);
+  return config.search;
+}
+
+export async function saveShopSearchConfig(
+  shop: string,
+  search: SearchConfig,
+): Promise<SearchConfig> {
+  const existing = await getShopConfig(shop);
+  await saveShopConfig(shop, {
+    ...existing,
+    search,
+  });
+  return search;
+}
+
+export {
+  DEFAULT_WIDGET_CONFIG,
+  DEFAULT_SHOP_CONFIG,
+  DEFAULT_APPOINTMENT_CONFIG,
+  DEFAULT_SEARCH_CONFIG,
+};

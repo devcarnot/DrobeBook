@@ -4,104 +4,188 @@
   {% assign try_on_product = product %}
 {% endif %}
 
+{% if try_on_product.handle %}
+  {% assign try_on_product = all_products[try_on_product.handle] | default: try_on_product %}
+{% endif %}
+
 {% if try_on_product == blank %}
   <div class="gk-drobe-tryon" {{ block.shopify_attributes }}>
     <p>Select a try-on appointment product in the block settings.</p>
   </div>
 {% else %}
-  <div
-    class="gk-drobe-tryon"
-    data-gk-drobe-tryon
-    data-product-id="{{ try_on_product.id }}"
-    data-product-title="{{ try_on_product.title | escape }}"
-    data-variant-id="{{ try_on_product.selected_or_first_available_variant.id }}"
-    data-variant-price="{{ try_on_product.selected_or_first_available_variant.price }}"
-    data-currency="{{ cart.currency.iso_code | default: shop.currency }}"
-    data-proxy-base="/apps/gk-drobe"
-    {{ block.shopify_attributes }}
-  >
-    <div data-gk-tryon-select-step>
-      <p class="gk-drobe-tryon__intro">{{ block.settings.intro | default: 'Select your appointment time' }}</p>
+  {% assign try_on_variant = try_on_product.selected_or_first_available_variant %}
 
-      <div class="gk-drobe-tryon__group">
-        <span class="gk-drobe-tryon__label">{{ 'try_on.day' | t }}</span>
-        <div class="gk-drobe-tryon__buttons" data-gk-day-buttons role="group"></div>
+  <div class="gk-drobe-tryon-section" {{ block.shopify_attributes }}>
+    <div class="gk-drobe-tryon-page" data-gk-tryon-page>
+      <div class="gk-drobe-tryon-page__grid">
+      <div class="gk-drobe-tryon-page__media">
+        {% if try_on_product.media.size > 0 %}
+          {% assign first_media = try_on_product.media.first %}
+          <div class="gk-drobe-tryon-page__main-image">
+            {% if first_media.media_type == 'image' %}
+              <img
+                data-gk-tryon-main-image
+                src="{{ first_media | image_url: width: 1200 }}"
+                alt="{{ first_media.alt | default: try_on_product.title | escape }}"
+                width="{{ first_media.width }}"
+                height="{{ first_media.height }}"
+                loading="eager"
+              >
+            {% else %}
+              {{ first_media | media_tag: image_size: '1200x', class: 'gk-drobe-tryon-page__main-media' }}
+            {% endif %}
+          </div>
+
+          {% if try_on_product.media.size > 1 %}
+            <ul class="gk-drobe-tryon-page__thumbs" role="list">
+              {% for media in try_on_product.media %}
+                {% if media.media_type == 'image' %}
+                  <li>
+                    <button
+                      type="button"
+                      class="gk-drobe-tryon-page__thumb{% if forloop.first %} is-active{% endif %}"
+                      data-gk-tryon-thumb
+                      data-gk-media-url="{{ media | image_url: width: 1200 }}"
+                      aria-label="{{ media.alt | default: try_on_product.title | escape }}"
+                    >
+                      {{
+                        media
+                        | image_url: width: 200
+                        | image_tag: loading: 'lazy', alt: media.alt, widths: '100, 200'
+                      }}
+                    </button>
+                  </li>
+                {% endif %}
+              {% endfor %}
+            </ul>
+          {% endif %}
+        {% elsif try_on_product.featured_image %}
+          <div class="gk-drobe-tryon-page__main-image">
+            <img
+              data-gk-tryon-main-image
+              src="{{ try_on_product.featured_image | image_url: width: 1200 }}"
+              alt="{{ try_on_product.featured_image.alt | default: try_on_product.title | escape }}"
+              loading="eager"
+            >
+          </div>
+        {% else %}
+          <div class="gk-drobe-tryon-page__main-image gk-drobe-tryon-page__placeholder">
+            {{ 'product-1' | placeholder_svg_tag: 'gk-drobe-tryon-page__placeholder-svg' }}
+          </div>
+        {% endif %}
       </div>
 
-      <div class="gk-drobe-tryon__group">
-        <span class="gk-drobe-tryon__label">{{ 'try_on.duration' | t }}</span>
-        <div class="gk-drobe-tryon__buttons gk-drobe-tryon__buttons--stack" data-gk-duration-buttons role="group"></div>
-      </div>
+      <div class="gk-drobe-tryon-page__info">
+        <h1 class="gk-drobe-tryon-page__title">{{ try_on_product.title }}</h1>
 
-      <div class="gk-drobe-tryon__calendar">
-        <div class="gk-drobe-tryon__calendar-header">
-          <button type="button" class="gk-drobe-tryon__nav" data-gk-prev-month aria-label="Previous month">&lsaquo;</button>
-          <strong data-gk-calendar-label></strong>
-          <button type="button" class="gk-drobe-tryon__nav" data-gk-next-month aria-label="Next month">&rsaquo;</button>
+        {% if try_on_variant %}
+          <p class="gk-drobe-tryon-page__price">{{ try_on_variant.price | money }}</p>
+        {% endif %}
+
+        {% if block.settings.show_description and try_on_product.description != blank %}
+          <div class="gk-drobe-tryon-page__description rte">
+            {{ try_on_product.description }}
+          </div>
+        {% endif %}
+
+        <div
+          class="gk-drobe-tryon"
+          data-gk-drobe-tryon
+          data-product-id="{{ try_on_product.id }}"
+          data-product-title="{{ try_on_product.title | escape }}"
+          data-variant-id="{{ try_on_variant.id }}"
+          data-variant-price="{{ try_on_variant.price }}"
+          data-currency="{{ cart.currency.iso_code | default: shop.currency }}"
+          data-proxy-base="/apps/gk-drobe"
+        >
+          <p class="gk-drobe-tryon__intro" data-gk-intro>{{ block.settings.intro | default: 'Select your appointment time' }}</p>
+
+          <div data-gk-tryon-select-step>
+            <div class="gk-drobe-tryon__group">
+              <span class="gk-drobe-tryon__label" data-gk-day-type-label>{{ 'try_on.day' | t }}</span>
+              <div class="gk-drobe-tryon__buttons" data-gk-day-buttons role="group"></div>
+            </div>
+
+            <div class="gk-drobe-tryon__group">
+              <span class="gk-drobe-tryon__label" data-gk-duration-type-label>{{ 'try_on.duration' | t }}</span>
+              <div class="gk-drobe-tryon__buttons gk-drobe-tryon__buttons--stack" data-gk-duration-buttons role="group"></div>
+            </div>
+
+            <div class="gk-drobe-tryon__calendar">
+              <div class="gk-drobe-tryon__calendar-header">
+                <button type="button" class="gk-drobe-tryon__nav" data-gk-prev-month aria-label="Previous month">&lsaquo;</button>
+                <strong data-gk-calendar-label></strong>
+                <button type="button" class="gk-drobe-tryon__nav" data-gk-next-month aria-label="Next month">&rsaquo;</button>
+              </div>
+              <div class="gk-drobe-tryon__loading" data-gk-loading hidden>{{ 'try_on.loading' | t }}</div>
+              <div class="gk-drobe-tryon__calendar-grid" data-gk-calendar-grid></div>
+            </div>
+
+            <div class="gk-drobe-tryon__group" data-gk-slot-group hidden>
+              <label class="gk-drobe-tryon__label" for="gk-tryon-slot" data-gk-time-slot-label>{{ 'try_on.time_slot' | t }}</label>
+              <select id="gk-tryon-slot" class="gk-drobe-tryon__select" data-gk-slot-select></select>
+            </div>
+
+            <div class="gk-drobe-tryon__price-row">
+              <span data-gk-price-label>{{ 'try_on.price' | t }}</span>
+              <strong data-gk-price-display>—</strong>
+            </div>
+
+            <button type="button" class="gk-drobe-tryon__submit" data-gk-select-time disabled>
+              {{ 'try_on.select_time' | t }}
+            </button>
+
+            <div class="gk-drobe-tryon__timezone">
+              <span data-gk-timezone-label>Brisbane</span>
+              <button type="button" class="gk-drobe-tryon__link" data-gk-timezone-change hidden>{{ 'try_on.change_timezone' | t }}</button>
+            </div>
+          </div>
+
+          <div data-gk-tryon-confirm-step hidden>
+            <button type="button" class="gk-drobe-tryon__back" data-gk-back>&larr; {{ 'try_on.back' | t }}</button>
+            <p class="gk-drobe-tryon__confirm-title" data-gk-confirm-title>{{ 'try_on.confirm_title' | t }}</p>
+            <p class="gk-drobe-tryon__confirm-sub" data-gk-confirm-subtitle>{{ 'try_on.confirm_subtitle' | t }}</p>
+
+            <div class="gk-drobe-tryon__summary-card">
+              <div class="gk-drobe-tryon__summary-icon" aria-hidden="true">📅</div>
+              <div class="gk-drobe-tryon__summary-copy">
+                <strong data-gk-summary-title></strong>
+                <p data-gk-summary-datetime></p>
+              </div>
+              <strong data-gk-summary-price></strong>
+            </div>
+
+            <div class="gk-drobe-tryon__group">
+              <h4 class="gk-drobe-tryon__section-title" data-gk-additional-info-title>{{ 'try_on.additional_info' | t }}</h4>
+              <label class="gk-drobe-tryon__label" for="gk-tryon-event-date" data-gk-event-date-label>{{ 'try_on.event_date' | t }}</label>
+              <input id="gk-tryon-event-date" class="gk-drobe-tryon__input" type="date" data-gk-event-date>
+              <label class="gk-drobe-tryon__label" for="gk-tryon-items" data-gk-specific-items-label>{{ 'try_on.specific_items' | t }}</label>
+              <input id="gk-tryon-items" class="gk-drobe-tryon__input" type="text" placeholder="(Style & size)" data-gk-specific-items data-gk-specific-items-placeholder="(Style & size)">
+              <p class="gk-drobe-tryon__note" data-gk-availability-note></p>
+              <label class="gk-drobe-tryon__checkbox">
+                <input type="checkbox" data-gk-availability-check>
+                <span data-gk-availability-checkbox-label></span>
+              </label>
+            </div>
+
+            <div class="gk-drobe-tryon__price-row">
+              <span data-gk-price-label>{{ 'try_on.price' | t }}</span>
+              <strong data-gk-confirm-price>—</strong>
+            </div>
+
+            <button type="button" class="gk-drobe-tryon__submit gk-drobe-tryon__submit--confirm" data-gk-checkout disabled>
+              {{ 'try_on.book_checkout' | t }}
+            </button>
+          </div>
+
+          <p class="gk-drobe-tryon__error" data-gk-error hidden></p>
         </div>
-        <div class="gk-drobe-tryon__loading" data-gk-loading hidden>{{ 'try_on.loading' | t }}</div>
-        <div class="gk-drobe-tryon__calendar-grid" data-gk-calendar-grid></div>
-      </div>
-
-      <div class="gk-drobe-tryon__group" data-gk-slot-group hidden>
-        <label class="gk-drobe-tryon__label" for="gk-tryon-slot">{{ 'try_on.time_slot' | t }}</label>
-        <select id="gk-tryon-slot" class="gk-drobe-tryon__select" data-gk-slot-select></select>
-      </div>
-
-      <div class="gk-drobe-tryon__price-row">
-        <span>{{ 'try_on.price' | t }}</span>
-        <strong data-gk-price-display>—</strong>
-      </div>
-
-      <button type="button" class="gk-drobe-tryon__submit" data-gk-select-time disabled>
-        {{ 'try_on.select_time' | t }}
-      </button>
-
-      <div class="gk-drobe-tryon__timezone">
-        <span data-gk-timezone-label>Brisbane</span>
-        <button type="button" class="gk-drobe-tryon__link" data-gk-timezone-change hidden>{{ 'try_on.change_timezone' | t }}</button>
       </div>
     </div>
-
-    <div data-gk-tryon-confirm-step hidden>
-      <button type="button" class="gk-drobe-tryon__back" data-gk-back>&larr; {{ 'try_on.back' | t }}</button>
-      <p class="gk-drobe-tryon__confirm-title">{{ 'try_on.confirm_title' | t }}</p>
-      <p class="gk-drobe-tryon__confirm-sub">{{ 'try_on.confirm_subtitle' | t }}</p>
-
-      <div class="gk-drobe-tryon__summary-card">
-        <div class="gk-drobe-tryon__summary-icon" aria-hidden="true">📅</div>
-        <div class="gk-drobe-tryon__summary-copy">
-          <strong data-gk-summary-title></strong>
-          <p data-gk-summary-datetime></p>
-        </div>
-        <strong data-gk-summary-price></strong>
-      </div>
-
-      <div class="gk-drobe-tryon__group">
-        <h4 class="gk-drobe-tryon__section-title">{{ 'try_on.additional_info' | t }}</h4>
-        <label class="gk-drobe-tryon__label" for="gk-tryon-event-date">{{ 'try_on.event_date' | t }}</label>
-        <input id="gk-tryon-event-date" class="gk-drobe-tryon__input" type="date" data-gk-event-date>
-        <label class="gk-drobe-tryon__label" for="gk-tryon-items">{{ 'try_on.specific_items' | t }}</label>
-        <input id="gk-tryon-items" class="gk-drobe-tryon__input" type="text" placeholder="(Style & size)" data-gk-specific-items>
-        <p class="gk-drobe-tryon__note" data-gk-availability-note></p>
-        <label class="gk-drobe-tryon__checkbox">
-          <input type="checkbox" data-gk-availability-check>
-          <span data-gk-availability-checkbox-label></span>
-        </label>
-      </div>
-
-      <div class="gk-drobe-tryon__price-row">
-        <span>{{ 'try_on.price' | t }}</span>
-        <strong data-gk-confirm-price>—</strong>
-      </div>
-
-      <button type="button" class="gk-drobe-tryon__submit gk-drobe-tryon__submit--confirm" data-gk-checkout disabled>
-        {{ 'try_on.book_checkout' | t }}
-      </button>
-    </div>
-
-    <p class="gk-drobe-tryon__error" data-gk-error hidden></p>
   </div>
+  </div>
+
+  <script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
 {% endif %}
 
 {% schema %}
@@ -121,6 +205,12 @@
       "id": "intro",
       "label": "Intro text",
       "default": "Select your appointment time"
+    },
+    {
+      "type": "checkbox",
+      "id": "show_description",
+      "label": "Show product description",
+      "default": true
     }
   ]
 }

@@ -33,14 +33,15 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { deleted: true };
   }
 
-  const date = String(formData.get("date") ?? "");
+  const startDate = String(formData.get("startDate") ?? "");
+  const endDate = String(formData.get("endDate") ?? formData.get("startDate") ?? "");
   const reason = String(formData.get("reason") ?? "");
 
-  if (!date) {
-    return { error: "Please choose a date." };
+  if (!startDate) {
+    return { error: "Please choose a start date." };
   }
 
-  await createBlockedDate(session.shop, { date, reason });
+  await createBlockedDate(session.shop, { startDate, endDate, reason });
   return { created: true };
 };
 
@@ -54,6 +55,13 @@ function formatDisplayDate(iso: string) {
   });
 }
 
+function formatRange(startDate: string, endDate: string) {
+  if (startDate === endDate) {
+    return formatDisplayDate(startDate);
+  }
+  return `${formatDisplayDate(startDate)} – ${formatDisplayDate(endDate)}`;
+}
+
 export default function BlockedDatesPage() {
   const { blockedDates } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
@@ -61,89 +69,111 @@ export default function BlockedDatesPage() {
   const isSubmitting = navigation.state === "submitting";
 
   return (
-    <s-page heading="Blocked dates">
-      {actionData?.error ? (
-        <s-banner tone="critical">{actionData.error}</s-banner>
-      ) : null}
-      {actionData?.created ? (
-        <s-banner tone="success">Blocked date added.</s-banner>
-      ) : null}
-      {actionData?.deleted ? (
-        <s-banner tone="success">Blocked date removed.</s-banner>
-      ) : null}
+    <s-page heading="Blocked dates" inlineSize="large">
+      <s-stack direction="block" gap="large">
+        {actionData?.error ? (
+          <s-banner tone="critical">{actionData.error}</s-banner>
+        ) : null}
+        {actionData?.created ? (
+          <s-banner tone="success">Blocked date range added.</s-banner>
+        ) : null}
+        {actionData?.deleted ? (
+          <s-banner tone="success">Blocked date removed.</s-banner>
+        ) : null}
 
-      <s-section heading="Add blocked date">
-        <s-paragraph tone="neutral" color="subdued">
-          Block shop-wide dates when gowns cannot be hired — public holidays,
-          stock takes, or maintenance days.
-        </s-paragraph>
-        <Form method="post">
-          <input type="hidden" name="intent" value="create" />
-          <s-grid gridTemplateColumns="1fr 2fr auto" gap="base">
-            <s-date-field label="Date" name="date" required />
-            <s-text-field
-              label="Reason (optional)"
-              name="reason"
-              placeholder="e.g. Public holiday"
-            />
-            <s-box paddingBlockStart="large-300">
-              <s-button
-                type="submit"
-                variant="primary"
-                {...(isSubmitting ? { loading: true } : {})}
-              >
-                Add date
-              </s-button>
-            </s-box>
-          </s-grid>
-        </Form>
-      </s-section>
-
-      <s-section heading="Current blocked dates">
-        {blockedDates.length === 0 ? (
-          <s-box padding="large" background="subdued" borderRadius="base">
+        <s-box padding="large" background="subdued" borderRadius="large">
+          <s-stack direction="inline" gap="large" alignItems="start">
+            <s-icon type="calendar" />
             <s-stack direction="block" gap="small">
-              <s-text type="strong">No blocked dates yet</s-text>
+              <s-text type="strong">Shop-wide blackouts</s-text>
               <s-paragraph tone="neutral" color="subdued">
-                Add dates above to prevent bookings on holidays or maintenance
-                days.
+                Block dates when gowns cannot be hired. These also count as bank
+                holidays when buffer settings use business days.
+              </s-paragraph>
+              <s-link href="/app/inventory">Garment-specific try-on holds</s-link>
+            </s-stack>
+          </s-stack>
+        </s-box>
+
+        <s-box padding="large" border="base" borderRadius="large" background="base">
+          <s-stack direction="block" gap="large">
+            <s-stack direction="block" gap="small">
+              <s-text type="strong">Add blocked date</s-text>
+              <s-paragraph tone="neutral" color="subdued">
+                Choose a start and optional end date. Leave reason blank for a
+                generic holiday block.
               </s-paragraph>
             </s-stack>
-          </s-box>
-        ) : (
-          <s-table variant="auto">
-            <s-table-header-row>
-              <s-table-header listSlot="primary">Date</s-table-header>
-              <s-table-header listSlot="labeled">Reason</s-table-header>
-              <s-table-header listSlot="secondary">Actions</s-table-header>
-            </s-table-header-row>
-            <s-table-body>
-              {blockedDates.map((entry) => (
-                <s-table-row key={entry.id}>
-                  <s-table-cell>{formatDisplayDate(entry.date)}</s-table-cell>
-                  <s-table-cell>{entry.reason || "—"}</s-table-cell>
-                  <s-table-cell>
-                    <Form method="post">
-                      <input type="hidden" name="intent" value="delete" />
-                      <input type="hidden" name="id" value={entry.id} />
-                      <s-button type="submit" variant="tertiary" tone="critical">
-                        Remove
-                      </s-button>
-                    </Form>
-                  </s-table-cell>
-                </s-table-row>
-              ))}
-            </s-table-body>
-          </s-table>
-        )}
-      </s-section>
 
-      <s-section slot="aside" heading="How blocking works">
-        <s-paragraph>
-          Blocked dates apply to all products. Customers will not be able to
-          select these dates in the booking calendar on the storefront.
-        </s-paragraph>
-      </s-section>
+            <Form method="post">
+              <input type="hidden" name="intent" value="create" />
+              <s-grid gridTemplateColumns="1fr 1fr 2fr auto" gap="large" alignItems="end">
+                <s-date-field label="Start date" name="startDate" required />
+                <s-date-field label="End date" name="endDate" />
+                <s-text-field
+                  label="Reason (optional)"
+                  name="reason"
+                  placeholder="e.g. Public holiday"
+                />
+                <s-box paddingBlockStart="large-300">
+                  <s-button
+                    type="submit"
+                    variant="primary"
+                    {...(isSubmitting ? { loading: true } : {})}
+                  >
+                    Add dates
+                  </s-button>
+                </s-box>
+              </s-grid>
+            </Form>
+          </s-stack>
+        </s-box>
+
+        <s-box padding="large" border="base" borderRadius="large" background="base">
+          <s-stack direction="block" gap="large">
+            <s-text type="strong">Current blocked dates</s-text>
+
+            {blockedDates.length === 0 ? (
+              <s-box padding="large" background="subdued" borderRadius="base">
+                <s-stack direction="block" gap="small">
+                  <s-text type="strong">No blocked dates yet</s-text>
+                  <s-paragraph tone="neutral" color="subdued">
+                    Add dates above to prevent bookings on holidays or maintenance
+                    days.
+                  </s-paragraph>
+                </s-stack>
+              </s-box>
+            ) : (
+              <s-table variant="auto">
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Dates</s-table-header>
+                  <s-table-header listSlot="labeled">Reason</s-table-header>
+                  <s-table-header listSlot="secondary">Actions</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {blockedDates.map((entry) => (
+                    <s-table-row key={entry.id}>
+                      <s-table-cell>
+                        {formatRange(entry.startDate, entry.endDate)}
+                      </s-table-cell>
+                      <s-table-cell>{entry.reason || "—"}</s-table-cell>
+                      <s-table-cell>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="delete" />
+                          <input type="hidden" name="id" value={entry.id} />
+                          <s-button type="submit" variant="tertiary" tone="critical">
+                            Remove
+                          </s-button>
+                        </Form>
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+            )}
+          </s-stack>
+        </s-box>
+      </s-stack>
     </s-page>
   );
 }

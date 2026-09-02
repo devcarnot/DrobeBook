@@ -1,10 +1,37 @@
 .gk-drobe-booking {
+  --gk-date-text: #333333;
+  --gk-unavailable-bg: #f3f6f6;
+  --gk-unavailable-text: #c3cece;
+  --gk-blocked-bg: #ffffff;
+  --gk-blocked-text: #c3cece;
+  --gk-selected-bg: #333333;
+  --gk-selected-text: #ffffff;
+  --gk-hover-bg: #a215aa;
+  --gk-hover-text: #ffffff;
+  --gk-preview-bg: #d8c4a8;
+  --gk-preview-text: #111111;
+  --gk-weekday-text: #737373;
+  --gk-button-bg: #121212;
+  --gk-button-text: #ffffff;
+  --gk-choice-bg: #ffffff;
+  --gk-choice-text: #111111;
+  --gk-choice-selected-bg: #121212;
+  --gk-choice-selected-text: #ffffff;
+  --gk-choice-border: #111111;
+  --gk-label-text: #525252;
+  --gk-muted-text: #949494;
+
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 0;
   padding: 1.5rem 1.25rem;
   margin: 1rem 0;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: clip;
+  box-sizing: border-box;
   font-family: inherit;
-  color: #111;
+  color: var(--gk-date-text);
 }
 
 .gk-drobe-booking__title {
@@ -23,7 +50,7 @@
   font-size: 0.8125rem;
   font-weight: 600;
   margin-bottom: 0.45rem;
-  color: rgba(0, 0, 0, 0.72);
+  color: var(--gk-label-text);
 }
 
 .gk-drobe-booking__buttons {
@@ -34,9 +61,9 @@
 
 .gk-drobe-booking__choice {
   appearance: none;
-  border: 1px solid #111;
-  background: #fff;
-  color: #111;
+  border: 1px solid var(--gk-choice-border);
+  background: var(--gk-choice-bg);
+  color: var(--gk-choice-text);
   border-radius: 2px;
   padding: 0.55rem 0.85rem;
   font: inherit;
@@ -51,13 +78,13 @@
 }
 
 .gk-drobe-booking__choice:hover:not(.gk-drobe-booking__choice--selected) {
-  background: rgba(0, 0, 0, 0.03);
+  background: color-mix(in srgb, var(--gk-choice-bg) 92%, var(--gk-choice-text));
 }
 
 .gk-drobe-booking__choice--selected {
-  background: #111;
-  color: #fff;
-  border-color: #111;
+  background: var(--gk-choice-selected-bg);
+  color: var(--gk-choice-selected-text);
+  border-color: var(--gk-choice-selected-bg);
 }
 
 .gk-drobe-booking__choice--color .gk-drobe-booking__swatch {
@@ -76,7 +103,7 @@
 .gk-drobe-booking__postage {
   font-size: 0.8125rem;
   line-height: 1.5;
-  color: rgba(0, 0, 0, 0.58);
+  color: var(--gk-muted-text);
   margin: 0 0 1rem;
 }
 
@@ -93,7 +120,8 @@
 
 .gk-drobe-booking__nav {
   border: 1px solid rgba(0, 0, 0, 0.15);
-  background: #fff;
+  background: var(--gk-choice-bg);
+  color: var(--gk-choice-text);
   border-radius: 2px;
   padding: 0.25rem 0.55rem;
   cursor: pointer;
@@ -115,7 +143,7 @@
 
 .gk-drobe-booking__weekday {
   font-weight: 600;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--gk-weekday-text);
   font-size: 0.75rem;
 }
 
@@ -123,6 +151,7 @@
   border: 1px solid transparent;
   border-radius: 2px;
   background: #fff;
+  color: var(--gk-date-text);
   cursor: pointer;
   position: relative;
   min-height: 2.35rem;
@@ -135,22 +164,31 @@
 }
 
 .gk-drobe-booking__day--unavailable {
-  color: rgba(0, 0, 0, 0.28);
-  background: rgba(0, 0, 0, 0.03);
+  color: var(--gk-unavailable-text);
+  background: var(--gk-unavailable-bg);
   cursor: not-allowed;
   text-decoration: line-through;
 }
 
-/* Hover preview: light tan block for full hire range */
-.gk-drobe-booking__day--preview-range {
-  background: #d8c4a8;
-  color: #111;
+.gk-drobe-booking__day--blocked {
+  color: var(--gk-blocked-text);
+  background: var(--gk-blocked-bg);
+  cursor: not-allowed;
 }
 
-/* Selected range: solid black like reference */
+.gk-drobe-booking__day:not(.gk-drobe-booking__day--unavailable):not(.gk-drobe-booking__day--selected-range):not(.gk-drobe-booking__day--preview-range):hover {
+  background: var(--gk-hover-bg);
+  color: var(--gk-hover-text);
+}
+
+.gk-drobe-booking__day--preview-range {
+  background: var(--gk-preview-bg);
+  color: var(--gk-preview-text);
+}
+
 .gk-drobe-booking__day--selected-range {
-  background: #111;
-  color: #fff;
+  background: var(--gk-selected-bg);
+  color: var(--gk-selected-text);
 }
 
 .gk-drobe-booking__day--range-start::before,
@@ -159,7 +197,7 @@
   position: absolute;
   width: 0.45rem;
   height: 0.45rem;
-  background: #fff;
+  background: var(--gk-selected-text);
   border: 1px solid rgba(0, 0, 0, 0.15);
 }
 
@@ -200,7 +238,7 @@
 
 .gk-drobe-booking__summary-label {
   font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.52);
+  color: var(--gk-muted-text);
 }
 
 .gk-drobe-booking__protection {
@@ -231,8 +269,8 @@
   padding: 0.95rem 1rem;
   border: none;
   border-radius: 2px;
-  background: #111;
-  color: #fff;
+  background: var(--gk-button-bg);
+  color: var(--gk-button-text);
   font: inherit;
   font-weight: 600;
   cursor: pointer;
@@ -252,7 +290,7 @@
 
 .gk-drobe-booking__loading {
   font-size: 0.875rem;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--gk-muted-text);
   margin-bottom: 0.5rem;
 }
 

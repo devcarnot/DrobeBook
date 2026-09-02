@@ -250,6 +250,10 @@
         if (damageLabel && this.config.damageProtectionLabel) {
           damageLabel.textContent = this.config.damageProtectionLabel;
         }
+
+        if (window.GkDrobeTheme && this.config.colors) {
+          window.GkDrobeTheme.apply(this.root, this.config.colors);
+        }
       } catch {
         // Storefront still works with block defaults.
       }
@@ -461,6 +465,7 @@
           () => {
             this.state.deliveryMethod = method.id;
             this.renderDeliveryButtons();
+            this.loadCalendarAvailability().then(() => this.renderCalendar());
           },
         );
         this.deliveryButtonsEl.appendChild(button);
@@ -532,6 +537,7 @@
         productId: this.productId,
         variantId: String(variant.id),
         durationDays: String(this.state.durationDays),
+        deliveryMethod: this.state.deliveryMethod,
         year: String(this.state.calendarYear),
         month: String(this.state.calendarMonth),
       });
@@ -753,7 +759,7 @@
         !this.config.damageProtectionVariantId
       ) {
         this.showError(
-          "Damage protection is not configured yet. Ask the store admin to choose a protection product in Storefront text settings.",
+          "Damage protection is not configured yet. Ask the store admin to choose a protection product in Gown Hire settings.",
         );
         return;
       }

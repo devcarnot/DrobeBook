@@ -73,10 +73,21 @@
       this.eventDateInput = this.root.querySelector("[data-gk-event-date]");
       this.specificItemsInput = this.root.querySelector("[data-gk-specific-items]");
       this.availabilityNote = this.root.querySelector("[data-gk-availability-note]");
+      this.introEl = this.root.querySelector("[data-gk-intro]");
+      this.dayTypeLabelEl = this.root.querySelector("[data-gk-day-type-label]");
+      this.durationTypeLabelEl = this.root.querySelector("[data-gk-duration-type-label]");
+      this.confirmTitleEl = this.root.querySelector("[data-gk-confirm-title]");
+      this.confirmSubtitleEl = this.root.querySelector("[data-gk-confirm-subtitle]");
+      this.additionalInfoTitleEl = this.root.querySelector("[data-gk-additional-info-title]");
+      this.eventDateLabelEl = this.root.querySelector("[data-gk-event-date-label]");
+      this.specificItemsLabelEl = this.root.querySelector("[data-gk-specific-items-label]");
+      this.availabilityCheckbox = this.root.querySelector("[data-gk-availability-check]");
       this.availabilityCheckboxLabel = this.root.querySelector(
         "[data-gk-availability-checkbox-label]",
       );
-      this.availabilityCheckbox = this.root.querySelector("[data-gk-availability-check]");
+      this.timeSlotLabelEl = this.root.querySelector("[data-gk-time-slot-label]");
+      this.priceLabelEls = this.root.querySelectorAll("[data-gk-price-label]");
+      this.backButton = this.root.querySelector("[data-gk-back]");
       this.checkoutButton = this.root.querySelector("[data-gk-checkout]");
       this.errorEl = this.root.querySelector("[data-gk-error]");
     }
@@ -121,15 +132,75 @@
 
     async loadConfig() {
       try {
-        const response = await fetch(`${this.proxyBase}/api/appointment-config`);
-        if (response.ok) {
-          this.config = await response.json();
+        const [appointmentResponse, widgetResponse] = await Promise.all([
+          fetch(`${this.proxyBase}/api/appointment-config`),
+          fetch(`${this.proxyBase}/api/config`),
+        ]);
+
+        if (appointmentResponse.ok) {
+          this.config = await appointmentResponse.json();
+        }
+
+        if (widgetResponse.ok) {
+          const widgetConfig = await widgetResponse.json();
+          if (window.GkDrobeTheme && widgetConfig.colors) {
+            window.GkDrobeTheme.apply(this.root, widgetConfig.colors);
+          }
         }
       } catch {
         this.config = {};
       }
 
       this.timezoneLabel.textContent = this.config.timezoneLabel || "Brisbane";
+      if (this.introEl) {
+        this.introEl.textContent =
+          this.config.introText || this.introEl.textContent || "Select your appointment time";
+      }
+      if (this.dayTypeLabelEl) {
+        this.dayTypeLabelEl.textContent = this.config.dayTypeLabel || "Day";
+      }
+      if (this.durationTypeLabelEl) {
+        this.durationTypeLabelEl.textContent = this.config.durationTypeLabel || "Duration";
+      }
+      if (this.confirmTitleEl) {
+        this.confirmTitleEl.textContent =
+          this.config.confirmTitle || "Confirm your appointment";
+      }
+      if (this.confirmSubtitleEl) {
+        this.confirmSubtitleEl.textContent =
+          this.config.confirmSubtitle || "Review your booking details before checkout.";
+      }
+      if (this.additionalInfoTitleEl) {
+        this.additionalInfoTitleEl.textContent =
+          this.config.additionalInfoTitle || "Additional information";
+      }
+      if (this.eventDateLabelEl) {
+        this.eventDateLabelEl.textContent =
+          this.config.eventDateLabel || "Your Event Date:";
+      }
+      if (this.specificItemsLabelEl) {
+        this.specificItemsLabelEl.textContent =
+          this.config.specificItemsLabel ||
+          "Please list any specific items you would like to try on:";
+      }
+      if (this.specificItemsInput) {
+        this.specificItemsInput.placeholder =
+          this.config.specificItemsPlaceholder || "(Style & size)";
+      }
+      if (this.timeSlotLabelEl) {
+        this.timeSlotLabelEl.textContent =
+          this.config.timeSlotLabel || "Available times";
+      }
+      this.priceLabelEls?.forEach((element) => {
+        element.textContent = this.config.priceLabel || "Price";
+      });
+      if (this.backButton) {
+        this.backButton.textContent = `← ${this.config.backLabel || "Back"}`;
+      }
+      if (this.loadingEl) {
+        this.loadingEl.textContent =
+          this.config.loadingCalendarText || "Loading availability…";
+      }
       this.selectTimeButton.textContent =
         this.config.selectTimeLabel || "Select a Time";
       this.checkoutButton.textContent =
@@ -157,8 +228,14 @@
     renderDayButtons() {
       this.dayButtonsEl.innerHTML = "";
       [
-        { id: "weekday", label: "Monday-Friday" },
-        { id: "weekend", label: "Saturday-Sunday" },
+        {
+          id: "weekday",
+          label: this.config.weekdayDayLabel || "Monday-Friday",
+        },
+        {
+          id: "weekend",
+          label: this.config.weekendDayLabel || "Saturday-Sunday",
+        },
       ].forEach(({ id, label }) => {
         this.dayButtonsEl.appendChild(
           this.createChoice(label, this.state.dayType === id, () => {
@@ -175,8 +252,16 @@
     renderDurationButtons() {
       this.durationButtonsEl.innerHTML = "";
       [
-        { minutes: 50, label: "50 minute Appointment (recommended)" },
-        { minutes: 20, label: "20 minute (Cocktail wear & re-try only)" },
+        {
+          minutes: 50,
+          label:
+            this.config.duration50Label || "50 minute Appointment (recommended)",
+        },
+        {
+          minutes: 20,
+          label:
+            this.config.duration20Label || "20 minute (Cocktail wear & re-try only)",
+        },
       ].forEach(({ minutes, label }) => {
         this.durationButtonsEl.appendChild(
           this.createChoice(label, this.state.durationMinutes === minutes, () => {
@@ -293,6 +378,21 @@
       }
     }
 
+    formatSlotOption(slot) {
+      if (slot.soldOut) {
+        return `${slot.label} / ${this.config.slotSoldOutText || "Sold out"}`;
+      }
+
+      const available = Number(slot.available || 0);
+      if (available === 1) {
+        return `${slot.label} / ${this.config.slotAvailableSingularText || "1 Space Available"}`;
+      }
+
+      const template =
+        this.config.slotAvailablePluralText || "{count} Spaces Available";
+      return `${slot.label} / ${template.replace("{count}", String(available))}`;
+    }
+
     async loadSlots() {
       if (!this.state.selectedDate) {
         this.slotGroup.hidden = true;
@@ -303,7 +403,7 @@
 
       this.state.loadingSlots = true;
       this.slotGroup.hidden = false;
-      this.slotSelect.innerHTML = `<option value="">Loading...</option>`;
+      this.slotSelect.innerHTML = `<option value="">${this.config.slotLoadingText || "Loading times…"}</option>`;
 
       const params = new URLSearchParams({
         date: this.state.selectedDate,
@@ -322,7 +422,7 @@
         this.slotSelect.innerHTML = "";
         const placeholder = document.createElement("option");
         placeholder.value = "";
-        placeholder.textContent = "Select a time";
+        placeholder.textContent = this.config.slotPlaceholder || "Select a time";
         this.slotSelect.appendChild(placeholder);
 
         (data.slots || []).forEach((slot) => {
@@ -332,9 +432,7 @@
           option.dataset.endTime = slot.endTime;
           option.dataset.label = slot.label;
           option.dataset.available = String(slot.available);
-          option.textContent = slot.soldOut
-            ? `${slot.label} / Sold out`
-            : `${slot.label} / ${slot.available} Space${slot.available === 1 ? "" : "s"} Available`;
+          option.textContent = this.formatSlotOption(slot);
           option.disabled = slot.soldOut;
           this.slotSelect.appendChild(option);
         });
@@ -365,13 +463,21 @@
       this.checkoutButton.disabled = !confirmReady;
     }
 
+    dayLabelForType(dayType) {
+      return dayType === "weekday"
+        ? this.config.weekdayDayLabel || "Monday-Friday"
+        : this.config.weekendDayLabel || "Saturday-Sunday";
+    }
+
+    durationLabelForMinutes(minutes) {
+      return minutes === 50
+        ? this.config.duration50Label || "50 minute Appointment (recommended)"
+        : this.config.duration20Label || "20 minute (Cocktail wear & re-try only)";
+    }
+
     showConfirmStep() {
-      const dayLabel =
-        this.state.dayType === "weekday" ? "Monday-Friday" : "Saturday-Sunday";
-      const durationLabel =
-        this.state.durationMinutes === 50
-          ? "50 minute Appointment (recommended)"
-          : "20 minute (Cocktail wear & re-try only)";
+      const dayLabel = this.dayLabelForType(this.state.dayType);
+      const durationLabel = this.durationLabelForMinutes(this.state.durationMinutes);
 
       this.summaryTitle.textContent = `${this.productTitle} / ${dayLabel} / ${durationLabel}`;
       this.summaryDatetime.textContent = formatDisplayDateTime(
@@ -393,12 +499,8 @@
       this.checkoutButton.disabled = true;
       this.clearError();
 
-      const dayLabel =
-        this.state.dayType === "weekday" ? "Monday-Friday" : "Saturday-Sunday";
-      const durationLabel =
-        this.state.durationMinutes === 50
-          ? "50 minute Appointment (recommended)"
-          : "20 minute (Cocktail wear & re-try only)";
+      const dayLabel = this.dayLabelForType(this.state.dayType);
+      const durationLabel = this.durationLabelForMinutes(this.state.durationMinutes);
 
       const properties = {
         Day: dayLabel,
@@ -440,7 +542,33 @@
     }
   }
 
+  function initMediaGallery(page) {
+    const mainImage = page.querySelector("[data-gk-tryon-main-image]");
+    if (!mainImage) {
+      return;
+    }
+
+    page.querySelectorAll("[data-gk-tryon-thumb]").forEach((button) => {
+      button.addEventListener("click", () => {
+        const url = button.dataset.gkMediaUrl;
+        if (!url) {
+          return;
+        }
+
+        mainImage.src = url;
+        page.querySelectorAll("[data-gk-tryon-thumb]").forEach((item) => {
+          item.classList.remove("is-active");
+        });
+        button.classList.add("is-active");
+      });
+    });
+  }
+
   function init() {
+    document.querySelectorAll("[data-gk-tryon-page]").forEach((page) => {
+      initMediaGallery(page);
+    });
+
     document.querySelectorAll("[data-gk-drobe-tryon]").forEach((root) => {
       new TryOnWidget(root);
     });

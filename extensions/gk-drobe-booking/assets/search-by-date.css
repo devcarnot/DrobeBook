@@ -1,9 +1,48 @@
+.gk-drobe-search-section {
+  width: 100vw;
+  max-width: 100vw;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  background: var(--gk-search-section-bg, #f7f5f2);
+  box-sizing: border-box;
+}
+
 .gk-drobe-search {
-  max-width: 72rem;
-  margin: 0 auto;
-  padding: 2rem 1rem 3rem;
-  color: #111;
+  --gk-search-section-bg: #f7f5f2;
+  --gk-search-title-text: #111111;
+  --gk-button-bg: #d8cdb8;
+  --gk-button-text: #111111;
+  --gk-label-text: #8c8c8c;
+  --gk-muted-text: rgba(0, 0, 0, 0.55);
+  --gk-search-input-bg: #ffffff;
+  --gk-search-input-border: rgba(0, 0, 0, 0.18);
+
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  padding: 2.5rem 1rem 3rem;
+  min-width: 0;
+  overflow-x: clip;
+  box-sizing: border-box;
+  color: var(--gk-button-text);
   font-family: inherit;
+  background: transparent;
+}
+
+.gk-drobe-search__inner {
+  width: 100%;
+  max-width: min(56rem, 100%);
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.gk-drobe-search__header {
+  width: 100%;
+  text-align: center;
+  margin: 0 0 2rem;
 }
 
 .gk-drobe-search__title {
@@ -11,49 +50,89 @@
   font-family: Georgia, "Times New Roman", serif;
   font-size: clamp(2rem, 4vw, 2.75rem);
   font-weight: 400;
+  margin: 0;
+  color: var(--gk-search-title-text);
+}
+
+.gk-drobe-search__form-wrap {
+  width: 100%;
+  display: flex;
+  justify-content: center;
   margin: 0 0 2rem;
 }
 
 .gk-drobe-search__form {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: minmax(10rem, 14rem) minmax(10rem, 14rem) minmax(11rem, auto);
   gap: 1rem;
   align-items: end;
-  max-width: 56rem;
-  margin: 0 auto 2rem;
+  width: auto;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
 }
 
 .gk-drobe-search__field {
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
+  min-width: 0;
 }
 
 .gk-drobe-search__label {
   font-size: 0.8125rem;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--gk-label-text);
 }
 
 .gk-drobe-search__input,
+.gk-drobe-search__select,
 .gk-drobe-search__filter select,
 .gk-drobe-search__filter input {
   width: 100%;
-  border: 1px solid rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--gk-search-input-border);
   border-radius: 0;
   padding: 0.75rem 0.85rem;
   font: inherit;
-  background: #fff;
+  background: var(--gk-search-input-bg);
+  color: var(--gk-button-text);
+  min-height: 3rem;
+  box-sizing: border-box;
+}
+
+.gk-drobe-search__select {
+  appearance: none;
+  background-color: var(--gk-search-input-bg);
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%),
+    linear-gradient(135deg, currentColor 50%, transparent 50%);
+  background-position:
+    calc(100% - 1.1rem) calc(50% + 0.15rem),
+    calc(100% - 0.85rem) calc(50% + 0.15rem);
+  background-size:
+    0.35rem 0.35rem,
+    0.35rem 0.35rem;
+  background-repeat: no-repeat;
+  padding-right: 2rem;
+  cursor: pointer;
+}
+
+.gk-drobe-search__select option {
+  color: #111111;
+  background: #ffffff;
 }
 
 .gk-drobe-search__button {
   border: 0;
-  background: #d8cdb8;
-  color: #111;
+  background: var(--gk-button-bg);
+  color: var(--gk-button-text);
   padding: 0.85rem 1.25rem;
   font: inherit;
   font-size: 0.9375rem;
   cursor: pointer;
   min-height: 3rem;
+  box-sizing: border-box;
+  width: 100%;
+  white-space: normal;
 }
 
 .gk-drobe-search__button--compact {
@@ -61,11 +140,17 @@
   padding: 0.75rem 1rem;
 }
 
+.gk-drobe-search__results {
+  width: 100%;
+}
+
 .gk-drobe-search__filters-bar {
   border-top: 1px solid rgba(0, 0, 0, 0.08);
   border-bottom: 1px solid rgba(0, 0, 0, 0.08);
   padding: 1rem 0;
-  margin-bottom: 1.5rem;
+  margin: 0 auto 1.5rem;
+  width: 100%;
+  max-width: min(56rem, 100%);
 }
 
 .gk-drobe-search__filters {
@@ -78,7 +163,7 @@
 .gk-drobe-search__filter-label {
   display: block;
   font-size: 0.75rem;
-  color: rgba(0, 0, 0, 0.55);
+  color: var(--gk-label-text);
   margin-bottom: 0.35rem;
 }
 
@@ -157,10 +242,15 @@
 
 .gk-drobe-search__error {
   color: #b00020;
+  text-align: center;
 }
 
 @media (max-width: 900px) {
-  .gk-drobe-search__form,
+  .gk-drobe-search__form {
+    grid-template-columns: 1fr;
+    width: min(100%, 20rem);
+  }
+
   .gk-drobe-search__filters,
   .gk-drobe-search__layout,
   .gk-drobe-search__grid {

@@ -3,6 +3,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import {
   getUnavailableDatesForMonth,
   parseCalendarMonth,
+  parseDeliveryMethod,
   parseHireDuration,
 } from "../lib/booking/availability-calendar.server";
 import { authenticate } from "../shopify.server";
@@ -42,11 +43,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
+  const deliveryMethod = parseDeliveryMethod(
+    url.searchParams.get("deliveryMethod"),
+  );
+
   const result = await getUnavailableDatesForMonth({
     shop: session.shop,
     productId,
     variantId,
     durationDays,
+    deliveryMethod,
     year: monthParams.year,
     month: monthParams.month,
   });

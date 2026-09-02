@@ -3,6 +3,7 @@ import type { LoaderFunctionArgs } from "react-router";
 import {
   checkProductAvailability,
   formatDateIso,
+  parseDeliveryMethod,
   parseHireDuration,
   parseIsoDate,
 } from "../lib/booking";
@@ -48,12 +49,17 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     );
   }
 
+  const deliveryMethod = parseDeliveryMethod(
+    url.searchParams.get("deliveryMethod"),
+  );
+
   const result = await checkProductAvailability({
     shop: session.shop,
     productId,
     variantId,
     deliveryDate,
     durationDays,
+    deliveryMethod,
   });
 
   return Response.json({

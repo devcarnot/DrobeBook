@@ -6,6 +6,8 @@ import {
   isProductVariantAvailable,
   toDateOnly,
 } from "./availability";
+import { parseDeliveryMethod, type DeliveryMethod } from "./buffer-config";
+import { getHolidayDates, getShopBufferConfig } from "./buffer.server";
 
 export type CheckAvailabilityParams = {
   shop: string;
@@ -13,13 +15,17 @@ export type CheckAvailabilityParams = {
   variantId: string;
   deliveryDate: Date;
   durationDays: HireDurationDays;
+  deliveryMethod?: DeliveryMethod;
   today?: Date;
+  now?: Date;
 };
 
 export async function checkProductAvailability(
   params: CheckAvailabilityParams,
 ): Promise<AvailabilityResult> {
-  const [bookings, blockedDates] = await Promise.all([
+  const deliveryMethod = params.deliveryMethod ?? "post";
+
+  const [bookings, blockedDates, bufferConfig, holidays] = await Promise.all([
     prisma.booking.findMany({
       where: {
         shop: params.shop,
@@ -31,6 +37,11 @@ export async function checkProductAvailability(
         startDate: true,
         endDate: true,
         status: true,
+        deliveryMethod: true,
+        bufferBeforeDays: true,
+        bufferBeforeUnit: true,
+        bufferAfterDays: true,
+        bufferAfterUnit: true,
       },
     }),
     prisma.blockedDate.findMany({
@@ -43,12 +54,15 @@ export async function checkProductAvailability(
         ],
       },
       select: {
-        date: true,
+        startDate: true,
+        endDate: true,
         productId: true,
         variantId: true,
         reason: true,
       },
     }),
+    getShopBufferConfig(params.shop),
+    getHolidayDates(params.shop),
   ]);
 
   return isProductVariantAvailable({
@@ -56,7 +70,11 @@ export async function checkProductAvailability(
     variantId: params.variantId,
     deliveryDate: params.deliveryDate,
     durationDays: params.durationDays,
+    deliveryMethod,
     today: params.today,
+    now: params.now,
+    bufferConfig,
+    holidays,
     bookings,
     blockedDates,
   });
@@ -94,3 +112,5 @@ export function parseIsoDate(value: string | null): Date | null {
 
   return toDateOnly(date);
 }
+
+export { parseDeliveryMethod };

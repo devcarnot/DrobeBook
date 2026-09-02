@@ -1,8 +1,11 @@
 import { Links, Meta, Outlet, Scripts, ScrollRestoration } from "react-router";
 
+const APP_FONT_FAMILY =
+  'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif';
+
 export default function App() {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width,initial-scale=1" />
@@ -14,7 +17,15 @@ export default function App() {
         <Meta />
         <Links />
       </head>
-      <body>
+      <body
+        suppressHydrationWarning
+        style={{
+          margin: 0,
+          fontFamily: APP_FONT_FAMILY,
+          WebkitFontSmoothing: "antialiased",
+          MozOsxFontSmoothing: "grayscale",
+        }}
+      >
         <Outlet />
         <ScrollRestoration />
         <Scripts />

@@ -1,22 +1,31 @@
 import {
-  addDays,
-  computeReturnDate,
   formatDateIso,
   isProductVariantAvailable,
-  meetsLeadTime,
   toDateOnly,
   type HireDurationDays,
 } from "./availability";
-import { checkProductAvailability, parseHireDuration } from "./availability.server";
+import { getEarliestDeliveryDate, meetsDeliveryLeadTime } from "./buffer";
+import {
+  getBufferDefaultsForMethod,
+  parseDeliveryMethod,
+  type DeliveryMethod,
+} from "./buffer-config";
+import { getHolidayDates, getShopBufferConfig } from "./buffer.server";
+import {
+  checkProductAvailability,
+  parseHireDuration,
+} from "./availability.server";
 
 export type CalendarAvailabilityParams = {
   shop: string;
   productId: string;
   variantId: string;
   durationDays: HireDurationDays;
+  deliveryMethod?: DeliveryMethod;
   year: number;
   month: number;
   today?: Date;
+  now?: Date;
 };
 
 export type CalendarAvailabilityResult = {
@@ -34,7 +43,16 @@ export async function getUnavailableDatesForMonth(
   params: CalendarAvailabilityParams,
 ): Promise<CalendarAvailabilityResult> {
   const today = params.today ?? new Date();
-  const earliestDelivery = addDays(toDateOnly(today), 4);
+  const now = params.now ?? today;
+  const deliveryMethod = params.deliveryMethod ?? "post";
+
+  const [bufferConfig, holidays] = await Promise.all([
+    getShopBufferConfig(params.shop),
+    getHolidayDates(params.shop),
+  ]);
+
+  const settings = getBufferDefaultsForMethod(bufferConfig, deliveryMethod);
+  const earliestDelivery = getEarliestDeliveryDate(settings, now, holidays);
   const unavailableDates: string[] = [];
 
   const totalDays = daysInMonth(params.year, params.month);
@@ -44,7 +62,15 @@ export async function getUnavailableDatesForMonth(
       Date.UTC(params.year, params.month - 1, day),
     );
 
-    if (!meetsLeadTime(deliveryDate, today)) {
+    if (
+      !meetsDeliveryLeadTime(
+        deliveryDate,
+        deliveryMethod,
+        bufferConfig,
+        now,
+        holidays,
+      )
+    ) {
       unavailableDates.push(formatDateIso(deliveryDate));
       continue;
     }
@@ -55,7 +81,9 @@ export async function getUnavailableDatesForMonth(
       variantId: params.variantId,
       deliveryDate,
       durationDays: params.durationDays,
+      deliveryMethod,
       today,
+      now,
     });
 
     if (!result.available) {
@@ -94,4 +122,8 @@ export function parseCalendarMonth(
   return { year, month };
 }
 
-export { parseHireDuration, isProductVariantAvailable, computeReturnDate, formatDateIso };
+export {
+  parseHireDuration,
+  parseDeliveryMethod,
+  isProductVariantAvailable,
+};

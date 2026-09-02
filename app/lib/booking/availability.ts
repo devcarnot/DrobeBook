@@ -4,6 +4,14 @@
  * all enforce the same rules.
  */
 
+import type { BufferConfig } from "./buffer-config";
+import type { DeliveryMethod } from "./buffer-config";
+import {
+  effectiveRangeForBooking,
+  effectiveRangeForRequest,
+  meetsDeliveryLeadTime,
+} from "./buffer";
+
 export const LEAD_TIME_DAYS = 4;
 
 export const HIRE_DURATIONS = [4, 8] as const;
@@ -23,10 +31,16 @@ export type BookingRecord = {
   startDate: Date;
   endDate: Date;
   status: string;
+  deliveryMethod?: string | null;
+  bufferBeforeDays?: number | null;
+  bufferBeforeUnit?: string | null;
+  bufferAfterDays?: number | null;
+  bufferAfterUnit?: string | null;
 };
 
 export type BlockedDateRecord = {
-  date: Date;
+  startDate: Date;
+  endDate: Date;
   productId?: string | null;
   variantId?: string | null;
   reason?: string | null;
@@ -37,7 +51,11 @@ export type AvailabilityInput = {
   variantId: string;
   deliveryDate: Date;
   durationDays: HireDurationDays;
+  deliveryMethod?: DeliveryMethod;
   today?: Date;
+  now?: Date;
+  bufferConfig?: BufferConfig;
+  holidays?: ReadonlySet<string>;
   bookings: BookingRecord[];
   blockedDates: BlockedDateRecord[];
 };
@@ -123,14 +141,42 @@ function blockedDateAppliesToVariant(
 export function isProductVariantAvailable(input: AvailabilityInput): AvailabilityResult {
   const deliveryDate = toDateOnly(input.deliveryDate);
   const returnDate = computeReturnDate(deliveryDate, input.durationDays);
-  const requestedRange: DateRange = { start: deliveryDate, end: returnDate };
+  const holidays = input.holidays ?? new Set<string>();
+  const now = input.now ?? input.today ?? new Date();
+  const deliveryMethod: DeliveryMethod =
+    input.deliveryMethod === "pickup" ? "pickup" : "post";
 
-  if (!meetsLeadTime(deliveryDate, input.today)) {
+  const requestedRange =
+    input.bufferConfig != null
+      ? effectiveRangeForRequest(
+          deliveryDate,
+          returnDate,
+          deliveryMethod,
+          input.bufferConfig,
+          holidays,
+        )
+      : { start: deliveryDate, end: returnDate };
+
+  const meetsLead =
+    input.bufferConfig != null
+      ? meetsDeliveryLeadTime(
+          deliveryDate,
+          deliveryMethod,
+          input.bufferConfig,
+          now,
+          holidays,
+        )
+      : meetsLeadTime(deliveryDate, input.today);
+
+  if (!meetsLead) {
     return {
       available: false,
       deliveryDate,
       returnDate,
-      reason: `Delivery must be at least ${LEAD_TIME_DAYS} days from today`,
+      reason:
+        input.bufferConfig != null
+          ? "Delivery is too soon for the selected delivery method"
+          : `Delivery must be at least ${LEAD_TIME_DAYS} days from today`,
     };
   }
 
@@ -139,10 +185,13 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
       continue;
     }
 
-    const bookingRange: DateRange = {
-      start: booking.startDate,
-      end: booking.endDate,
-    };
+    const bookingRange =
+      input.bufferConfig != null
+        ? effectiveRangeForBooking(booking, input.bufferConfig, holidays)
+        : {
+            start: toDateOnly(booking.startDate),
+            end: toDateOnly(booking.endDate),
+          };
 
     if (dateRangesOverlap(requestedRange, bookingRange)) {
       return {
@@ -165,11 +214,12 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
       continue;
     }
 
-    const blockedDay = toDateOnly(blocked.date);
-    if (
-      blockedDay.getTime() >= requestedRange.start.getTime() &&
-      blockedDay.getTime() <= requestedRange.end.getTime()
-    ) {
+    const blockedRange: DateRange = {
+      start: blocked.startDate,
+      end: blocked.endDate,
+    };
+
+    if (dateRangesOverlap(requestedRange, blockedRange)) {
       return {
         available: false,
         deliveryDate,

@@ -1,3 +1,10 @@
+import {
+  DEFAULT_WIDGET_COLORS,
+  parseWidgetColors,
+  widgetColorsFromFormData,
+  type WidgetColorScheme,
+} from "./widget-colors";
+
 export type WidgetConfig = {
   deliveryInstructions: string;
   postageNote: string;
@@ -11,6 +18,7 @@ export type WidgetConfig = {
   moreInfoLabel: string;
   buttonLabelPending: string;
   buttonLabelReady: string;
+  colors: WidgetColorScheme;
 };
 
 export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
@@ -28,6 +36,7 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   moreInfoLabel: "More Info",
   buttonLabelPending: "Select dates first",
   buttonLabelReady: "Add hire to cart",
+  colors: { ...DEFAULT_WIDGET_COLORS },
 };
 
 export function normalizeVariantId(value: string): string {
@@ -87,6 +96,7 @@ export function widgetConfigFromFormData(formData: FormData): WidgetConfig {
       formData.get("buttonLabelReady") ??
         DEFAULT_WIDGET_CONFIG.buttonLabelReady,
     ),
+    colors: widgetColorsFromFormData(formData),
   };
 }
 
@@ -96,10 +106,14 @@ export function parseWidgetConfig(raw: string | null | undefined): WidgetConfig 
   }
 
   try {
-    const parsed = { ...DEFAULT_WIDGET_CONFIG, ...JSON.parse(raw) };
+    const parsed = {
+      ...DEFAULT_WIDGET_CONFIG,
+      ...JSON.parse(raw),
+    } as WidgetConfig;
     parsed.damageProtectionVariantId = normalizeVariantId(
       parsed.damageProtectionVariantId,
     );
+    parsed.colors = parseWidgetColors(parsed.colors);
     return parsed;
   } catch {
     return { ...DEFAULT_WIDGET_CONFIG };

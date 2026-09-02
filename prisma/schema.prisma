@@ -31,6 +31,19 @@ model Session {
   refreshTokenExpires DateTime?
 }
 
+model Garment {
+  id           String   @id @default(cuid())
+  shop         String
+  productId    String
+  variantId    String
+  timesRented  Int      @default(0)
+  totalRevenue Decimal  @default(0)
+  createdAt    DateTime @default(now())
+
+  @@unique([shop, productId, variantId])
+  @@index([shop])
+}
+
 model Booking {
   id             String   @id @default(cuid())
   shop           String
@@ -43,6 +56,11 @@ model Booking {
   eventDate      DateTime
   orderId        String?
   status         String // "pending" | "confirmed" | "cancelled"
+  pricePaid      Decimal?
+  bufferBeforeDays Int?
+  bufferBeforeUnit String?
+  bufferAfterDays  Int?
+  bufferAfterUnit  String?
   createdAt      DateTime @default(now())
 
   @@index([shop, productId, variantId, status])
@@ -68,10 +86,13 @@ model BlockedDate {
   shop      String
   productId String?
   variantId String?
-  date      DateTime
+  startDate DateTime
+  endDate   DateTime
   reason    String?
+  createdBy String?
+  createdAt DateTime @default(now())
 
-  @@index([shop, productId, variantId, date])
+  @@index([shop, productId, variantId, startDate, endDate])
 }
 
 model ShopSettings {

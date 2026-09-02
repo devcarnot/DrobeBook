@@ -90,6 +90,8 @@ export function generateSlotTemplates(
     sundayEnd: string;
     capacity50: number;
     capacity20: number;
+    slotInterval50?: number;
+    slotInterval20?: number;
   },
 ): Array<{ time: string; endTime: string; label: string; capacity: number }> {
   const hours = getHoursForDate(date, config);
@@ -101,7 +103,10 @@ export function generateSlotTemplates(
   const end = parseTimeParts(hours.end);
   const startMinutes = toMinutes(start.hours, start.minutes);
   const endMinutes = toMinutes(end.hours, end.minutes);
-  const step = durationMinutes === 50 ? 60 : 30;
+  const step =
+    durationMinutes === 50
+      ? config.slotInterval50 ?? 60
+      : config.slotInterval20 ?? 30;
   const capacity =
     durationMinutes === 50 ? config.capacity50 : config.capacity20;
   const slots: Array<{ time: string; endTime: string; label: string; capacity: number }> =
