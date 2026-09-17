@@ -88,8 +88,10 @@ export function parseBufferConfig(raw: Partial<BufferConfig> | null | undefined)
 }
 
 export function bufferConfigFromFormData(formData: FormData): BufferConfig {
-  const read = (method: DeliveryMethod, field: keyof DeliveryBufferDefaults) =>
-    formData.get(`${method}_${field}`);
+  const read = (method: DeliveryMethod, field: keyof DeliveryBufferDefaults) => {
+    const value = formData.get(`${method}_${field}`);
+    return value === null ? undefined : value;
+  };
 
   const build = (method: DeliveryMethod, fallback: DeliveryBufferDefaults) =>
     parseDeliveryDefaults(
@@ -101,7 +103,7 @@ export function bufferConfigFromFormData(formData: FormData): BufferConfig {
         bufferBeforeUnit: read(method, "bufferBeforeUnit"),
         bufferAfterRental: read(method, "bufferAfterRental"),
         bufferAfterUnit: read(method, "bufferAfterUnit"),
-      },
+      } as Partial<DeliveryBufferDefaults>,
       fallback,
     );
 

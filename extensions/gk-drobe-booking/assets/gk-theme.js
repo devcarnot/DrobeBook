@@ -47,12 +47,17 @@
     mutedText: "--gk-muted-text",
   };
 
-  function applyTheme(root, colors) {
+  function applyTheme(root, colors, fontFamily) {
     if (!root) return;
     const theme = { ...DEFAULT_THEME, ...(colors || {}) };
     Object.keys(CSS_VARS).forEach((key) => {
       root.style.setProperty(CSS_VARS[key], theme[key]);
     });
+
+    if (fontFamily) {
+      root.style.setProperty("--gk-font-family", fontFamily);
+      root.style.fontFamily = fontFamily;
+    }
   }
 
   window.GkDrobeTheme = {

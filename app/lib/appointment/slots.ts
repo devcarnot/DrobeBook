@@ -1,7 +1,43 @@
 import { addDays, formatDateIso, toDateOnly } from "../booking/availability";
 
 export type DayType = "weekday" | "weekend";
-export type AppointmentDuration = 50 | 20;
+export type AppointmentDuration = number;
+
+export function getSlotSettingsForDuration(
+  durationMinutes: number,
+  config: {
+    slotInterval50?: number;
+    slotInterval30?: number;
+    slotInterval20?: number;
+    capacity50: number;
+    capacity30: number;
+    capacity20: number;
+  },
+): { step: number; perRoomCapacity: number } {
+  if (durationMinutes === 50) {
+    return {
+      step: config.slotInterval50 ?? 60,
+      perRoomCapacity: config.capacity50,
+    };
+  }
+  if (durationMinutes === 30) {
+    return {
+      step: config.slotInterval30 ?? 30,
+      perRoomCapacity: config.capacity30,
+    };
+  }
+  if (durationMinutes === 20) {
+    return {
+      step: config.slotInterval20 ?? 30,
+      perRoomCapacity: config.capacity20,
+    };
+  }
+
+  return {
+    step: Math.min(30, durationMinutes),
+    perRoomCapacity: 1,
+  };
+}
 
 export type AppointmentSlotView = {
   time: string;
@@ -89,9 +125,12 @@ export function generateSlotTemplates(
     sundayStart: string;
     sundayEnd: string;
     capacity50: number;
+    capacity30: number;
     capacity20: number;
     slotInterval50?: number;
+    slotInterval30?: number;
     slotInterval20?: number;
+    changeRoomCount?: number;
   },
 ): Array<{ time: string; endTime: string; label: string; capacity: number }> {
   const hours = getHoursForDate(date, config);
@@ -103,12 +142,9 @@ export function generateSlotTemplates(
   const end = parseTimeParts(hours.end);
   const startMinutes = toMinutes(start.hours, start.minutes);
   const endMinutes = toMinutes(end.hours, end.minutes);
-  const step =
-    durationMinutes === 50
-      ? config.slotInterval50 ?? 60
-      : config.slotInterval20 ?? 30;
-  const capacity =
-    durationMinutes === 50 ? config.capacity50 : config.capacity20;
+  const { step, perRoomCapacity } = getSlotSettingsForDuration(durationMinutes, config);
+  const roomCount = Math.max(1, config.changeRoomCount ?? 2);
+  const capacity = perRoomCapacity * roomCount;
   const slots: Array<{ time: string; endTime: string; label: string; capacity: number }> =
     [];
 

@@ -14,11 +14,17 @@ import {
 import { ColorField } from "../components/ColorField";
 import { SearchWidgetPreview } from "../components/SearchWidgetPreview";
 import { SettingsFeatureNav } from "../components/SettingsFeatureNav";
+import { SettingsSplitLayout } from "../components/SettingsSplitLayout";
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
   DEFAULT_SEARCH_CONFIG,
   searchConfigFromFormData,
   type SearchConfig,
 } from "../lib/shop-config";
+import {
+  SEARCH_LAYOUT_FIELDS,
+  type SearchLayoutSettings,
+} from "../lib/search-layout";
 import {
   SEARCH_COLOR_FIELDS,
   type SearchColorScheme,
@@ -98,8 +104,18 @@ export default function SearchSettingsPage() {
     }));
   };
 
+  const updateDraftLayout = (
+    field: keyof SearchLayoutSettings,
+    value: SearchLayoutSettings[keyof SearchLayoutSettings],
+  ) => {
+    setDraft((current) => ({
+      ...current,
+      layout: { ...current.layout, [field]: value },
+    }));
+  };
+
   return (
-    <s-page heading="Search" inlineSize="large">
+    <s-page heading="Store Front widget" inlineSize="large">
       <s-stack direction="block" gap="large">
         {showSaved ? (
           <s-banner tone="success" dismissible onDismiss={() => setShowSaved(false)}>
@@ -124,7 +140,8 @@ export default function SearchSettingsPage() {
           </s-stack>
         </s-box>
 
-        <s-grid gridTemplateColumns="1.4fr 1fr" gap="large" alignItems="start">
+        <SettingsSplitLayout
+          editor={
           <Form method="post">
             <input type="hidden" name="intent" value="save" />
             <s-stack direction="block" gap="large">
@@ -160,7 +177,7 @@ export default function SearchSettingsPage() {
                     }
                     details='Landing search form redirects here, e.g. /pages/search-by-date'
                   />
-                  <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+                  <ResponsiveGrid layout="2">
                     <s-text-field
                       label="Event date label"
                       name="eventDateLabel"
@@ -200,7 +217,7 @@ export default function SearchSettingsPage() {
                         updateDraft("refineSearchLabel", event.currentTarget.value)
                       }
                     />
-                  </s-grid>
+                  </ResponsiveGrid>
                   <s-text-field
                     label="Loading message"
                     name="loadingLabel"
@@ -217,6 +234,116 @@ export default function SearchSettingsPage() {
                       updateDraft("emptyResultsLabel", event.currentTarget.value)
                     }
                   />
+                </s-stack>
+              </s-box>
+
+              <s-box padding="large" background="base" border="base" borderRadius="large">
+                <s-stack direction="block" gap="large">
+                  <s-stack direction="block" gap="small">
+                    <s-text type="strong">Layout & spacing</s-text>
+                    <s-paragraph tone="neutral" color="subdued">
+                      Control page width, padding, title size, and input styling. Use
+                      &quot;Match theme page width&quot; to align with your Shopify theme
+                      content area.
+                    </s-paragraph>
+                  </s-stack>
+
+                  <ResponsiveGrid layout="2">
+                    <s-select
+                      label="Content width"
+                      name="contentWidth"
+                      value={draft.layout.contentWidth}
+                      onChange={(event) =>
+                        updateDraftLayout(
+                          "contentWidth",
+                          event.currentTarget.value as SearchLayoutSettings["contentWidth"],
+                        )
+                      }
+                    >
+                      {SEARCH_LAYOUT_FIELDS.contentWidth.map((option) => (
+                        <s-option key={option.value} value={option.value}>
+                          {option.label}
+                        </s-option>
+                      ))}
+                    </s-select>
+
+                    <s-select
+                      label="Section padding"
+                      name="sectionPadding"
+                      value={draft.layout.sectionPadding}
+                      onChange={(event) =>
+                        updateDraftLayout(
+                          "sectionPadding",
+                          event.currentTarget.value as SearchLayoutSettings["sectionPadding"],
+                        )
+                      }
+                    >
+                      {SEARCH_LAYOUT_FIELDS.sectionPadding.map((option) => (
+                        <s-option key={option.value} value={option.value}>
+                          {option.label}
+                        </s-option>
+                      ))}
+                    </s-select>
+
+                    <s-select
+                      label="Title size"
+                      name="titleSize"
+                      value={draft.layout.titleSize}
+                      onChange={(event) =>
+                        updateDraftLayout(
+                          "titleSize",
+                          event.currentTarget.value as SearchLayoutSettings["titleSize"],
+                        )
+                      }
+                    >
+                      {SEARCH_LAYOUT_FIELDS.titleSize.map((option) => (
+                        <s-option key={option.value} value={option.value}>
+                          {option.label}
+                        </s-option>
+                      ))}
+                    </s-select>
+
+                    <s-select
+                      label="Input & button style"
+                      name="inputStyle"
+                      value={draft.layout.inputStyle}
+                      onChange={(event) =>
+                        updateDraftLayout(
+                          "inputStyle",
+                          event.currentTarget.value as SearchLayoutSettings["inputStyle"],
+                        )
+                      }
+                    >
+                      {SEARCH_LAYOUT_FIELDS.inputStyle.map((option) => (
+                        <s-option key={option.value} value={option.value}>
+                          {option.label}
+                        </s-option>
+                      ))}
+                    </s-select>
+                  </ResponsiveGrid>
+
+                  <label
+                    style={{
+                      display: "flex",
+                      gap: "0.65rem",
+                      alignItems: "flex-start",
+                      fontSize: "0.875rem",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      name="fullBleedBackground"
+                      value="true"
+                      checked={draft.layout.fullBleedBackground}
+                      onChange={(event) =>
+                        updateDraftLayout("fullBleedBackground", event.currentTarget.checked)
+                      }
+                    />
+                    <span>
+                      Full-width section background (edge-to-edge background color while
+                      content stays within the width setting above)
+                    </span>
+                  </label>
                 </s-stack>
               </s-box>
 
@@ -255,7 +382,7 @@ export default function SearchSettingsPage() {
                     </s-paragraph>
                   </s-stack>
 
-                  <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+                  <ResponsiveGrid layout="2">
                     <s-select
                       label="Default hire duration"
                       name="defaultDurationDays"
@@ -267,8 +394,8 @@ export default function SearchSettingsPage() {
                         )
                       }
                     >
-                      <option value="4">4 days</option>
-                      <option value="8">8 days</option>
+                      <s-option value="4">4 days</s-option>
+                      <s-option value="8">8 days</s-option>
                     </s-select>
                     <s-text-field
                       label="Collection handle"
@@ -279,7 +406,7 @@ export default function SearchSettingsPage() {
                       }
                       details='e.g. "all" or your hire collection handle'
                     />
-                  </s-grid>
+                  </ResponsiveGrid>
 
                   <SearchColorHiddenFields colors={draft.colors} />
 
@@ -301,9 +428,9 @@ export default function SearchSettingsPage() {
               </s-box>
             </s-stack>
           </Form>
-
-          <SearchWidgetPreview config={draft} />
-        </s-grid>
+          }
+          preview={<SearchWidgetPreview config={draft} />}
+        />
 
         <Form method="post">
           <s-box padding="large" background="subdued" borderRadius="large">

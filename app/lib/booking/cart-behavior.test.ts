@@ -5,6 +5,8 @@ import {
   LINKED_BOOKING_ID_KEY,
   buildMainDescriptor,
   findOrphanedProtectionKeys,
+  getBookingDuration,
+  getBookingSize,
   looksLikeVariantSummary,
 } from "./cart-behavior";
 
@@ -15,8 +17,8 @@ describe("cart-behavior", () => {
         key: "gown",
         product_title: "Evangeline Gown - Espresso",
         properties: {
-          Size: "6",
-          Duration: "4 Days",
+          _Size: "6",
+          _Duration: "4 Days",
           Color: "Espresso",
         },
       }),
@@ -47,8 +49,8 @@ describe("cart-behavior", () => {
           key: "gown",
           product_title: "Evangeline Gown - Espresso",
           properties: {
-            Size: "6",
-            Duration: "4 Days",
+            _Size: "6",
+            _Duration: "4 Days",
             [BOOKING_ID_KEY]: "booking-1",
           },
         },

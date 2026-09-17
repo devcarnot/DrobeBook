@@ -7,6 +7,27 @@
     }
   }
 
+  async function readJsonResponse(response) {
+    const text = await response.text();
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+      throw new Error(`Booking API returned an empty response (${response.status}).`);
+    }
+
+    if (trimmed.startsWith("<")) {
+      throw new Error(
+        `Booking API unavailable (${response.status}). Make sure DrobeBook is running (shopify app dev) and refresh the page.`,
+      );
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      throw new Error(`Booking API returned invalid JSON (${response.status}).`);
+    }
+  }
+
   function formatIso(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -57,10 +78,17 @@
     return iso >= startIso && iso <= endIso;
   }
 
+  function normalizeShopifyId(id) {
+    const text = String(id ?? "").trim();
+    const match = text.match(/(\d+)$/);
+    return match ? match[1] : text;
+  }
+
   class GkDrobeBookingWidget {
     constructor(root) {
       this.root = root;
-      this.productId = root.dataset.productId;
+      this.productId = normalizeShopifyId(root.dataset.productId);
+      this.calendarRequestId = 0;
       this.productTitle = root.dataset.productTitle || "Gown";
       this.variants = parseJson(root.dataset.variants, []);
       this.options = parseJson(root.dataset.options, []);
@@ -79,6 +107,8 @@
         moreInfoLabel: "More Info",
         buttonLabelPending: "Select dates first",
         buttonLabelReady: "Add hire to cart",
+        hireTerms: [],
+        fontFamily: "",
       };
 
       this.state = {
@@ -91,23 +121,31 @@
         returnDate: "",
         previewStartDate: "",
         eventDate: "",
-        damageProtection: true,
+        damageProtection: false,
+        acceptedTerms: {},
         calendarYear: new Date().getFullYear(),
         calendarMonth: new Date().getMonth() + 1,
         unavailableDates: new Set(),
         loadingCalendar: false,
+        waitlistClaim: null,
       };
 
       this.cacheDom();
       this.colors = this.resolveColors();
       this.updateColorGroupVisibility();
+      this.updateDurationGroupVisibility();
       this.bindEvents();
       this.bootstrapUi();
-      this.loadConfig().then(() => {
+      this.loadConfig().then(async () => {
+        this.applyUrlPrefill();
+        this.loadWaitlistClaimFromUrl();
         this.renderDeliveryButtons();
+        this.syncDurationSelection();
+        this.renderDurationButtons();
+        this.updateDurationGroupVisibility();
         this.updateSummary();
+        await this.loadCalendarAvailability();
       });
-      this.loadCalendarAvailability().then(() => this.renderCalendar());
     }
 
     bootstrapUi() {
@@ -142,6 +180,18 @@
       this.errorEl = this.root.querySelector("[data-gk-error]");
       this.loadingEl = this.root.querySelector("[data-gk-loading]");
       this.colorGroupEl = this.root.querySelector("[data-gk-color-group]");
+      this.durationGroupEl = this.root.querySelector("[data-gk-duration-group]");
+      this.termsGroupEl = this.root.querySelector("[data-gk-terms-group]");
+      this.termsEl = this.root.querySelector("[data-gk-terms]");
+      this.waitlistEl = this.root.querySelector("[data-gk-waitlist]");
+      this.waitlistToggle = this.root.querySelector("[data-gk-waitlist-toggle]");
+      this.waitlistForm = this.root.querySelector("[data-gk-waitlist-form]");
+      this.waitlistEmailInput = this.root.querySelector("[data-gk-waitlist-email]");
+      this.waitlistNameInput = this.root.querySelector("[data-gk-waitlist-name]");
+      this.waitlistNotesInput = this.root.querySelector("[data-gk-waitlist-notes]");
+      this.waitlistSubmitButton = this.root.querySelector("[data-gk-waitlist-submit]");
+      this.waitlistMessageEl = this.root.querySelector("[data-gk-waitlist-message]");
+      this.waitlistClaimEl = this.root.querySelector("[data-gk-waitlist-claim]");
     }
 
     resolveColors() {
@@ -216,13 +266,23 @@
       this.submitButton?.addEventListener("click", () => {
         this.addToCart();
       });
+
+      this.waitlistToggle?.addEventListener("click", () => {
+        if (this.waitlistForm) {
+          this.waitlistForm.hidden = !this.waitlistForm.hidden;
+        }
+      });
+
+      this.waitlistSubmitButton?.addEventListener("click", () => {
+        this.submitWaitlist();
+      });
     }
 
     async loadConfig() {
       try {
         const response = await fetch(`${this.proxyBase}/api/config`);
         if (!response.ok) return;
-        const data = await response.json();
+        const data = await readJsonResponse(response);
         this.config = { ...this.config, ...data };
 
         if (this.instructionsEl) {
@@ -251,11 +311,237 @@
           damageLabel.textContent = this.config.damageProtectionLabel;
         }
 
-        if (window.GkDrobeTheme && this.config.colors) {
-          window.GkDrobeTheme.apply(this.root, this.config.colors);
+        if (window.GkDrobeTheme) {
+          window.GkDrobeTheme.apply(
+            this.root,
+            this.config.colors,
+            this.config.fontFamily,
+          );
         }
+
+        this.renderHireTerms();
+        this.updateWaitlistVisibility();
       } catch {
         // Storefront still works with block defaults.
+      }
+    }
+
+    renderHireTerms() {
+      if (!this.termsEl) {
+        return;
+      }
+
+      const terms = Array.isArray(this.config.hireTerms)
+        ? this.config.hireTerms.filter((entry) => entry?.label)
+        : [];
+
+      this.termsEl.innerHTML = "";
+      this.state.acceptedTerms = {};
+
+      if (!terms.length) {
+        if (this.termsGroupEl) {
+          this.termsGroupEl.hidden = true;
+        }
+        return;
+      }
+
+      if (this.termsGroupEl) {
+        this.termsGroupEl.hidden = false;
+      }
+
+      terms.forEach((term, index) => {
+        const termId = term.id || `term-${index + 1}`;
+        const label = document.createElement("label");
+        label.className = "gk-drobe-booking__term";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.dataset.termId = termId;
+        checkbox.addEventListener("change", () => {
+          this.state.acceptedTerms[termId] = checkbox.checked;
+          this.updateSummary();
+        });
+
+        const text = document.createElement("span");
+        text.textContent = term.label;
+
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        this.termsEl.appendChild(label);
+      });
+    }
+
+    allTermsAccepted() {
+      const terms = Array.isArray(this.config.hireTerms)
+        ? this.config.hireTerms.filter((entry) => entry?.label)
+        : [];
+
+      if (!terms.length) {
+        return true;
+      }
+
+      return terms.every((term, index) => {
+        const termId = term.id || `term-${index + 1}`;
+        return Boolean(this.state.acceptedTerms[termId]);
+      });
+    }
+
+    async checkAvailabilityBeforeCart() {
+      const variant = this.getSelectedVariant();
+      if (!variant || !this.state.deliveryDate) {
+        return { available: false, reason: "Please select size and delivery date." };
+      }
+
+      const params = new URLSearchParams({
+        productId: this.productId,
+        variantId: normalizeShopifyId(variant.id),
+        deliveryDate: this.state.deliveryDate,
+        durationDays: String(this.state.durationDays),
+        deliveryMethod: this.state.deliveryMethod,
+      });
+
+      const response = await fetch(`${this.proxyBase}/api/availability?${params.toString()}`);
+      const data = await readJsonResponse(response);
+
+      if (!response.ok) {
+        throw new Error(data.error || "Could not verify availability.");
+      }
+
+      return data;
+    }
+
+    async submitWaitlist() {
+      const email = this.waitlistEmailInput?.value?.trim();
+      const variant = this.getSelectedVariant();
+
+      if (!email) {
+        this.showWaitlistMessage("Please enter your email address.", true);
+        return;
+      }
+
+      this.waitlistSubmitButton.disabled = true;
+      this.showWaitlistMessage("");
+
+      const formData = new FormData();
+      formData.set("productId", this.productId);
+      formData.set("productTitle", this.productTitle || "");
+      formData.set("variantId", variant ? String(variant.id) : "");
+      formData.set("size", this.state.size || "");
+      formData.set("eventDate", this.state.eventDate || this.eventDateInput?.value || "");
+      formData.set("email", email);
+      formData.set("name", this.waitlistNameInput?.value || "");
+      formData.set("notes", this.waitlistNotesInput?.value || "");
+
+      try {
+        const response = await fetch(`${this.proxyBase}/api/waitlist`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await readJsonResponse(response);
+
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Could not join waitlist.");
+        }
+
+        this.showWaitlistMessage(data.message || "Added to waitlist.", false);
+        if (this.waitlistForm) {
+          this.waitlistForm.hidden = true;
+        }
+      } catch (error) {
+        this.showWaitlistMessage(error.message, true);
+      } finally {
+        this.waitlistSubmitButton.disabled = false;
+      }
+    }
+
+    showWaitlistMessage(message, isError) {
+      if (!this.waitlistMessageEl) {
+        return;
+      }
+
+      this.waitlistMessageEl.textContent = message;
+      this.waitlistMessageEl.hidden = !message;
+      this.waitlistMessageEl.style.background = isError
+        ? "rgba(176, 0, 32, 0.06)"
+        : "rgba(0, 128, 96, 0.08)";
+      this.waitlistMessageEl.style.color = isError ? "#8a0018" : "#004c3f";
+    }
+
+    updateWaitlistVisibility() {
+      if (!this.waitlistEl) {
+        return;
+      }
+
+      const unavailableSelected =
+        Boolean(this.state.deliveryDate) &&
+        this.state.unavailableDates.has(this.state.deliveryDate);
+      const noDatesAvailable =
+        !this.state.loadingCalendar &&
+        this.state.unavailableDates.size > 0 &&
+        !this.canFindAvailableDateInMonth();
+
+      this.waitlistEl.hidden = !(unavailableSelected || noDatesAvailable);
+    }
+
+    canFindAvailableDateInMonth() {
+      const daysInMonth = new Date(
+        Date.UTC(this.state.calendarYear, this.state.calendarMonth, 0),
+      ).getUTCDate();
+
+      for (let day = 1; day <= daysInMonth; day += 1) {
+        const iso = formatIso(
+          new Date(Date.UTC(this.state.calendarYear, this.state.calendarMonth - 1, day)),
+        );
+        if (!this.state.unavailableDates.has(iso)) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    async loadWaitlistClaimFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const claimToken = params.get("gk_claim")?.trim();
+      if (!claimToken || !this.waitlistClaimEl) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${this.proxyBase}/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`,
+        );
+        const data = await readJsonResponse(response);
+        if (!data.valid) {
+          this.waitlistClaimEl.textContent =
+            data.error || "This priority access link is no longer valid.";
+          this.waitlistClaimEl.hidden = false;
+          return;
+        }
+
+        this.state.waitlistClaim = data;
+        if (this.waitlistEmailInput && data.email) {
+          this.waitlistEmailInput.value = data.email;
+        }
+        if (data.size && !this.state.size) {
+          this.state.size = data.size;
+          this.renderSizeButtons();
+        }
+
+        const expires = data.expiresAt
+          ? new Date(data.expiresAt).toLocaleString("en-AU", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : "soon";
+
+        this.waitlistClaimEl.textContent = `You have priority access to book this gown until ${expires}.`;
+        this.waitlistClaimEl.hidden = false;
+      } catch {
+        // Ignore claim validation errors on storefront.
       }
     }
 
@@ -282,16 +568,62 @@
     getDurationOptions() {
       const durationIndex = this.getOptionIndex("Duration");
       if (durationIndex >= 0) {
-        return this.getOptionValues("Duration").map((label) => ({
-          label,
-          days: parseDurationDays(label) || 4,
-        }));
+        const values = this.getOptionValues("Duration");
+        if (values.length) {
+          return values.map((label) => ({
+            label,
+            days: parseDurationDays(label) || 4,
+          }));
+        }
       }
 
       return [
         { label: "4 Days", days: 4 },
         { label: "8 Days", days: 8 },
       ];
+    }
+
+    updateDurationGroupVisibility() {
+      const durations = this.getDurationOptions();
+      if (this.durationGroupEl) {
+        this.durationGroupEl.hidden = durations.length <= 1;
+      }
+    }
+
+    syncDurationSelection() {
+      const durations = this.getDurationOptions();
+      if (!durations.length) {
+        return;
+      }
+
+      const current =
+        durations.find((entry) => entry.days === this.state.durationDays) ||
+        durations.find((entry) => entry.label === this.state.durationLabel) ||
+        durations[0];
+
+      this.state.durationLabel = current.label;
+      this.state.durationDays = current.days;
+    }
+
+    findVariantForSizeAndDays(size, days) {
+      const sizeIndex = this.getOptionIndex("Size");
+      const durationIndex = this.getOptionIndex("Duration");
+
+      return this.variants.find((variant) => {
+        const variantSize =
+          sizeIndex >= 0 ? this.getVariantOptionValue(variant, sizeIndex) : null;
+        const variantDuration =
+          durationIndex >= 0
+            ? this.getVariantOptionValue(variant, durationIndex)
+            : null;
+        const variantDays = parseDurationDays(variantDuration);
+
+        const sizeMatch = !size || variantSize === size;
+        const durationMatch =
+          durationIndex < 0 || !days || variantDays === days;
+
+        return sizeMatch && durationMatch;
+      });
     }
 
     getVariantsForSize(size) {
@@ -305,23 +637,7 @@
     }
 
     getSelectedVariant() {
-      const sizeIndex = this.getOptionIndex("Size");
-      const durationIndex = this.getOptionIndex("Duration");
-
-      return this.variants.find((variant) => {
-        const variantSize =
-          sizeIndex >= 0 ? this.getVariantOptionValue(variant, sizeIndex) : null;
-        const variantDuration =
-          durationIndex >= 0
-            ? this.getVariantOptionValue(variant, durationIndex)
-            : null;
-
-        const sizeMatch = !this.state.size || variantSize === this.state.size;
-        const durationMatch =
-          !this.state.durationLabel || variantDuration === this.state.durationLabel;
-
-        return sizeMatch && durationMatch;
-      });
+      return this.findVariantForSizeAndDays(this.state.size, this.state.durationDays);
     }
 
     buildItemDescriptor() {
@@ -381,20 +697,7 @@
       this.durationButtonsEl.innerHTML = "";
 
       durations.forEach(({ label, days }) => {
-        const variant = this.variants.find((entry) => {
-          const sizeIndex = this.getOptionIndex("Size");
-          const durationIndex = this.getOptionIndex("Duration");
-          const variantSize =
-            sizeIndex >= 0 ? this.getVariantOptionValue(entry, sizeIndex) : null;
-          const variantDuration =
-            durationIndex >= 0
-              ? this.getVariantOptionValue(entry, durationIndex)
-              : null;
-          return (
-            (!this.state.size || variantSize === this.state.size) &&
-            variantDuration === label
-          );
-        });
+        const variant = this.findVariantForSizeAndDays(this.state.size, days);
 
         const priceLabel = variant
           ? `${label} – ${formatMoney(variant.price, variant.currency || "AUD")}`
@@ -402,24 +705,23 @@
 
         const button = this.createChoiceButton(
           priceLabel,
-          this.state.durationLabel === label,
+          this.state.durationDays === days,
           () => {
             this.state.durationLabel = label;
             this.state.durationDays = days;
-            if (this.state.deliveryDate) {
-              this.state.returnDate = computeReturnDate(
-                this.state.deliveryDate,
-                days,
-              );
-            } else {
-              this.state.deliveryDate = "";
-              this.state.returnDate = "";
-            }
+            this.state.deliveryDate = "";
+            this.state.returnDate = "";
             this.state.previewStartDate = "";
             this.renderDurationButtons();
             this.onSelectionChanged();
           },
         );
+
+        if (!variant) {
+          button.disabled = true;
+          button.title =
+            "No product variant matches this hire duration. Add a matching Duration variant in Shopify.";
+        }
 
         this.durationButtonsEl.appendChild(button);
       });
@@ -465,11 +767,42 @@
           () => {
             this.state.deliveryMethod = method.id;
             this.renderDeliveryButtons();
-            this.loadCalendarAvailability().then(() => this.renderCalendar());
+            this.loadCalendarAvailability();
           },
         );
         this.deliveryButtonsEl.appendChild(button);
       });
+    }
+
+    applyUrlPrefill() {
+      const params = new URLSearchParams(window.location.search);
+      const eventDate = params.get("eventDate") || params.get("date");
+      const deliveryMethod = params.get("deliveryMethod");
+      const size = params.get("size");
+      const durationDays = params.get("durationDays");
+
+      if (eventDate && this.eventDateInput) {
+        this.eventDateInput.value = eventDate;
+        this.state.eventDate = eventDate;
+      }
+
+      if (deliveryMethod === "pickup" || deliveryMethod === "post") {
+        this.state.deliveryMethod = deliveryMethod;
+      }
+
+      if (size) {
+        this.state.size = size;
+      }
+
+      if (durationDays) {
+        const parsedDays = Number.parseInt(durationDays, 10);
+        const durations = this.getDurationOptions();
+        const match = durations.find((entry) => entry.days === parsedDays);
+        if (match) {
+          this.state.durationDays = match.days;
+          this.state.durationLabel = match.label;
+        }
+      }
     }
 
     applyDefaults() {
@@ -494,6 +827,7 @@
 
       this.renderSizeButtons();
       this.renderDurationButtons();
+      this.updateDurationGroupVisibility();
       this.renderColorButtons();
       this.renderDeliveryButtons();
     }
@@ -501,7 +835,6 @@
     async onSelectionChanged() {
       this.updateSummary();
       await this.loadCalendarAvailability();
-      this.renderCalendar();
     }
 
     shiftMonth(delta) {
@@ -519,23 +852,35 @@
       this.state.calendarMonth = month;
       this.state.calendarYear = year;
       this.state.previewStartDate = "";
-      this.loadCalendarAvailability().then(() => this.renderCalendar());
+      this.loadCalendarAvailability();
     }
 
     async loadCalendarAvailability() {
       const variant = this.getSelectedVariant();
       if (!variant) {
         this.state.unavailableDates = new Set();
+        this.state.loadingCalendar = false;
+        if (this.loadingEl) {
+          this.loadingEl.hidden = true;
+        }
+        this.showError(
+          "No variant matches this size and hire duration. Update Shopify Duration variants or your hire duration settings.",
+        );
         return;
       }
 
+      const requestId = ++this.calendarRequestId;
+      const variantId = normalizeShopifyId(variant.id);
+
       this.state.loadingCalendar = true;
-      this.loadingEl.hidden = false;
+      if (this.loadingEl) {
+        this.loadingEl.hidden = false;
+      }
       this.clearError();
 
       const params = new URLSearchParams({
         productId: this.productId,
-        variantId: String(variant.id),
+        variantId,
         durationDays: String(this.state.durationDays),
         deliveryMethod: this.state.deliveryMethod,
         year: String(this.state.calendarYear),
@@ -546,7 +891,11 @@
         const response = await fetch(
           `${this.proxyBase}/api/availability-calendar?${params.toString()}`,
         );
-        const data = await response.json();
+        const data = await readJsonResponse(response);
+
+        if (requestId !== this.calendarRequestId) {
+          return;
+        }
 
         if (!response.ok) {
           throw new Error(data.error || "Could not load availability");
@@ -554,11 +903,21 @@
 
         this.state.unavailableDates = new Set(data.unavailableDates || []);
       } catch (error) {
+        if (requestId !== this.calendarRequestId) {
+          return;
+        }
         this.showError(error.message);
         this.state.unavailableDates = new Set();
       } finally {
+        if (requestId !== this.calendarRequestId) {
+          return;
+        }
         this.state.loadingCalendar = false;
-        this.loadingEl.hidden = true;
+        if (this.loadingEl) {
+          this.loadingEl.hidden = true;
+        }
+        this.updateWaitlistVisibility();
+        this.renderCalendar();
       }
     }
 
@@ -685,6 +1044,7 @@
       this.state.previewStartDate = "";
       this.updateCalendarHighlights();
       this.updateSummary();
+      this.updateWaitlistVisibility();
       this.clearError();
     }
 
@@ -694,6 +1054,7 @@
       this.state.previewStartDate = "";
       this.updateCalendarHighlights();
       this.updateSummary();
+      this.updateWaitlistVisibility();
       this.clearError();
     }
 
@@ -718,13 +1079,16 @@
       this.submitButton.textContent = ready
         ? this.config.buttonLabelReady || "Add hire to cart"
         : this.config.buttonLabelPending || "Select dates first";
+
+      this.updateWaitlistVisibility();
     }
 
     canSubmit() {
       return Boolean(
         this.getSelectedVariant() &&
           this.state.deliveryDate &&
-          this.state.eventDate,
+          this.state.eventDate &&
+          this.allTermsAccepted(),
       );
     }
 
@@ -754,6 +1118,11 @@
         return;
       }
 
+      if (!this.allTermsAccepted()) {
+        this.showError("Please accept all hire terms before continuing.");
+        return;
+      }
+
       if (
         this.state.damageProtection &&
         !this.config.damageProtectionVariantId
@@ -767,11 +1136,25 @@
       this.submitButton.disabled = true;
       this.clearError();
 
+      try {
+        const availability = await this.checkAvailabilityBeforeCart();
+        if (!availability.available) {
+          throw new Error(
+            availability.reason ||
+              "Those dates are no longer available. Please choose different dates or join the waitlist.",
+          );
+        }
+      } catch (error) {
+        this.showError(error.message);
+        this.updateSummary();
+        return;
+      }
+
       const bookingId = this.createBookingId();
 
       const properties = {
-        Size: this.state.size,
-        Duration: this.state.durationLabel,
+        _Size: this.state.size,
+        _Duration: this.state.durationLabel,
         ...(this.state.color ? { Color: this.state.color } : {}),
         "Delivery Method":
           this.state.deliveryMethod === "pickup"
@@ -824,18 +1207,57 @@
     }
   }
 
-  function initWidgets() {
-    document.querySelectorAll("[data-gk-drobe-booking]").forEach((root) => {
-      if (!root.dataset.initialized) {
-        root.dataset.initialized = "true";
-        new GkDrobeBookingWidget(root);
+  async function shouldShowBookingWidget(root) {
+    const productId = root.dataset.productId;
+    if (!productId) {
+      return false;
+    }
+
+    const proxyBase = root.dataset.proxyBase || "/apps/gk-drobe";
+    const response = await fetch(
+      `${proxyBase}/api/product-rental-status?productId=${encodeURIComponent(productId)}`,
+    );
+    const data = await readJsonResponse(response);
+
+    return Boolean(data.rentalEnabled);
+  }
+
+  function removeBookingShell(root) {
+    const shell = root.closest("[data-gk-booking-shell]") || root;
+    shell.remove();
+  }
+
+  async function initWidgets() {
+    const roots = document.querySelectorAll("[data-gk-drobe-booking]");
+
+    for (const root of roots) {
+      if (root.dataset.initialized) {
+        continue;
       }
-    });
+
+      root.dataset.initialized = "true";
+      const shell = root.closest("[data-gk-booking-shell]") || root;
+
+      try {
+        const enabled = await shouldShowBookingWidget(root);
+        if (!enabled) {
+          removeBookingShell(root);
+          continue;
+        }
+
+        shell.hidden = false;
+        new GkDrobeBookingWidget(root);
+      } catch {
+        removeBookingShell(root);
+      }
+    }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", initWidgets);
+    document.addEventListener("DOMContentLoaded", () => {
+      void initWidgets();
+    });
   } else {
-    initWidgets();
+    void initWidgets();
   }
 })();

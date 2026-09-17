@@ -1,6 +1,8 @@
 import type { LoaderFunctionArgs } from "react-router";
 
+import { parseDeliveryMethod } from "../lib/booking";
 import { parseHireDuration } from "../lib/booking/availability.server";
+import type { HireDurationDays } from "../lib/booking/availability";
 import {
   searchConfigWithOverrides,
   searchProductsByDate,
@@ -19,6 +21,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const eventDate = url.searchParams.get("eventDate");
   const size = url.searchParams.get("size");
   const durationParam = url.searchParams.get("durationDays");
+  const deliveryMethod = parseDeliveryMethod(url.searchParams.get("deliveryMethod"));
   const collectionHandle = url.searchParams.get("collection");
 
   if (!eventDate || !size) {
@@ -29,8 +32,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   const shopConfig = await getShopConfig(session.shop);
-  const durationDays =
-    parseHireDuration(durationParam) ?? shopConfig.search.defaultDurationDays;
+  const configuredDefault =
+    shopConfig.search.defaultDurationDays === 8 ? 8 : 4;
+  const durationDays: HireDurationDays =
+    parseHireDuration(durationParam) ?? configuredDefault;
 
   try {
     const { admin } = await unauthenticated.admin(session.shop);
@@ -39,6 +44,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       eventDate,
       size,
       durationDays,
+      deliveryMethod,
       collectionHandle:
         searchConfigWithOverrides(shopConfig.search, collectionHandle)
           .collectionHandle,

@@ -1,5 +1,6 @@
 import type { LoaderFunctionArgs } from "react-router";
 
+import { allowedAppointmentDurationMinutes } from "../lib/appointment/appointment-durations";
 import {
   getUnavailableAppointmentDates,
   parseAppointmentDuration,
@@ -22,8 +23,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     url.searchParams.get("month"),
   );
   const dayType = parseDayType(url.searchParams.get("dayType"));
+  const shopConfig = await getShopConfig(session.shop);
+  const allowedDurations = allowedAppointmentDurationMinutes(
+    shopConfig.appointment.appointmentDurations,
+  );
   const durationMinutes = parseAppointmentDuration(
     url.searchParams.get("durationMinutes"),
+    allowedDurations,
   );
 
   if (!monthParams || !dayType || !durationMinutes) {
@@ -35,8 +41,6 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       { status: 400 },
     );
   }
-
-  const shopConfig = await getShopConfig(session.shop);
   const unavailableDates = await getUnavailableAppointmentDates({
     shop: session.shop,
     year: monthParams.year,

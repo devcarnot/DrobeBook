@@ -10,8 +10,16 @@
   let syncing = false;
   let refreshTimer = 0;
 
+  function getBookingSize(properties) {
+    return properties?._Size ?? properties?.Size ?? null;
+  }
+
+  function getBookingDuration(properties) {
+    return properties?._Duration ?? properties?.Duration ?? null;
+  }
+
   function isBookingItem(item) {
-    return Boolean(item.properties?.Size && item.properties?.Duration);
+    return Boolean(getBookingSize(item.properties) && getBookingDuration(item.properties));
   }
 
   function normalizeDescriptor(value) {
@@ -27,7 +35,7 @@
       return null;
     }
 
-    const parts = [item.properties.Size, item.properties.Duration];
+    const parts = [getBookingSize(item.properties), getBookingDuration(item.properties)];
     if (item.properties.Color) {
       parts.push(item.properties.Color);
     }
@@ -141,6 +149,11 @@
         parsed.querySelector(".shopify-section")?.innerHTML || parsed.body.innerHTML;
       container.innerHTML = inner;
     });
+
+    const storedCount = Number(document.documentElement.dataset.gkDrobeCartCount);
+    if (!Number.isNaN(storedCount)) {
+      updateCartCount(storedCount);
+    }
   }
 
   const CART_COUNT_TEXT_SELECTORS = [
@@ -154,11 +167,92 @@
     ".header__cart-count",
   ].join(", ");
 
-  const CART_BUBBLE_SELECTORS =
-    ".cart-count-bubble, [data-cart-count], #cart-icon-bubble, .cart-link__bubble";
+  const CART_BADGE_SELECTORS = [
+    ".cart-count-bubble",
+    ".cart-link__bubble",
+    ".header__cart-count",
+    ".icon-cart__count",
+    "[class*='cart-count-bubble']",
+    "[class*='cart__count']:not([class*='account'])",
+  ].join(", ");
+
+  function findCartBadgeFromCountNode(node) {
+    if (!(node instanceof Element)) {
+      return null;
+    }
+
+    const badge = node.closest(CART_BADGE_SELECTORS);
+    if (badge && !badge.matches('a[href="/cart"], a[href*="/cart"]')) {
+      return badge;
+    }
+
+    const parent = node.parentElement;
+    if (
+      parent &&
+      parent !== node.closest('a[href="/cart"], a[href*="/cart"]') &&
+      parent.childElementCount <= 2
+    ) {
+      return parent;
+    }
+
+    return null;
+  }
+
+  function setCartBadgeVisible(badge, visible) {
+    if (!(badge instanceof Element) || badge.matches('a[href="/cart"], a[href*="/cart"]')) {
+      return;
+    }
+
+    badge.classList.toggle("gk-drobe-cart-empty", !visible);
+    badge.toggleAttribute("hidden", !visible);
+    badge.style.display = visible ? "" : "none";
+    badge.style.visibility = visible ? "" : "hidden";
+    badge.style.opacity = visible ? "" : "0";
+  }
+
+  function collectCartBadgeElements() {
+    const badges = new Set();
+
+    document.querySelectorAll(CART_BADGE_SELECTORS).forEach((badge) => {
+      if (!badge.matches('a[href="/cart"], a[href*="/cart"]')) {
+        badges.add(badge);
+      }
+    });
+
+    document.querySelectorAll("[data-cart-count]").forEach((badge) => {
+      if (!badge.matches('a[href="/cart"], a[href*="/cart"]')) {
+        badges.add(badge);
+      }
+    });
+
+    document.querySelectorAll(CART_COUNT_TEXT_SELECTORS).forEach((node) => {
+      const badge = findCartBadgeFromCountNode(node);
+      if (badge) {
+        badges.add(badge);
+      }
+    });
+
+    document.querySelectorAll('a[href="/cart"], a[href*="/cart"]').forEach((cartLink) => {
+      cartLink.querySelectorAll("sup, span, small, em, strong, div").forEach((node) => {
+        if (node.closest("svg") || node.querySelector("svg")) {
+          return;
+        }
+
+        const text = node.textContent.trim();
+        if (/^\d{0,3}$/.test(text)) {
+          const badge = findCartBadgeFromCountNode(node);
+          if (badge) {
+            badges.add(badge);
+          }
+        }
+      });
+    });
+
+    return badges;
+  }
 
   function patchCartCountNearIcon(count) {
-    const countText = String(count);
+    const countText = count > 0 ? String(count) : "";
 
     document.querySelectorAll('a[href="/cart"], a[href*="/cart"]').forEach((cartLink) => {
       const scope =
@@ -180,41 +274,47 @@
         }
 
         const text = node.textContent.trim();
-        if (/^\d{1,3}$/.test(text)) {
+        if (/^\d{0,3}$/.test(text)) {
           node.textContent = countText;
           node.style.visibility = count > 0 ? "" : "hidden";
           node.style.opacity = count > 0 ? "" : "0";
+          node.style.display = count > 0 ? "" : "none";
+
+          const badge = findCartBadgeFromCountNode(node);
+          setCartBadgeVisible(badge, count > 0);
         }
       });
     });
   }
 
   function updateCartCount(count) {
-    const countText = String(count);
+    const countText = count > 0 ? String(count) : "";
+    const showBadge = count > 0;
 
     if (window.Shopify) {
       window.Shopify.cartCount = count;
     }
 
-    document.documentElement.dataset.gkDrobeCartCount = countText;
+    document.documentElement.dataset.gkDrobeCartCount = String(count);
 
     document.querySelectorAll(CART_COUNT_TEXT_SELECTORS).forEach((node) => {
       if (node.childElementCount === 0) {
         node.textContent = countText;
+        node.style.visibility = showBadge ? "" : "hidden";
+        node.style.opacity = showBadge ? "" : "0";
+        node.style.display = showBadge ? "" : "none";
       }
     });
 
     document.querySelectorAll("[data-cart-count]").forEach((node) => {
-      node.setAttribute("data-cart-count", countText);
+      node.setAttribute("data-cart-count", String(count));
+      if (!node.matches('a[href="/cart"], a[href*="/cart"]')) {
+        setCartBadgeVisible(node, showBadge);
+      }
     });
 
-    document.querySelectorAll(CART_BUBBLE_SELECTORS).forEach((bubble) => {
-      bubble.classList.toggle("gk-drobe-cart-empty", count <= 0);
-      if (count <= 0) {
-        bubble.setAttribute("hidden", "hidden");
-      } else {
-        bubble.removeAttribute("hidden");
-      }
+    collectCartBadgeElements().forEach((badge) => {
+      setCartBadgeVisible(badge, showBadge);
     });
 
     patchCartCountNearIcon(count);
@@ -434,8 +534,8 @@
       return [];
     }
 
-    const size = item.properties.Size;
-    const duration = item.properties.Duration;
+    const size = getBookingSize(item.properties);
+    const duration = getBookingDuration(item.properties);
     const durationShort = duration.replace(/\bdays?\b/i, "Days");
 
     return [
@@ -479,6 +579,39 @@
     node.setAttribute("hidden", "hidden");
     node.style.display = "none";
     node.classList.add("gk-drobe-hide-variant-summary");
+  }
+
+  function hideDuplicateBookingLabels(row) {
+    if (!row) {
+      return;
+    }
+
+    row.querySelectorAll("dt, dd, li, p, span, div").forEach((node) => {
+      if (node.closest('[class*="properties"]') === null && !node.matches("dt, dd, li")) {
+        return;
+      }
+
+      const text = node.textContent.replace(/\s+/g, " ").trim();
+      if (/^Size:\s*.+$/i.test(text) && text.length < 40) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
+          }
+        }
+      }
+
+      if (/^Duration:\s*.+$/i.test(text) && text.length < 50) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
+          }
+        }
+      }
+    });
   }
 
   function hideVariantSummaryInRow(row, item) {
@@ -551,6 +684,8 @@
         sibling = sibling.nextElementSibling;
       }
     }
+
+    hideDuplicateBookingLabels(row);
   }
 
   function findCartRowFallback(item) {

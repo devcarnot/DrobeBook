@@ -72,10 +72,32 @@ export async function createBlockedDate(
   };
 }
 
-export async function deleteBlockedDate(shop: string, id: string): Promise<void> {
+export async function deleteBlockedDate(
+  shop: string,
+  id: string,
+): Promise<BlockedDateRecord | null> {
+  const existing = await prisma.blockedDate.findFirst({
+    where: { id, shop },
+  });
+
+  if (!existing) {
+    return null;
+  }
+
   await prisma.blockedDate.deleteMany({
     where: { id, shop },
   });
+
+  return {
+    id: existing.id,
+    startDate: formatDateOnly(existing.startDate),
+    endDate: formatDateOnly(existing.endDate),
+    reason: existing.reason,
+    productId: existing.productId,
+    variantId: existing.variantId,
+    createdBy: existing.createdBy,
+    createdAt: existing.createdAt.toISOString(),
+  };
 }
 
 export async function createGarmentBlockedDate(

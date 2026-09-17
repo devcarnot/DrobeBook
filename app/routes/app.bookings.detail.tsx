@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -6,12 +6,13 @@ import type {
 } from "react-router";
 import {
   Form,
-  Link,
   useActionData,
   useLoaderData,
+  useNavigate,
   useNavigation,
 } from "react-router";
 
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
   formatDisplayDate,
   previewBufferDates,
@@ -47,6 +48,42 @@ function parseOptionalUnit(
     return null;
   }
   return raw === "business" ? "business" : "calendar";
+}
+
+type BookingDraft = {
+  deliveryMethod: DeliveryMethod;
+  rentalStart: string;
+  rentalEnd: string;
+  useDefaultBefore: boolean;
+  useDefaultAfter: boolean;
+  bufferBeforeDays: string;
+  bufferBeforeUnit: BufferDayUnit;
+  bufferAfterDays: string;
+  bufferAfterUnit: BufferDayUnit;
+};
+
+function bookingToDraft(booking: {
+  deliveryMethod: DeliveryMethod;
+  rentalStart: string;
+  rentalEnd: string;
+  bufferBeforeDays: number | null;
+  bufferBeforeUnit: string | null;
+  bufferAfterDays: number | null;
+  bufferAfterUnit: string | null;
+}): BookingDraft {
+  return {
+    deliveryMethod: booking.deliveryMethod,
+    rentalStart: booking.rentalStart,
+    rentalEnd: booking.rentalEnd,
+    useDefaultBefore: booking.bufferBeforeDays == null,
+    useDefaultAfter: booking.bufferAfterDays == null,
+    bufferBeforeDays:
+      booking.bufferBeforeDays != null ? String(booking.bufferBeforeDays) : "",
+    bufferBeforeUnit: (booking.bufferBeforeUnit ?? "calendar") as BufferDayUnit,
+    bufferAfterDays:
+      booking.bufferAfterDays != null ? String(booking.bufferAfterDays) : "",
+    bufferAfterUnit: (booking.bufferAfterUnit ?? "calendar") as BufferDayUnit,
+  };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -174,29 +211,41 @@ function formatDateField(iso: string) {
 }
 
 export default function BookingDetailPage() {
-  const { booking, bufferConfig, holidays, preview } =
-    useLoaderData<typeof loader>();
+  const { booking, bufferConfig, holidays } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
+  const navigate = useNavigate();
   const isSubmitting = navigation.state === "submitting";
 
-  const livePreview = useMemo(() => {
+  const [draft, setDraft] = useState(() => bookingToDraft(booking));
+
+  useEffect(() => {
+    setDraft(bookingToDraft(booking));
+  }, [booking]);
+
+  const bufferPreview = useMemo(() => {
     return previewBufferDates({
-      rentalStart: booking.rentalStart,
-      rentalEnd: booking.rentalEnd,
-      deliveryMethod: booking.deliveryMethod as DeliveryMethod,
+      rentalStart: draft.rentalStart,
+      rentalEnd: draft.rentalEnd,
+      deliveryMethod: draft.deliveryMethod,
       bufferConfig,
       holidays: new Set(holidays),
       override: {
-        bufferBeforeDays: booking.bufferBeforeDays,
-        bufferBeforeUnit: booking.bufferBeforeUnit as BufferDayUnit | null,
-        bufferAfterDays: booking.bufferAfterDays,
-        bufferAfterUnit: booking.bufferAfterUnit as BufferDayUnit | null,
+        bufferBeforeDays: draft.useDefaultBefore
+          ? null
+          : draft.bufferBeforeDays
+            ? Number.parseInt(draft.bufferBeforeDays, 10)
+            : null,
+        bufferBeforeUnit: draft.useDefaultBefore ? null : draft.bufferBeforeUnit,
+        bufferAfterDays: draft.useDefaultAfter
+          ? null
+          : draft.bufferAfterDays
+            ? Number.parseInt(draft.bufferAfterDays, 10)
+            : null,
+        bufferAfterUnit: draft.useDefaultAfter ? null : draft.bufferAfterUnit,
       },
     });
-  }, [booking, bufferConfig, holidays]);
-
-  const displayPreview = actionData?.saved ? livePreview : preview;
+  }, [draft, bufferConfig, holidays]);
 
   return (
     <s-page heading="Dates & delivery" inlineSize="large">
@@ -219,7 +268,7 @@ export default function BookingDetailPage() {
               <s-paragraph tone="neutral" color="subdued">
                 Override global buffer defaults for rental {booking.id.slice(0, 8)}.
                 Leave override checkboxes ticked to use your{" "}
-                <Link to="/app/buffer-settings">global buffer settings</Link>.
+                <s-link href="/app/buffer-settings">global buffer settings</s-link>.
               </s-paragraph>
             </s-stack>
 
@@ -230,73 +279,131 @@ export default function BookingDetailPage() {
                 <s-select
                   label="Delivery method"
                   name="deliveryMethod"
-                  value={booking.deliveryMethod}
+                  value={draft.deliveryMethod}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      deliveryMethod: parseDeliveryMethod(event.currentTarget.value),
+                    }))
+                  }
                 >
-                  <option value="post">Post</option>
-                  <option value="pickup">Local pickup</option>
+                  <s-option value="post">Post</s-option>
+                  <s-option value="pickup">Local pickup</s-option>
                 </s-select>
 
                 <s-checkbox
                   name="useDefaultBefore"
-                  checked={booking.bufferBeforeDays == null}
+                  checked={draft.useDefaultBefore}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      useDefaultBefore: event.currentTarget.checked,
+                    }))
+                  }
                   label="Use global default for start buffer"
                 />
-                <s-grid gridTemplateColumns="1fr 160px auto" gap="large" alignItems="end">
+                <ResponsiveGrid layout="detail-actions" alignItems="end">
                   <s-number-field
                     label="Start buffer"
                     name="bufferBeforeDays"
-                    value={String(booking.bufferBeforeDays ?? "")}
+                    value={draft.bufferBeforeDays}
                     min={0}
                     step={1}
+                    disabled={draft.useDefaultBefore}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bufferBeforeDays: event.currentTarget.value,
+                      }))
+                    }
                   />
                   <s-select
                     label="Unit"
                     name="bufferBeforeUnit"
-                    value={booking.bufferBeforeUnit ?? "calendar"}
+                    value={draft.bufferBeforeUnit}
+                    disabled={draft.useDefaultBefore}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bufferBeforeUnit: event.currentTarget.value as BufferDayUnit,
+                      }))
+                    }
                   >
-                    <option value="calendar">Calendar days</option>
-                    <option value="business">Business days</option>
+                    <s-option value="calendar">Calendar days</s-option>
+                    <s-option value="business">Business days</s-option>
                   </s-select>
-                  <s-text>{formatDisplayDate(displayPreview.startBufferDate)}</s-text>
-                </s-grid>
+                  <s-text>{formatDisplayDate(bufferPreview.startBufferDate)}</s-text>
+                </ResponsiveGrid>
 
                 <s-date-field
                   label="Rental start (delivery date)"
                   name="rentalStart"
-                  value={booking.rentalStart}
+                  value={draft.rentalStart}
                   required
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      rentalStart: event.currentTarget.value,
+                    }))
+                  }
                 />
 
                 <s-date-field
                   label="Rental end (return date)"
                   name="rentalEnd"
-                  value={booking.rentalEnd}
+                  value={draft.rentalEnd}
                   required
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      rentalEnd: event.currentTarget.value,
+                    }))
+                  }
                 />
 
                 <s-checkbox
                   name="useDefaultAfter"
-                  checked={booking.bufferAfterDays == null}
+                  checked={draft.useDefaultAfter}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      useDefaultAfter: event.currentTarget.checked,
+                    }))
+                  }
                   label="Use global default for end buffer"
                 />
-                <s-grid gridTemplateColumns="1fr 160px auto" gap="large" alignItems="end">
+                <ResponsiveGrid layout="detail-actions" alignItems="end">
                   <s-number-field
                     label="End buffer"
                     name="bufferAfterDays"
-                    value={String(booking.bufferAfterDays ?? "")}
+                    value={draft.bufferAfterDays}
                     min={0}
                     step={1}
+                    disabled={draft.useDefaultAfter}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bufferAfterDays: event.currentTarget.value,
+                      }))
+                    }
                   />
                   <s-select
                     label="Unit"
                     name="bufferAfterUnit"
-                    value={booking.bufferAfterUnit ?? "calendar"}
+                    value={draft.bufferAfterUnit}
+                    disabled={draft.useDefaultAfter}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        bufferAfterUnit: event.currentTarget.value as BufferDayUnit,
+                      }))
+                    }
                   >
-                    <option value="calendar">Calendar days</option>
-                    <option value="business">Business days</option>
+                    <s-option value="calendar">Calendar days</s-option>
+                    <s-option value="business">Business days</s-option>
                   </s-select>
-                  <s-text>{formatDisplayDate(displayPreview.endBufferDate)}</s-text>
-                </s-grid>
+                  <s-text>{formatDisplayDate(bufferPreview.endBufferDate)}</s-text>
+                </ResponsiveGrid>
 
                 <s-stack direction="inline" gap="large">
                   <s-button
@@ -306,9 +413,13 @@ export default function BookingDetailPage() {
                   >
                     Save changes
                   </s-button>
-                  <Link to="/app/bookings">
-                    <s-button variant="tertiary">Cancel</s-button>
-                  </Link>
+                  <s-button
+                    type="button"
+                    variant="tertiary"
+                    onClick={() => navigate("/app/bookings")}
+                  >
+                    Cancel
+                  </s-button>
                 </s-stack>
               </s-stack>
             </Form>
@@ -320,12 +431,12 @@ export default function BookingDetailPage() {
             <s-text type="strong">Summary</s-text>
             <s-stack direction="block" gap="small">
               <s-text>
-                Hire period: {formatDateField(booking.rentalStart)} –{" "}
-                {formatDateField(booking.rentalEnd)}
+                Hire period: {formatDateField(draft.rentalStart)} –{" "}
+                {formatDateField(draft.rentalEnd)}
               </s-text>
               <s-text>
-                Blocked from {formatDateField(displayPreview.startBufferDate)} through{" "}
-                {formatDateField(displayPreview.endBufferDate)}
+                Blocked from {formatDateField(bufferPreview.startBufferDate)} through{" "}
+                {formatDateField(bufferPreview.endBufferDate)}
               </s-text>
               {booking.orderId ? (
                 <s-text>Order #{booking.orderId}</s-text>

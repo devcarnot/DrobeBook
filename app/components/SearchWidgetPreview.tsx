@@ -1,5 +1,10 @@
 import type { CSSProperties, ReactNode } from "react";
 
+import {
+  SEARCH_LAYOUT_FIELDS,
+  searchLayoutToCssVariables,
+  type SearchLayoutSettings,
+} from "../lib/search-layout";
 import type { SearchConfig } from "../lib/shop-config";
 import { searchColorsToCssVariables } from "../lib/search-colors";
 
@@ -32,6 +37,8 @@ function PreviewFrame({
               maxWidth: "100%",
               minWidth: 0,
               overflowX: "hidden",
+              overflowY: "auto",
+              maxHeight: "min(72vh, 720px)",
               padding: "1.5rem 0.5rem",
               boxSizing: "border-box",
             }}
@@ -45,18 +52,63 @@ function PreviewFrame({
 }
 
 export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
-  const themeStyle = searchColorsToCssVariables(config.colors) as CSSProperties;
+  const themeStyle = {
+    ...searchColorsToCssVariables(config.colors),
+    ...searchLayoutToCssVariables(config.layout),
+  } as CSSProperties;
+
+  const inputRadius =
+    config.layout.inputStyle === "pill"
+      ? "9999px"
+      : config.layout.inputStyle === "rounded"
+        ? "8px"
+        : "0";
+
+  const titleSize =
+    config.layout.titleSize === "small"
+      ? "clamp(1.5rem, 3vw, 2rem)"
+      : config.layout.titleSize === "large"
+        ? "clamp(2.25rem, 5vw, 3.25rem)"
+        : "clamp(2rem, 4vw, 2.75rem)";
+
+  const contentMaxWidth =
+    config.layout.contentWidth === "standard" || config.layout.contentWidth === "wide"
+      ? "min(1400px, 100%)"
+      : config.layout.contentWidth === "narrow"
+        ? "42rem"
+        : config.layout.contentWidth === "medium"
+          ? "56rem"
+          : config.layout.contentWidth === "full"
+            ? "100%"
+            : "min(87.5rem, 100%)";
+
+  const sectionPadding =
+    config.layout.sectionPadding === "compact"
+      ? "1.5rem 1rem"
+      : config.layout.sectionPadding === "spacious"
+        ? "4rem 1.5rem"
+        : "2.5rem 1rem";
 
   return (
     <PreviewFrame themeStyle={themeStyle}>
+      <div
+        style={{
+          padding: sectionPadding,
+          boxSizing: "border-box",
+        }}
+      >
       <header style={{ textAlign: "center", marginBottom: "1.5rem" }}>
         <h1
           style={{
             margin: 0,
             fontFamily: 'Georgia, "Times New Roman", serif',
-            fontSize: "2rem",
+            fontSize: titleSize,
             fontWeight: 400,
+            lineHeight: 1.15,
             color: "var(--gk-search-title-text, #111111)",
+            whiteSpace: "normal",
+            overflowWrap: "anywhere",
+            wordBreak: "break-word",
           }}
         >
           {config.pageTitle}
@@ -66,7 +118,7 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
       <div
         style={{
           width: "100%",
-          maxWidth: "42rem",
+          maxWidth: contentMaxWidth,
           margin: "0 auto",
           display: "flex",
           justifyContent: "center",
@@ -75,7 +127,7 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "minmax(10rem, 14rem) minmax(10rem, 14rem) minmax(11rem, auto)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr))",
             gap: "1rem",
             alignItems: "end",
             width: "100%",
@@ -100,6 +152,7 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
                 boxSizing: "border-box",
                 color: "rgba(0,0,0,0.45)",
                 fontSize: "0.875rem",
+                borderRadius: inputRadius,
               }}
             >
               mm/dd/yyyy
@@ -125,6 +178,7 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
                 color: "var(--gk-button-text, #111)",
                 fontSize: "0.875rem",
                 position: "relative",
+                borderRadius: inputRadius,
               }}
             >
               {config.sizePlaceholder}
@@ -158,11 +212,13 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
               boxSizing: "border-box",
               cursor: "default",
               whiteSpace: "normal",
+              borderRadius: inputRadius,
             }}
           >
             {config.formButtonLabel}
           </button>
         </div>
+      </div>
       </div>
     </PreviewFrame>
   );

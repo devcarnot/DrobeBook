@@ -5,6 +5,7 @@ import type {
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
   createBlockedDate,
   deleteBlockedDate,
@@ -41,6 +42,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { error: "Please choose a start date." };
   }
 
+  if (endDate < startDate) {
+    return { error: "End date must be on or after the start date." };
+  }
+
   await createBlockedDate(session.shop, { startDate, endDate, reason });
   return { created: true };
 };
@@ -67,6 +72,7 @@ export default function BlockedDatesPage() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
+  const deletingId = navigation.formData?.get("id");
 
   return (
     <s-page heading="Blocked dates" inlineSize="large">
@@ -107,7 +113,7 @@ export default function BlockedDatesPage() {
 
             <Form method="post">
               <input type="hidden" name="intent" value="create" />
-              <s-grid gridTemplateColumns="1fr 1fr 2fr auto" gap="large" alignItems="end">
+              <ResponsiveGrid layout="form-actions" alignItems="end">
                 <s-date-field label="Start date" name="startDate" required />
                 <s-date-field label="End date" name="endDate" />
                 <s-text-field
@@ -124,7 +130,7 @@ export default function BlockedDatesPage() {
                     Add dates
                   </s-button>
                 </s-box>
-              </s-grid>
+              </ResponsiveGrid>
             </Form>
           </s-stack>
         </s-box>
@@ -161,7 +167,14 @@ export default function BlockedDatesPage() {
                         <Form method="post">
                           <input type="hidden" name="intent" value="delete" />
                           <input type="hidden" name="id" value={entry.id} />
-                          <s-button type="submit" variant="tertiary" tone="critical">
+                          <s-button
+                            type="submit"
+                            variant="tertiary"
+                            tone="critical"
+                            {...(isSubmitting && deletingId === entry.id
+                              ? { loading: true }
+                              : {})}
+                          >
                             Remove
                           </s-button>
                         </Form>

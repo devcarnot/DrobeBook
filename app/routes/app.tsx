@@ -3,8 +3,10 @@ import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
-import { ClientOnly } from "../components/ClientOnly";
 import { authenticate } from "../shopify.server";
+import responsiveStyles from "../styles/responsive.css?url";
+
+export const links = () => [{ rel: "stylesheet", href: responsiveStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   await authenticate.admin(request);
@@ -18,32 +20,19 @@ export default function App() {
 
   return (
     <AppProvider embedded apiKey={apiKey}>
-      <ClientOnly
-        fallback={
-          <div
-            style={{
-              padding: "48px 24px",
-              textAlign: "center",
-              color: "#616161",
-              fontSize: "14px",
-            }}
-          >
-            Loading DrobeBook…
-          </div>
-        }
-      >
-        <s-app-nav>
-          <s-link href="/app">Dashboard</s-link>
-          <s-link href="/app/settings">Gown Hire</s-link>
-          <s-link href="/app/settings/try-on">Try-on</s-link>
-          <s-link href="/app/settings/search">Search</s-link>
-          <s-link href="/app/buffer-settings">Buffer settings</s-link>
-          <s-link href="/app/blocked-dates">Blocked dates</s-link>
-          <s-link href="/app/inventory">Inventory & Bookings</s-link>
-          <s-link href="/app/bookings">Rental calendar</s-link>
-        </s-app-nav>
-        <Outlet />
-      </ClientOnly>
+      <s-app-nav>
+        <s-link href="/app">Dashboard</s-link>
+        <s-link href="/app/products">Products</s-link>
+        <s-link href="/app/rentals">Rentals</s-link>
+        <s-link href="/app/settings">Store Front widget</s-link>
+        <s-link href="/app/buffer-settings">Buffer settings</s-link>
+        <s-link href="/app/blocked-dates">Blocked dates</s-link>
+        <s-link href="/app/inventory">Inventory & Bookings</s-link>
+        <s-link href="/app/bookings">Rental calendar</s-link>
+        <s-link href="/app/waitlist">Waitlist</s-link>
+        <s-link href="/app/settings/notifications">Notifications</s-link>
+      </s-app-nav>
+      <Outlet />
     </AppProvider>
   );
 }

@@ -70,10 +70,11 @@
         durationDays:
           params.get("durationDays") ||
           String(this.searchConfig.defaultDurationDays || 4),
+        deliveryMethod: params.get("deliveryMethod") || "post",
       };
     }
 
-    applyParamsToForm({ eventDate, size, durationDays }) {
+    applyParamsToForm({ eventDate, size, durationDays, deliveryMethod }) {
       if (this.eventDateInput && eventDate) {
         this.eventDateInput.value = eventDate;
       }
@@ -82,6 +83,9 @@
       }
       if (this.durationSelect && durationDays) {
         this.durationSelect.value = durationDays;
+      }
+      if (this.deliverySelect && deliveryMethod) {
+        this.deliverySelect.value = deliveryMethod;
       }
     }
 
@@ -110,6 +114,7 @@
       destination.searchParams.set("date", params.eventDate);
       destination.searchParams.set("size", params.size);
       destination.searchParams.set("durationDays", params.durationDays);
+      destination.searchParams.set("deliveryMethod", params.deliveryMethod);
       window.location.assign(destination.toString());
     }
 
@@ -123,6 +128,7 @@
       url.searchParams.set("date", params.eventDate);
       url.searchParams.set("size", params.size);
       url.searchParams.set("durationDays", params.durationDays);
+      url.searchParams.set("deliveryMethod", params.deliveryMethod);
       window.history.replaceState({}, "", url.toString());
     }
 
@@ -140,12 +146,17 @@
 
     applySearchColors() {
       const colors = this.searchConfig?.colors;
+      const layout = this.searchConfig?.layout;
+      const section =
+        this.root.closest(".gk-drobe-search-section") || this.root.parentElement;
+
+      if (layout) {
+        this.applySearchLayout(layout, section);
+      }
+
       if (!colors) {
         return;
       }
-
-      const section =
-        this.root.closest(".gk-drobe-search-section") || this.root.parentElement;
 
       const cssVars = {
         sectionBg: "--gk-search-section-bg",
@@ -165,6 +176,60 @@
             element.style.setProperty(cssVar, colors[key]);
           });
         }
+      });
+    }
+
+    applySearchLayout(layout, section) {
+      const contentWidthMap = {
+        standard: "min(1400px, 100%)",
+        theme:
+          "min(var(--page-width, var(--container-max-width, var(--max-page-width, 87.5rem))), 100%)",
+        narrow: "42rem",
+        medium: "56rem",
+        wide: "87.5rem",
+        full: "100%",
+      };
+      const paddingMap = {
+        compact: { block: "1.5rem", inline: "1rem" },
+        default: { block: "2.5rem", inline: "1rem" },
+        spacious: { block: "4rem", inline: "1.5rem" },
+      };
+      const titleSizeMap = {
+        small: "clamp(1.5rem, 3vw, 2rem)",
+        medium: "clamp(2rem, 4vw, 2.75rem)",
+        large: "clamp(2.25rem, 5vw, 3.25rem)",
+      };
+      const inputRadiusMap = {
+        square: "0",
+        rounded: "8px",
+        pill: "9999px",
+      };
+
+      const padding = paddingMap[layout.sectionPadding] || paddingMap.default;
+      const targets = [this.root];
+      if (section) {
+        targets.push(section);
+        section.classList.toggle(
+          "gk-drobe-search-section--full-bleed",
+          Boolean(layout.fullBleedBackground),
+        );
+      }
+
+      targets.forEach((element) => {
+        element.style.setProperty(
+          "--gk-search-content-max-width",
+          contentWidthMap[layout.contentWidth] || contentWidthMap.standard,
+        );
+        element.style.setProperty("--gk-search-section-padding-block", padding.block);
+        element.style.setProperty("--gk-search-section-padding-inline", padding.inline);
+        element.style.setProperty(
+          "--gk-search-title-size",
+          titleSizeMap[layout.titleSize] || titleSizeMap.medium,
+        );
+        element.style.setProperty(
+          "--gk-search-input-radius",
+          inputRadiusMap[layout.inputStyle] || inputRadiusMap.square,
+        );
       });
     }
 
@@ -282,6 +347,10 @@
         this.updateBrowserUrl();
         this.runSearch();
       });
+      this.deliverySelect?.addEventListener("change", () => {
+        this.updateBrowserUrl();
+        this.runSearch();
+      });
       this.sortSelect?.addEventListener("change", () => this.renderResults());
     }
 
@@ -290,6 +359,7 @@
         eventDate: this.eventDateInput?.value || "",
         size: this.sizeSelect?.value || "",
         durationDays: this.durationSelect?.value || "4",
+        deliveryMethod: this.deliverySelect?.value || "post",
         collection: this.collectionHandle,
       };
     }
@@ -319,6 +389,7 @@
         eventDate: params.eventDate,
         size: params.size,
         durationDays: params.durationDays,
+        deliveryMethod: params.deliveryMethod,
         collection: params.collection,
       });
 
@@ -428,10 +499,22 @@
         this.resultsEmpty.hidden = sorted.length > 0;
       }
 
+      const params = this.getSearchParams();
       sorted.forEach((product) => {
         const link = document.createElement("a");
         link.className = "gk-drobe-search__card";
-        link.href = `${this.rootUrl}products/${product.handle}?size=${encodeURIComponent(product.availableSize)}`;
+        const productUrl = new URL(`${this.rootUrl}products/${product.handle}`, window.location.origin);
+        productUrl.searchParams.set("size", product.availableSize);
+        if (params.eventDate) {
+          productUrl.searchParams.set("eventDate", params.eventDate);
+        }
+        if (params.durationDays) {
+          productUrl.searchParams.set("durationDays", params.durationDays);
+        }
+        if (params.deliveryMethod) {
+          productUrl.searchParams.set("deliveryMethod", params.deliveryMethod);
+        }
+        link.href = productUrl.toString();
         link.innerHTML = `
           <div class="gk-drobe-search__card-image">
             ${

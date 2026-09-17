@@ -1,11 +1,5 @@
-/**
- * Shared booking business rules for GK.Drobe.
- * Pure date/range logic lives here so storefront, app proxy, admin, and webhooks
- * all enforce the same rules.
- */
-
-import type { BufferConfig } from "./buffer-config";
-import type { DeliveryMethod } from "./buffer-config";
+import type { BufferDayUnit } from "./buffer-config";
+import type { BufferConfig, DeliveryMethod } from "./buffer-config";
 import {
   effectiveRangeForBooking,
   effectiveRangeForRequest,
@@ -15,9 +9,15 @@ import {
 export const LEAD_TIME_DAYS = 4;
 
 export const HIRE_DURATIONS = [4, 8] as const;
-export type HireDurationDays = (typeof HIRE_DURATIONS)[number];
+export type HireDurationDays = number;
 
-export const ACTIVE_BOOKING_STATUSES = ["pending", "confirmed"] as const;
+/** Bookings that still occupy inventory on the storefront calendar. */
+export const AVAILABILITY_BLOCKING_STATUSES = ["confirmed"] as const;
+export type AvailabilityBlockingStatus =
+  (typeof AVAILABILITY_BLOCKING_STATUSES)[number];
+
+/** Bookings shown in admin lists/calendars. */
+export const ACTIVE_BOOKING_STATUSES = ["confirmed"] as const;
 export type ActiveBookingStatus = (typeof ACTIVE_BOOKING_STATUSES)[number];
 
 export const DEFAULT_TIMEZONE = "Australia/Brisbane";
@@ -33,9 +33,9 @@ export type BookingRecord = {
   status: string;
   deliveryMethod?: string | null;
   bufferBeforeDays?: number | null;
-  bufferBeforeUnit?: string | null;
+  bufferBeforeUnit?: BufferDayUnit | null;
   bufferAfterDays?: number | null;
-  bufferAfterUnit?: string | null;
+  bufferAfterUnit?: BufferDayUnit | null;
 };
 
 export type BlockedDateRecord = {
@@ -58,6 +58,8 @@ export type AvailabilityInput = {
   holidays?: ReadonlySet<string>;
   bookings: BookingRecord[];
   blockedDates: BlockedDateRecord[];
+  /** Shopify inventory for this variant; defaults to 1 when unknown. */
+  inventoryQuantity?: number;
 };
 
 export type AvailabilityResult = {
@@ -86,7 +88,7 @@ export function computeReturnDate(
   deliveryDate: Date,
   durationDays: HireDurationDays,
 ): Date {
-  if (!HIRE_DURATIONS.includes(durationDays)) {
+  if (!Number.isFinite(durationDays) || durationDays < 1 || durationDays > 90) {
     throw new Error(`Unsupported hire duration: ${durationDays}`);
   }
 
@@ -116,8 +118,10 @@ export function dateRangesOverlap(
   return aStart <= bEnd && bStart <= aEnd;
 }
 
-export function isActiveBooking(status: string): boolean {
-  return ACTIVE_BOOKING_STATUSES.includes(status as ActiveBookingStatus);
+export function blocksAvailability(status: string): boolean {
+  return AVAILABILITY_BLOCKING_STATUSES.includes(
+    status as AvailabilityBlockingStatus,
+  );
 }
 
 function blockedDateAppliesToVariant(
@@ -133,11 +137,35 @@ function blockedDateAppliesToVariant(
   return productMatches && variantMatches;
 }
 
-/**
- * ASSUMPTION: one physical garment per product+size (binary availability).
- * To support multiple units of the same size, replace this with a count-based
- * overlap check against inventory quantity instead of any-overlap => unavailable.
- */
+function countOverlappingBookings(
+  bookings: BookingRecord[],
+  requestedRange: DateRange,
+  bufferConfig: BufferConfig | undefined,
+  holidays: ReadonlySet<string>,
+): number {
+  let count = 0;
+
+  for (const booking of bookings) {
+    if (!blocksAvailability(booking.status)) {
+      continue;
+    }
+
+    const bookingRange =
+      bufferConfig != null
+        ? effectiveRangeForBooking(booking, bufferConfig, holidays)
+        : {
+            start: toDateOnly(booking.startDate),
+            end: toDateOnly(booking.endDate),
+          };
+
+    if (dateRangesOverlap(requestedRange, bookingRange)) {
+      count += 1;
+    }
+  }
+
+  return count;
+}
+
 export function isProductVariantAvailable(input: AvailabilityInput): AvailabilityResult {
   const deliveryDate = toDateOnly(input.deliveryDate);
   const returnDate = computeReturnDate(deliveryDate, input.durationDays);
@@ -180,27 +208,24 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
     };
   }
 
-  for (const booking of input.bookings) {
-    if (!isActiveBooking(booking.status)) {
-      continue;
-    }
+  const inventoryCapacity = Math.max(1, input.inventoryQuantity ?? 1);
+  const overlappingBookings = countOverlappingBookings(
+    input.bookings,
+    requestedRange,
+    input.bufferConfig,
+    holidays,
+  );
 
-    const bookingRange =
-      input.bufferConfig != null
-        ? effectiveRangeForBooking(booking, input.bufferConfig, holidays)
-        : {
-            start: toDateOnly(booking.startDate),
-            end: toDateOnly(booking.endDate),
-          };
-
-    if (dateRangesOverlap(requestedRange, bookingRange)) {
-      return {
-        available: false,
-        deliveryDate,
-        returnDate,
-        reason: "This size is already booked for overlapping dates",
-      };
-    }
+  if (overlappingBookings >= inventoryCapacity) {
+    return {
+      available: false,
+      deliveryDate,
+      returnDate,
+      reason:
+        inventoryCapacity === 1
+          ? "This hire option is already booked for overlapping dates"
+          : "All available units are booked for overlapping dates",
+    };
   }
 
   for (const blocked of input.blockedDates) {

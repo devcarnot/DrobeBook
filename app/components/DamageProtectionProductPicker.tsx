@@ -1,9 +1,11 @@
 import { useAppBridge } from "@shopify/app-bridge-react";
+import { useState } from "react";
 
 import { normalizeVariantId } from "../lib/shop-settings";
 
 type PickedProduct = {
   id?: string;
+  handle?: string;
   title?: string;
   variants?: Array<{ id?: string; price?: string }>;
 };
@@ -25,6 +27,12 @@ export function DamageProtectionProductPicker({
   variantId,
   onSelect,
   onClear,
+  heading = "Protection product",
+  description = "Choose the Accidental Damage protection product from your Shopify catalog. It is offered as an optional add-on during gown booking.",
+  connectedDescription = "Optional add-on linked to the gown hire booking widget.",
+  emptyDescription = "No product selected yet. Search your store and pick the protection product — no variant ID needed.",
+  chooseLabel = "Choose product",
+  fallbackTitle = "Protection product",
 }: {
   productTitle: string;
   variantId: string;
@@ -34,10 +42,18 @@ export function DamageProtectionProductPicker({
     displayPrice: string;
   }) => void;
   onClear: () => void;
+  heading?: string;
+  description?: string;
+  connectedDescription?: string;
+  emptyDescription?: string;
+  chooseLabel?: string;
+  fallbackTitle?: string;
 }) {
   const shopify = useAppBridge();
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function openProductPicker() {
+    setErrorMessage(null);
     const selected = await shopify.resourcePicker({
       type: "product",
       multiple: false,
@@ -56,6 +72,9 @@ export function DamageProtectionProductPicker({
     const nextVariantId = extractVariantId(product);
 
     if (!nextVariantId) {
+      setErrorMessage(
+        "That product has no variant. Choose a product with at least one variant.",
+      );
       return;
     }
 
@@ -68,11 +87,11 @@ export function DamageProtectionProductPicker({
 
   return (
     <s-stack direction="block" gap="base">
-      <s-text type="strong">Protection product</s-text>
-      <s-paragraph tone="neutral" color="subdued">
-        Choose the Accidental Damage protection product from your Shopify
-        catalog. The first variant is used at checkout.
-      </s-paragraph>
+      {errorMessage ? (
+        <s-banner tone="critical">{errorMessage}</s-banner>
+      ) : null}
+      <s-text type="strong">{heading}</s-text>
+      <s-paragraph tone="neutral" color="subdued">{description}</s-paragraph>
 
       {variantId ? (
         <s-box
@@ -85,9 +104,10 @@ export function DamageProtectionProductPicker({
             <s-stack direction="inline" gap="small" alignItems="center">
               <s-badge tone="success">Connected</s-badge>
               <s-text type="strong">
-                {productTitle || "Protection product"}
+                {productTitle || fallbackTitle}
               </s-text>
             </s-stack>
+            <s-paragraph tone="neutral" color="subdued">{connectedDescription}</s-paragraph>
             <s-stack direction="inline" gap="small">
               <s-button
                 type="button"
@@ -115,17 +135,14 @@ export function DamageProtectionProductPicker({
           border="base"
         >
           <s-stack direction="block" gap="base" alignItems="start">
-            <s-paragraph tone="neutral" color="subdued">
-              No product selected yet. Search your store and pick the protection
-              product — no variant ID needed.
-            </s-paragraph>
+            <s-paragraph tone="neutral" color="subdued">{emptyDescription}</s-paragraph>
             <s-button
               type="button"
               variant="primary"
               icon="product"
               onClick={openProductPicker}
             >
-              Choose product
+              {chooseLabel}
             </s-button>
           </s-stack>
         </s-box>

@@ -1,13 +1,17 @@
 import type {
+  ActionFunctionArgs,
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Form, Link, useLoaderData, useSearchParams } from "react-router";
+import { Form, Link, useActionData, useLoaderData, useNavigation, useOutlet, useSearchParams } from "react-router";
 
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
+  getInventorySummary,
   listGarmentsForShop,
   type GarmentListSort,
 } from "../lib/garment/garment.server";
+import { syncRecentOrderBookings } from "../lib/order-booking.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -16,6 +20,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const url = new URL(request.url);
   const search = url.searchParams.get("q");
   const sortParam = url.searchParams.get("sort");
+  const filter = url.searchParams.get("filter");
   const sort: GarmentListSort =
     sortParam === "timesRented" ||
     sortParam === "revenue" ||
@@ -23,12 +28,67 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       ? sortParam
       : "name";
 
-  const garments = await listGarmentsForShop(admin, session.shop, {
+  let syncSummary: Awaited<ReturnType<typeof syncRecentOrderBookings>> | null =
+    null;
+  try {
+    syncSummary = await syncRecentOrderBookings(admin, session.shop);
+  } catch (error) {
+    console.warn("[inventory] order sync failed", error);
+    syncSummary = {
+      ordersChecked: 0,
+      bookingsConfirmed: 0,
+      errorMessage:
+        error instanceof Error ? error.message : "Order sync failed",
+    };
+  }
+
+  let garments = await listGarmentsForShop(admin, session.shop, {
     search,
     sort,
   });
 
-  return { garments, search: search ?? "", sort };
+  if (filter === "hold") {
+    garments = garments.filter((garment) => garment.activeHold);
+  } else if (filter === "rented") {
+    garments = garments.filter((garment) => garment.timesRented > 0);
+  }
+
+  const summary = await getInventorySummary(session.shop, garments);
+
+  return {
+    garments,
+    summary,
+    syncSummary,
+    search: search ?? "",
+    sort,
+    filter: filter ?? "",
+  };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+
+  if (request.method !== "POST") {
+    return { ok: false, message: "Unsupported method" };
+  }
+
+  try {
+    const summary = await syncRecentOrderBookings(admin, session.shop, {
+      limit: 100,
+    });
+    return {
+      ok: true,
+      message: summary.requiresProtectedCustomerData
+        ? "Order sync needs Protected customer data in Partner Dashboard. Confirmed bookings appear after checkout."
+        : `Synced ${summary.bookingsConfirmed} booking(s) from ${summary.ordersChecked} recent order(s).`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error ? error.message : "Could not sync orders",
+    };
+  }
 };
 
 function formatDisplayDate(iso: string | null) {
@@ -44,130 +104,200 @@ function formatDisplayDate(iso: string | null) {
   });
 }
 
-export default function InventoryPage() {
-  const { garments, search, sort } = useLoaderData<typeof loader>();
+function MetricCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string | number;
+}) {
+  return (
+    <s-box padding="base" border="base" borderRadius="large" background="base">
+      <s-stack direction="block" gap="small-200">
+        <s-text tone="neutral" color="subdued">
+          {label}
+        </s-text>
+        <s-text type="strong">{String(value)}</s-text>
+      </s-stack>
+    </s-box>
+  );
+}
+
+export default function InventoryRoute() {
+  const outlet = useOutlet();
+  if (outlet) {
+    return outlet;
+  }
+
+  return <InventoryListPage />;
+}
+
+function InventoryListPage() {
+  const { garments, summary, syncSummary, search, sort, filter } =
+    useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
   const [searchParams] = useSearchParams();
+  const isSyncing = navigation.state === "submitting";
 
   return (
     <s-page heading="Inventory & Bookings" inlineSize="large">
       <s-stack direction="block" gap="large">
-        <s-box padding="large" background="subdued" borderRadius="large">
-          <s-stack direction="block" gap="small">
-            <s-text type="strong">Garment inventory</s-text>
-            <s-paragraph tone="neutral" color="subdued">
-              Track hire history, revenue, and manual reservations per gown. Online
-              bookings sync automatically from Shopify orders.
-            </s-paragraph>
-          </s-stack>
-        </s-box>
+        <p className="gk-page-guide">
+          Open a garment to view its calendar, booking history, and try-on holds.
+          Online hires sync here automatically; manual holds block those dates on
+          the storefront.
+        </p>
+
+        {actionData?.message ? (
+          <s-banner tone={actionData.ok ? "success" : "critical"}>
+            {actionData.message}
+          </s-banner>
+        ) : syncSummary?.requiresProtectedCustomerData ? (
+          <s-banner tone="warning">
+            Shopify order sync needs Protected customer data in Partner Dashboard.
+            Confirmed bookings appear after customers complete checkout.
+          </s-banner>
+        ) : syncSummary?.bookingsConfirmed ? (
+          <s-banner tone="success">
+            Imported {syncSummary.bookingsConfirmed} confirmed booking(s) from
+            recent orders.
+          </s-banner>
+        ) : null}
+
+        <div className="gk-inventory-metrics">
+          <MetricCard label="Garments" value={summary.variantCount} />
+          <MetricCard label="Times rented" value={summary.totalTimesRented} />
+          <MetricCard label="Try-on holds" value={summary.activeHolds} />
+          <MetricCard label="Revenue" value={summary.totalRevenueLabel} />
+          <MetricCard label="Profit" value={summary.totalProfitLabel} />
+        </div>
 
         <s-box padding="large" border="base" borderRadius="large" background="base">
-          <Form method="get">
-            <s-grid gridTemplateColumns="2fr 1fr auto" gap="large" alignItems="end">
-              <s-text-field
-                label="Search garments"
-                name="q"
-                value={search}
-                placeholder="Search by product name"
-              />
-              <s-select label="Sort by" name="sort" value={sort}>
-                <option value="name">Name</option>
-                <option value="timesRented">Times rented</option>
-                <option value="revenue">Revenue</option>
-                <option value="profit">Profit</option>
-              </s-select>
-              <s-box paddingBlockStart="large-300">
-                <s-button type="submit" variant="primary">
-                  Apply
-                </s-button>
-              </s-box>
-            </s-grid>
-          </Form>
-        </s-box>
-
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-        {garments.length === 0 ? (
-          <s-box padding="large" background="subdued" borderRadius="base">
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">No garments found</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                Try a different search term, or wait for the first online booking
-                to appear here.
-              </s-paragraph>
-            </s-stack>
-          </s-box>
-        ) : (
-          <s-table variant="auto">
-            <s-table-header-row>
-              <s-table-header listSlot="primary">Garment</s-table-header>
-              <s-table-header listSlot="labeled">Size</s-table-header>
-              <s-table-header listSlot="labeled">Times rented</s-table-header>
-              <s-table-header listSlot="labeled">Revenue</s-table-header>
-              <s-table-header listSlot="labeled">Profit</s-table-header>
-              <s-table-header listSlot="secondary">Next available</s-table-header>
-            </s-table-header-row>
-            <s-table-body>
-              {garments.map((garment) => (
-                <s-table-row key={`${garment.productId}-${garment.variantId}`}>
-                  <s-table-cell>
-                    <Link
-                      to={`/app/inventory/detail?productId=${garment.productId}&variantId=${garment.variantId}&${searchParams.toString()}`}
-                      style={{ textDecoration: "none", color: "inherit" }}
-                    >
-                      <s-stack direction="inline" gap="base" alignItems="center">
-                        {garment.imageUrl ? (
-                          <img
-                            src={garment.imageUrl}
-                            alt=""
-                            width={40}
-                            height={40}
-                            style={{
-                              objectFit: "cover",
-                              borderRadius: "4px",
-                            }}
-                          />
-                        ) : (
-                          <s-box
-                            padding="small"
-                            background="subdued"
-                            borderRadius="base"
-                          >
-                            <s-text tone="neutral">—</s-text>
-                          </s-box>
-                        )}
-                        <s-text type="strong">{garment.productTitle}</s-text>
-                      </s-stack>
-                    </Link>
-                  </s-table-cell>
-                  <s-table-cell>{garment.sizeLabel}</s-table-cell>
-                  <s-table-cell>{garment.timesRented}</s-table-cell>
-                  <s-table-cell>{garment.revenueLabel}</s-table-cell>
-                  <s-table-cell>{garment.profitLabel}</s-table-cell>
-                  <s-table-cell>
-                    {formatDisplayDate(garment.nextAvailableDate)}
-                  </s-table-cell>
-                </s-table-row>
-              ))}
-            </s-table-body>
-          </s-table>
-        )}
-        </s-box>
-
-        <s-box padding="large" background="subdued" borderRadius="large">
           <s-stack direction="block" gap="base">
-            <s-text type="strong">Cost &amp; profit</s-text>
-            <s-paragraph tone="neutral" color="subdued">
-              Profit uses Shopify&apos;s &quot;Cost per item&quot; (
-              <s-text type="strong">Inventory → unit cost</s-text>). Your staff
-              account needs the &quot;View product costs&quot; permission in Shopify
-              Admin — the app cannot grant this.
-            </s-paragraph>
-            <s-paragraph tone="neutral" color="subdued">
-              Profit = total revenue − acquisition cost (once per garment). Per-rental
-              cleaning costs are not subtracted yet — confirm with GK.Drobe if that
-              should change.
-            </s-paragraph>
+            <div className="gk-inventory-toolbar">
+              <span className="gk-inventory-toolbar__count">
+                {garments.length} garment{garments.length === 1 ? "" : "s"} in this view
+              </span>
+              <Form method="post">
+                <s-button
+                  type="submit"
+                  variant="secondary"
+                  {...(isSyncing ? { loading: true } : {})}
+                >
+                  Sync orders
+                </s-button>
+              </Form>
+            </div>
+
+            <Form method="get">
+              <ResponsiveGrid layout="filter-row" alignItems="end" gap="base">
+                <s-text-field
+                  label="Search"
+                  name="q"
+                  value={search}
+                  placeholder="Product name or size"
+                />
+                <s-select label="Sort by" name="sort" value={sort}>
+                  <s-option value="name">Name</s-option>
+                  <s-option value="timesRented">Times rented</s-option>
+                  <s-option value="revenue">Revenue</s-option>
+                  <s-option value="profit">Profit</s-option>
+                </s-select>
+                <s-select label="Filter" name="filter" value={filter}>
+                  <s-option value="">All garments</s-option>
+                  <s-option value="rented">Has been rented</s-option>
+                  <s-option value="hold">Active try-on hold</s-option>
+                </s-select>
+                <s-box paddingBlockStart="large-300">
+                  <s-button type="submit" variant="primary">
+                    Apply
+                  </s-button>
+                </s-box>
+              </ResponsiveGrid>
+            </Form>
           </s-stack>
+        </s-box>
+
+        <s-box padding="large" border="base" borderRadius="large" background="base">
+          {garments.length === 0 ? (
+            <s-box padding="large" background="subdued" borderRadius="base">
+              <s-text tone="neutral" color="subdued">
+                No garments match your search or filter.
+              </s-text>
+            </s-box>
+          ) : (
+            <s-table variant="auto">
+              <s-table-header-row>
+                <s-table-header listSlot="primary">Garment</s-table-header>
+                <s-table-header listSlot="labeled">Size</s-table-header>
+                <s-table-header listSlot="labeled">Times rented</s-table-header>
+                <s-table-header listSlot="labeled">Revenue</s-table-header>
+                <s-table-header listSlot="labeled">Profit</s-table-header>
+                <s-table-header listSlot="labeled">Status</s-table-header>
+                <s-table-header listSlot="secondary">Next available</s-table-header>
+              </s-table-header-row>
+              <s-table-body>
+                {garments.map((garment) => (
+                  <s-table-row key={`${garment.productId}-${garment.variantId}`}>
+                    <s-table-cell>
+                      <Link
+                        to={`/app/inventory/detail?productId=${garment.productId}&variantId=${garment.variantId}&${searchParams.toString()}`}
+                        style={{ textDecoration: "none", color: "inherit" }}
+                      >
+                        <s-stack direction="inline" gap="base" alignItems="center">
+                          {garment.imageUrl ? (
+                            <img
+                              src={garment.imageUrl}
+                              alt=""
+                              width={44}
+                              height={44}
+                              style={{
+                                objectFit: "cover",
+                                borderRadius: "4px",
+                              }}
+                            />
+                          ) : (
+                            <s-box
+                              padding="small"
+                              background="subdued"
+                              borderRadius="base"
+                            >
+                              <s-text tone="neutral">—</s-text>
+                            </s-box>
+                          )}
+                          <s-stack direction="block" gap="small">
+                            <s-text type="strong">{garment.productTitle}</s-text>
+                            <s-text tone="neutral" color="subdued">
+                              {garment.variantTitle}
+                            </s-text>
+                          </s-stack>
+                        </s-stack>
+                      </Link>
+                    </s-table-cell>
+                    <s-table-cell>{garment.sizeLabel}</s-table-cell>
+                    <s-table-cell>{garment.timesRented}</s-table-cell>
+                    <s-table-cell>{garment.revenueLabel}</s-table-cell>
+                    <s-table-cell>{garment.profitLabel}</s-table-cell>
+                    <s-table-cell>
+                      <s-stack direction="inline" gap="small">
+                        {garment.activeHold ? (
+                          <s-badge tone="warning">Try-on hold</s-badge>
+                        ) : (
+                          <s-text tone="neutral" color="subdued">
+                            —
+                          </s-text>
+                        )}
+                      </s-stack>
+                    </s-table-cell>
+                    <s-table-cell>
+                      {formatDisplayDate(garment.nextAvailableDate)}
+                    </s-table-cell>
+                  </s-table-row>
+                ))}
+              </s-table-body>
+            </s-table>
+          )}
         </s-box>
       </s-stack>
     </s-page>

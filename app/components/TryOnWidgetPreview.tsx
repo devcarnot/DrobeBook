@@ -57,7 +57,15 @@ function PreviewFrame({
           </s-paragraph>
         </s-stack>
 
-        <div style={{ ...themeStyle, ...tryOnWidgetShellStyle(), ...previewPanelStyle() }}>
+        <div
+          style={{
+            ...themeStyle,
+            ...tryOnWidgetShellStyle(),
+            ...previewPanelStyle(),
+            maxHeight: "min(72vh, 720px)",
+            overflowY: "auto",
+          }}
+        >
           {children}
         </div>
       </s-stack>
@@ -81,9 +89,11 @@ export function TryOnWidgetPreview({
       <p
         style={{
           textAlign: "left",
-          fontSize: "1rem",
+          fontSize: "1.0625rem",
           fontWeight: 600,
-          margin: "0 0 1.25rem",
+          margin: "0 0 1.35rem",
+          paddingBottom: "1rem",
+          borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
           color: "var(--gk-choice-text, #111111)",
         }}
       >
@@ -101,12 +111,37 @@ export function TryOnWidgetPreview({
       <div style={widgetGroupStyle()}>
         <span style={tryOnLabelStyle()}>{config.durationTypeLabel}</span>
         <div style={tryOnChoiceColumnStyle()}>
-          <span style={tryOnChoiceStyle(true, true)}>{config.duration50Label}</span>
-          <span style={tryOnChoiceStyle(false, true)}>{config.duration20Label}</span>
+          {(config.appointmentDurations?.length
+            ? config.appointmentDurations
+            : [
+                { minutes: 50, label: config.duration50Label },
+                { minutes: 30, label: config.duration30Label },
+                { minutes: 20, label: config.duration20Label },
+              ]
+          ).map((duration, index) => (
+            <span
+              key={`${duration.minutes}-${index}`}
+              style={tryOnChoiceStyle(index === 0, true)}
+            >
+              {duration.label}
+            </span>
+          ))}
         </div>
       </div>
 
-      <div style={{ margin: "1rem 0", width: "100%", maxWidth: "100%", minWidth: 0 }}>
+      <div
+        style={{
+          margin: "0.25rem 0 1.35rem",
+          padding: "1rem",
+          background: "rgba(0, 0, 0, 0.02)",
+          border: "1px solid rgba(0, 0, 0, 0.06)",
+          borderRadius: "12px",
+          width: "100%",
+          maxWidth: "100%",
+          minWidth: 0,
+          boxSizing: "border-box",
+        }}
+      >
         <div style={calendarHeaderStyle()}>
           <span style={tryOnCalendarNavStyle()} aria-hidden="true">
             ‹
@@ -116,14 +151,14 @@ export function TryOnWidgetPreview({
             ›
           </span>
         </div>
-        <div style={calendarGridStyle("0.15rem")}>
+        <div style={calendarGridStyle("0.25rem")}>
           {["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].map((day) => (
             <span key={day} style={tryOnWeekdayStyle()}>
               {day}
             </span>
           ))}
-          <span style={calendarDayStyle("empty")}> </span>
-          <span style={calendarDayStyle("empty")}> </span>
+          <span style={calendarDayStyle("tryon-empty")}> </span>
+          <span style={calendarDayStyle("tryon-empty")}> </span>
           <span style={calendarDayStyle("tryon-unavailable")}>1</span>
           <span style={calendarDayStyle("tryon-unavailable")}>2</span>
           <span style={calendarDayStyle("tryon-unavailable")}>3</span>
@@ -131,8 +166,8 @@ export function TryOnWidgetPreview({
           <span style={calendarDayStyle("tryon-unavailable")}>5</span>
           <span style={calendarDayStyle("tryon-unavailable")}>6</span>
           <span style={calendarDayStyle("tryon-selected")}>7</span>
-          <span style={calendarDayStyle("default")}>8</span>
-          <span style={calendarDayStyle("default")}>9</span>
+          <span style={calendarDayStyle("tryon-default")}>8</span>
+          <span style={calendarDayStyle("tryon-default")}>9</span>
         </div>
       </div>
 
@@ -197,10 +232,11 @@ export function TryOnWidgetPreview({
           gridTemplateColumns: "auto minmax(0, 1fr) auto",
           gap: "0.85rem",
           alignItems: "start",
-          padding: "1rem 0",
-          borderTop: "1px solid rgba(0, 0, 0, 0.08)",
-          borderBottom: "1px solid rgba(0, 0, 0, 0.08)",
-          marginBottom: "1.25rem",
+          padding: "1.15rem",
+          background: "rgba(0, 0, 0, 0.02)",
+          border: "1px solid rgba(0, 0, 0, 0.06)",
+          borderRadius: "12px",
+          marginBottom: "1.35rem",
           width: "100%",
           maxWidth: "100%",
           minWidth: 0,
@@ -230,18 +266,24 @@ export function TryOnWidgetPreview({
         >
           {config.additionalInfoTitle}
         </h4>
-        <label style={tryOnLabelStyle()}>{config.eventDateLabel}</label>
-        <div style={inputFieldStyle()}>dd/mm/yyyy</div>
-        <label style={tryOnLabelStyle()}>{config.specificItemsLabel}</label>
-        <div
-          style={{
-            ...inputFieldStyle(),
-            color: "rgba(0, 0, 0, 0.45)",
-          }}
-        >
-          {config.specificItemsPlaceholder}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1.25rem" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <label style={{ ...tryOnLabelStyle(), marginBottom: 0 }}>{config.eventDateLabel}</label>
+            <div style={inputFieldStyle()}>dd/mm/yyyy</div>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+            <label style={{ ...tryOnLabelStyle(), marginBottom: 0 }}>{config.specificItemsLabel}</label>
+            <div
+              style={{
+                ...inputFieldStyle(),
+                color: "rgba(0, 0, 0, 0.45)",
+              }}
+            >
+              {config.specificItemsPlaceholder}
+            </div>
+          </div>
         </div>
-        <p style={{ fontSize: "0.875rem", margin: "1rem 0 0.5rem" }}>{config.availabilityNote}</p>
+        <p style={{ fontSize: "0.875rem", margin: "1.25rem 0 0.5rem" }}>{config.availabilityNote}</p>
         <label
           style={{
             display: "flex",

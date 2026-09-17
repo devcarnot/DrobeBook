@@ -12,9 +12,16 @@
     "return_date": "Return Date",
     "hire_cost": "Hire Cost",
     "event_date": "Enter your Event Date",
+    "hire_terms": "Hire terms",
     "damage_protection": "Add Damage Protection",
     "more_info": "More Info",
-    "loading_availability": "Checking availability..."
+    "loading_availability": "Checking availability...",
+    "waitlist_toggle": "Can't find your dates? Join the waitlist",
+    "waitlist_copy": "Tell us your event date and email — we'll contact you if this gown becomes available.",
+    "waitlist_email": "Email address",
+    "waitlist_name": "Name (optional)",
+    "waitlist_notes": "Notes (optional)",
+    "waitlist_submit": "Join waitlist"
   },
   "try_on": {
     "day": "Day",
@@ -30,6 +37,7 @@
     "additional_info": "Additional information",
     "event_date": "Your Event Date:",
     "specific_items": "Please list any specific items you would like to try on:",
+    "instagram": "Instagram handle",
     "loading": "Loading availability..."
   },
   "search": {

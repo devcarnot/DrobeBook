@@ -18,19 +18,26 @@ export function previewThemeStyle(colors: WidgetColorScheme): CSSProperties {
 
 export function bookingWidgetShellStyle(): CSSProperties {
   return {
-    border: "1px solid rgba(0, 0, 0, 0.08)",
-    borderRadius: 0,
-    padding: "1.5rem 1.25rem",
     background: "#ffffff",
+    border: "1px solid rgba(0, 0, 0, 0.08)",
+    borderRadius: "16px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06)",
+    padding: "1.5rem 1.35rem",
     width: "100%",
     boxSizing: "border-box",
+    maxWidth: "100%",
+    minWidth: 0,
+    overflowX: "hidden",
   };
 }
 
 export function tryOnWidgetShellStyle(): CSSProperties {
   return {
-    padding: 0,
     background: "#ffffff",
+    border: "1px solid rgba(0, 0, 0, 0.08)",
+    borderRadius: "16px",
+    boxShadow: "0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.06)",
+    padding: "1.5rem 1.35rem",
     width: "100%",
     maxWidth: "100%",
     minWidth: 0,
@@ -41,9 +48,11 @@ export function tryOnWidgetShellStyle(): CSSProperties {
 
 export function widgetTitleStyle(): CSSProperties {
   return {
-    fontSize: "1.125rem",
+    fontSize: "1.0625rem",
     fontWeight: 600,
-    margin: "0 0 1.25rem",
+    margin: "0 0 1.35rem",
+    paddingBottom: "1rem",
+    borderBottom: "1px solid rgba(0, 0, 0, 0.06)",
     letterSpacing: "0.01em",
     color: "var(--gk-date-text, #333333)",
   };
@@ -64,36 +73,40 @@ export function widgetLabelStyle(): CSSProperties {
     display: "block",
     fontSize: "0.8125rem",
     fontWeight: 600,
-    marginBottom: "0.45rem",
-    color: "var(--gk-label-text, #525252)",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    marginBottom: "0.65rem",
+    color: "rgba(0, 0, 0, 0.55)",
   };
 }
 
 export function tryOnLabelStyle(): CSSProperties {
   return {
     display: "block",
-    fontSize: "0.9375rem",
+    fontSize: "0.8125rem",
     fontWeight: 600,
-    marginBottom: "0.5rem",
-    color: "var(--gk-label-text, #111111)",
+    letterSpacing: "0.03em",
+    textTransform: "uppercase",
+    marginBottom: "0.65rem",
+    color: "rgba(0, 0, 0, 0.55)",
   };
 }
 
 export function choiceButtonStyle(selected = false): CSSProperties {
   return {
     appearance: "none",
-    border: `1px solid ${selected ? "var(--gk-choice-selected-bg, #121212)" : "var(--gk-choice-border, #111111)"}`,
+    border: `1px solid ${selected ? "var(--gk-choice-selected-bg, #121212)" : "rgba(0, 0, 0, 0.14)"}`,
     background: selected
       ? "var(--gk-choice-selected-bg, #121212)"
       : "var(--gk-choice-bg, #ffffff)",
     color: selected
       ? "var(--gk-choice-selected-text, #ffffff)"
       : "var(--gk-choice-text, #111111)",
-    borderRadius: 2,
-    padding: "0.55rem 0.85rem",
+    borderRadius: "10px",
+    padding: "0.65rem 0.95rem",
     font: "inherit",
     fontSize: "0.875rem",
-    lineHeight: 1.2,
+    lineHeight: 1.3,
     display: "inline-flex",
     alignItems: "center",
     minHeight: "2.5rem",
@@ -103,21 +116,22 @@ export function choiceButtonStyle(selected = false): CSSProperties {
     wordBreak: "break-word",
     overflowWrap: "anywhere",
     cursor: "default",
+    boxShadow: selected ? "0 1px 3px rgba(0, 0, 0, 0.1)" : undefined,
   };
 }
 
 export function tryOnChoiceStyle(selected = false, stacked = false): CSSProperties {
   return {
     appearance: "none",
-    border: `1px solid ${selected ? "var(--gk-choice-selected-bg, #d8cdb8)" : "var(--gk-choice-border, #111111)"}`,
+    border: `1px solid ${selected ? "var(--gk-choice-selected-bg, #d8cdb8)" : "rgba(0, 0, 0, 0.14)"}`,
     background: selected
       ? "var(--gk-choice-selected-bg, #d8cdb8)"
       : "var(--gk-choice-bg, #ffffff)",
     color: selected
       ? "var(--gk-choice-selected-text, #111111)"
       : "var(--gk-choice-text, #111111)",
-    borderRadius: 0,
-    padding: stacked ? "0.85rem 1rem" : "0.55rem 0.85rem",
+    borderRadius: "9999px",
+    padding: stacked ? "0.85rem 1.15rem" : "0.65rem 1rem",
     font: "inherit",
     fontSize: "0.9375rem",
     lineHeight: 1.35,
@@ -132,6 +146,7 @@ export function tryOnChoiceStyle(selected = false, stacked = false): CSSProperti
     wordBreak: "break-word",
     overflowWrap: "anywhere",
     cursor: "default",
+    boxShadow: selected ? "0 1px 3px rgba(0, 0, 0, 0.08)" : undefined,
   };
 }
 
@@ -172,9 +187,13 @@ export function choiceRowStyle(stacked = false): CSSProperties {
 export function mutedTextStyle(): CSSProperties {
   return {
     fontSize: "0.8125rem",
-    lineHeight: 1.5,
+    lineHeight: 1.55,
     color: "var(--gk-muted-text, #949494)",
-    margin: "0 0 1rem",
+    margin: "-0.35rem 0 1.15rem",
+    padding: "0.85rem 1rem",
+    background: "rgba(0, 0, 0, 0.02)",
+    borderRadius: "10px",
+    border: "1px solid rgba(0, 0, 0, 0.05)",
   };
 }
 
@@ -191,25 +210,37 @@ export function calendarHeaderStyle(): CSSProperties {
 
 export function calendarNavStyle(): CSSProperties {
   return {
-    border: "1px solid rgba(0, 0, 0, 0.15)",
-    background: "var(--gk-choice-bg, #ffffff)",
-    color: "var(--gk-choice-text, #111111)",
-    borderRadius: 2,
-    padding: "0.25rem 0.55rem",
+    border: 0,
+    background: "rgba(0, 0, 0, 0.04)",
+    color: "rgba(0, 0, 0, 0.55)",
+    borderRadius: "8px",
+    width: "2rem",
+    height: "2rem",
     font: "inherit",
+    fontSize: "1rem",
     cursor: "default",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 0,
   };
 }
 
 export function tryOnCalendarNavStyle(): CSSProperties {
   return {
     border: 0,
-    background: "transparent",
-    fontSize: "1.5rem",
+    background: "rgba(0, 0, 0, 0.04)",
+    borderRadius: "8px",
+    width: "2rem",
+    height: "2rem",
+    fontSize: "1.25rem",
     lineHeight: 1,
-    color: "rgba(0, 0, 0, 0.45)",
+    color: "rgba(0, 0, 0, 0.55)",
     cursor: "default",
     padding: 0,
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
   };
 }
 
@@ -234,15 +265,31 @@ export function calendarWeekdayStyle(): CSSProperties {
 export function tryOnWeekdayStyle(): CSSProperties {
   return {
     textAlign: "center",
-    padding: "0.65rem 0",
-    fontSize: "0.875rem",
+    padding: "0.5rem 0",
+    fontSize: "0.75rem",
     fontWeight: 600,
     color: "rgba(0, 0, 0, 0.45)",
   };
 }
 
+function tryOnCalendarDayBase(): CSSProperties {
+  return {
+    textAlign: "center",
+    padding: 0,
+    fontSize: "0.8125rem",
+    border: 0,
+    borderRadius: "50%",
+    aspectRatio: "1",
+    width: "100%",
+    display: "inline-flex",
+    alignItems: "center",
+    justifyContent: "center",
+    boxSizing: "border-box",
+  };
+}
+
 export function calendarDayStyle(
-  variant: "default" | "unavailable" | "preview" | "selected" | "empty" | "tryon-selected" | "tryon-unavailable",
+  variant: "default" | "unavailable" | "preview" | "selected" | "empty" | "tryon-empty" | "tryon-default" | "tryon-selected" | "tryon-unavailable",
 ): CSSProperties {
   const base: CSSProperties = {
     textAlign: "center",
@@ -253,7 +300,7 @@ export function calendarDayStyle(
     alignItems: "center",
     justifyContent: "center",
     border: "1px solid transparent",
-    borderRadius: 2,
+    borderRadius: 8,
   };
 
   switch (variant) {
@@ -276,23 +323,27 @@ export function calendarDayStyle(
         color: "var(--gk-selected-text, #ffffff)",
         background: "var(--gk-selected-bg, #333333)",
       };
+    case "tryon-default":
+      return {
+        ...tryOnCalendarDayBase(),
+        color: "var(--gk-choice-text, #111111)",
+        background: "transparent",
+      };
     case "tryon-selected":
       return {
-        ...base,
-        border: 0,
-        borderRadius: 0,
+        ...tryOnCalendarDayBase(),
         color: "var(--gk-preview-text, #111111)",
         background: "var(--gk-preview-bg, #d8cdb8)",
         fontWeight: 700,
       };
     case "tryon-unavailable":
       return {
-        ...base,
-        border: 0,
-        borderRadius: 0,
+        ...tryOnCalendarDayBase(),
         color: "rgba(0, 0, 0, 0.25)",
         background: "transparent",
       };
+    case "tryon-empty":
+      return { ...tryOnCalendarDayBase(), visibility: "hidden" };
     case "empty":
       return { ...base, visibility: "hidden" };
     default:
@@ -309,9 +360,9 @@ export function primaryButtonStyle(fullWidth = true, confirm = false): CSSProper
     width: fullWidth ? "100%" : undefined,
     maxWidth: "100%",
     boxSizing: "border-box",
-    padding: confirm ? "1rem" : "0.95rem 1rem",
+    padding: confirm ? "1rem 1.35rem" : "0.95rem 1.25rem",
     border: "none",
-    borderRadius: confirm ? 0 : 2,
+    borderRadius: "9999px",
     background: confirm
       ? "var(--gk-choice-selected-bg, #d8cdb8)"
       : "var(--gk-button-bg, #121212)",
@@ -334,11 +385,11 @@ export function selectFieldStyle(): CSSProperties {
     width: "100%",
     maxWidth: "100%",
     boxSizing: "border-box",
-    border: "1px solid rgba(0, 0, 0, 0.25)",
-    borderRadius: 0,
-    padding: "0.8rem 1rem",
+    border: "1px solid rgba(0, 0, 0, 0.12)",
+    borderRadius: "9999px",
+    padding: "0.85rem 1rem",
     font: "inherit",
-    fontSize: "0.875rem",
+    fontSize: "0.9375rem",
     background: "#fff",
     color: "var(--gk-date-text, #333333)",
     whiteSpace: "normal",
@@ -350,11 +401,11 @@ export function selectFieldStyle(): CSSProperties {
 export function inputFieldStyle(): CSSProperties {
   return {
     width: "100%",
-    border: "1px solid rgba(0, 0, 0, 0.25)",
-    borderRadius: 0,
-    padding: "0.8rem 1rem",
+    border: "1px solid rgba(0, 0, 0, 0.12)",
+    borderRadius: "9999px",
+    padding: "0.85rem 1rem",
     font: "inherit",
-    fontSize: "0.875rem",
+    fontSize: "0.9375rem",
     background: "#fff",
     marginBottom: "0.85rem",
     boxSizing: "border-box",
@@ -364,9 +415,12 @@ export function inputFieldStyle(): CSSProperties {
 export function priceRowStyle(): CSSProperties {
   return {
     display: "flex",
-    justifyContent: "flex-end",
-    gap: "0.35rem",
-    margin: "1rem 0",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "0.75rem",
+    margin: 0,
+    padding: "1rem 0 0.85rem",
+    borderTop: "1px solid rgba(0, 0, 0, 0.06)",
     fontSize: "0.9375rem",
   };
 }

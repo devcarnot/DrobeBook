@@ -73,6 +73,26 @@ describe("booking availability rules", () => {
     expect(result.reason).toMatch(/already booked/i);
   });
 
+  it("ignores pending checkout bookings until the order is confirmed", () => {
+    const result = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "var-8",
+      deliveryDate: d("2026-04-10"),
+      durationDays: 4,
+      today: d("2026-04-01"),
+      bookings: [
+        {
+          startDate: d("2026-04-10"),
+          endDate: d("2026-04-14"),
+          status: "pending",
+        },
+      ],
+      blockedDates: [],
+    });
+
+    expect(result.available).toBe(true);
+  });
+
   it("ignores cancelled bookings", () => {
     const result = isProductVariantAvailable({
       productId: "prod-1",
@@ -218,5 +238,70 @@ describe("booking availability rules", () => {
 
   it("addDays advances calendar dates correctly across month boundaries", () => {
     expect(formatDateIso(addDays(d("2026-01-30"), 4))).toBe("2026-02-03");
+  });
+
+  it("does not block a different variant when another variant is booked", () => {
+    const sharedBookings = [
+      {
+        startDate: d("2026-09-07"),
+        endDate: d("2026-09-10"),
+        status: "confirmed",
+      },
+    ];
+
+    const bookedVariant = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "44467874889831",
+      deliveryDate: d("2026-09-08"),
+      durationDays: 4,
+      today: d("2026-08-01"),
+      bookings: sharedBookings,
+      blockedDates: [],
+    });
+
+    const otherSizeVariant = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "44467874955367",
+      deliveryDate: d("2026-09-08"),
+      durationDays: 4,
+      today: d("2026-08-01"),
+      bookings: [],
+      blockedDates: [],
+    });
+
+    const otherDurationVariant = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "44467874922599",
+      deliveryDate: d("2026-09-08"),
+      durationDays: 8,
+      today: d("2026-08-01"),
+      bookings: [],
+      blockedDates: [],
+    });
+
+    expect(bookedVariant.available).toBe(false);
+    expect(otherSizeVariant.available).toBe(true);
+    expect(otherDurationVariant.available).toBe(true);
+  });
+
+  it("allows another booking when inventory quantity has remaining units", () => {
+    const result = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "44467874889831",
+      deliveryDate: d("2026-09-08"),
+      durationDays: 4,
+      today: d("2026-08-01"),
+      inventoryQuantity: 8,
+      bookings: [
+        {
+          startDate: d("2026-09-07"),
+          endDate: d("2026-09-10"),
+          status: "confirmed",
+        },
+      ],
+      blockedDates: [],
+    });
+
+    expect(result.available).toBe(true);
   });
 });

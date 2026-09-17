@@ -1,11 +1,12 @@
 import type { ActionFunctionArgs } from "react-router";
 
+import { processOrderAppointments } from "../lib/appointment/appointment-order.server";
+import { issueTryOnCreditForOrder } from "../lib/appointment/try-on-credit.server";
 import {
-  confirmBookingFromOrder,
-  isBookingLineItem,
+  processOrderBookings,
   type OrderWebhookPayload,
 } from "../lib/order-booking.server";
-import { authenticate } from "../shopify.server";
+import { authenticate, unauthenticated } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
   const { shop, topic } = await authenticate.webhook(request);
@@ -19,24 +20,35 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   const lineItems = payload.line_items ?? [];
-  let confirmedCount = 0;
+  const bookings = await processOrderBookings(
+    shop,
+    orderId,
+    lineItems,
+    payload.email,
+  );
+  const appointments = await processOrderAppointments(shop, orderId, lineItems);
 
-  for (const lineItem of lineItems) {
-    if (!isBookingLineItem(lineItem)) {
-      continue;
-    }
-
-    const result = await confirmBookingFromOrder(shop, orderId, lineItem);
-    if (result) {
-      confirmedCount += 1;
-      console.log(
-        `Confirmed booking ${result.bookingId} from order ${orderId} for ${shop}`,
-      );
-    }
+  let creditsIssued = 0;
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const credits = await issueTryOnCreditForOrder(
+      admin,
+      shop,
+      orderId,
+      payload.email,
+      payload.financial_status,
+      lineItems,
+    );
+    creditsIssued = credits.issued;
+  } catch (error) {
+    console.warn(
+      `[try-on-credit] Skipped for ${shop} order ${orderId}:`,
+      error instanceof Error ? error.message : error,
+    );
   }
 
   console.log(
-    `Processed ${topic} webhook for ${shop}: ${confirmedCount} booking line(s) confirmed`,
+    `Processed ${topic} webhook for ${shop}: ${bookings.confirmed} booking line(s) confirmed (${bookings.skipped} skipped), ${appointments.confirmed} appointment(s) confirmed (${appointments.skipped} skipped), ${creditsIssued} try-on credit(s) issued`,
   );
 
   return new Response();

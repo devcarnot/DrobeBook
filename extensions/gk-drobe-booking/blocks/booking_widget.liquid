@@ -20,6 +20,7 @@
 
 {% else %}
 
+  <div class="gk-drobe-booking-card" hidden data-gk-booking-shell>
   <div
     class="gk-drobe-booking"
     data-gk-drobe-booking
@@ -47,7 +48,7 @@
 
 
 
-    <div class="gk-drobe-booking__group">
+    <div class="gk-drobe-booking__group" data-gk-duration-group>
 
       <span class="gk-drobe-booking__label">{{ 'booking.duration' | t }}</span>
 
@@ -137,7 +138,7 @@
 
           <label class="gk-drobe-booking__protection">
 
-            <input type="checkbox" data-gk-damage-protection checked>
+            <input type="checkbox" data-gk-damage-protection>
 
             <span data-gk-damage-label>{{ 'booking.damage_protection' | t }}</span>
 
@@ -175,7 +176,10 @@
 
     </div>
 
-
+    <div class="gk-drobe-booking__group" data-gk-terms-group hidden>
+      <span class="gk-drobe-booking__label">{{ 'booking.hire_terms' | t }}</span>
+      <div class="gk-drobe-booking__terms" data-gk-terms></div>
+    </div>
 
     <button type="button" class="gk-drobe-booking__submit" data-gk-submit disabled>
 
@@ -187,10 +191,48 @@
 
     <div class="gk-drobe-booking__error" data-gk-error hidden></div>
 
+    <div class="gk-drobe-booking__waitlist-claim" data-gk-waitlist-claim hidden></div>
+
+    <div class="gk-drobe-booking__waitlist" data-gk-waitlist hidden>
+      <button type="button" class="gk-drobe-booking__waitlist-toggle" data-gk-waitlist-toggle>
+        {{ 'booking.waitlist_toggle' | t }}
+      </button>
+      <div class="gk-drobe-booking__waitlist-form" data-gk-waitlist-form hidden>
+        <p class="gk-drobe-booking__waitlist-copy">{{ 'booking.waitlist_copy' | t }}</p>
+        <label class="gk-drobe-booking__label" for="gk-waitlist-email-{{ block.id }}">{{ 'booking.waitlist_email' | t }}</label>
+        <input
+          id="gk-waitlist-email-{{ block.id }}"
+          class="gk-drobe-booking__event-input"
+          type="email"
+          data-gk-waitlist-email
+          required
+        >
+        <label class="gk-drobe-booking__label" for="gk-waitlist-name-{{ block.id }}">{{ 'booking.waitlist_name' | t }}</label>
+        <input
+          id="gk-waitlist-name-{{ block.id }}"
+          class="gk-drobe-booking__event-input"
+          type="text"
+          data-gk-waitlist-name
+        >
+        <label class="gk-drobe-booking__label" for="gk-waitlist-notes-{{ block.id }}">{{ 'booking.waitlist_notes' | t }}</label>
+        <textarea
+          id="gk-waitlist-notes-{{ block.id }}"
+          class="gk-drobe-booking__event-input"
+          rows="3"
+          data-gk-waitlist-notes
+        ></textarea>
+        <button type="button" class="gk-drobe-booking__submit gk-drobe-booking__submit--secondary" data-gk-waitlist-submit>
+          {{ 'booking.waitlist_submit' | t }}
+        </button>
+        <div class="gk-drobe-booking__error" data-gk-waitlist-message hidden></div>
+      </div>
+    </div>
+
+  </div>
   </div>
 
   <script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
-  <script src="/apps/gk-drobe/api/cart-behavior.js" defer></script>
+  <script src="{{ 'cart-behavior.js' | asset_url }}" defer></script>
 
 {% endif %}
 

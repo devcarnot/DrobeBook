@@ -1,6 +1,13 @@
 import { Prisma } from "@prisma/client";
 
+import { processOrderAppointments } from "./appointment/appointment-order.server";
 import prisma from "../db.server";
+import {
+  bookingToNotificationContext,
+  sendRentalNotification,
+} from "./notifications/notification.server";
+import { recordGarmentHire } from "./garment/garment-stats.server";
+import { fulfillWaitlistForBooking } from "./waitlist/waitlist.server";
 import {
   computeReturnDate,
   type HireDurationDays,
@@ -9,16 +16,54 @@ import {
 import { parseHireDuration, parseIsoDate } from "./booking/availability.server";
 
 export type OrderLineItem = {
-  product_id?: number | null;
-  variant_id?: number | null;
+  product_id?: number | string | null;
+  variant_id?: number | string | null;
   price?: string | null;
   properties?: Array<{ name?: string; value?: string }> | null;
 };
 
 export type OrderWebhookPayload = {
-  id?: number;
+  id?: number | string;
+  email?: string | null;
+  financial_status?: string | null;
   line_items?: OrderLineItem[];
 };
+
+type AdminGraphqlClient = {
+  graphql: (
+    query: string,
+    options?: { variables?: Record<string, unknown> },
+  ) => Promise<Response>;
+};
+
+const RECENT_ORDERS_QUERY = `#graphql
+  query SyncRecentOrderBookings($first: Int!) {
+    orders(first: $first, sortKey: CREATED_AT, reverse: true) {
+      nodes {
+        legacyResourceId
+        lineItems(first: 50) {
+          nodes {
+            product {
+              legacyResourceId
+            }
+            variant {
+              legacyResourceId
+            }
+            originalUnitPriceSet {
+              shopMoney {
+                amount
+              }
+            }
+            customAttributes {
+              key
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+`;
 
 const DISPLAY_DATE_PATTERN =
   /^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$/;
@@ -112,6 +157,15 @@ function parsePricePaid(value: string | null | undefined): Prisma.Decimal | null
   return new Prisma.Decimal(amount);
 }
 
+function toNumericId(value: number | string | null | undefined): number | null {
+  if (value == null || value === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
 export function isBookingLineItem(lineItem: OrderLineItem): boolean {
   const properties = lineItem.properties ?? [];
   return properties.some((property) => property.name === "_gk_booking_id");
@@ -135,14 +189,20 @@ export function parseBookingLineItem(
 ): ParsedBookingLine | null {
   const properties = lineItem.properties ?? [];
   const bookingId = getLineProperty(properties, "_gk_booking_id");
-  const size = getLineProperty(properties, "Size");
+  const size =
+    getLineProperty(properties, "_Size") ?? getLineProperty(properties, "Size");
   const deliveryDateRaw = getLineProperty(properties, "Delivery Date");
   const returnDateRaw = getLineProperty(properties, "Return Date");
   const eventDateRaw = getLineProperty(properties, "Event Date");
-  const durationRaw = getLineProperty(properties, "Duration");
+  const durationRaw =
+    getLineProperty(properties, "_Duration") ??
+    getLineProperty(properties, "Duration");
   const deliveryMethodRaw = getLineProperty(properties, "Delivery Method");
 
-  if (!bookingId || !size || !lineItem.product_id || !lineItem.variant_id) {
+  const productId = toNumericId(lineItem.product_id);
+  const variantId = toNumericId(lineItem.variant_id);
+
+  if (!bookingId || !size || productId == null || variantId == null) {
     return null;
   }
 
@@ -160,8 +220,8 @@ export function parseBookingLineItem(
 
   return {
     bookingId,
-    productId: String(lineItem.product_id),
-    variantId: String(lineItem.variant_id),
+    productId: String(productId),
+    variantId: String(variantId),
     size,
     deliveryDate,
     returnDate,
@@ -176,6 +236,7 @@ export async function confirmBookingFromOrder(
   shop: string,
   orderId: string,
   lineItem: OrderLineItem,
+  customerEmail?: string | null,
 ): Promise<{ created: boolean; bookingId: string } | null> {
   const parsed = parseBookingLineItem(lineItem);
   if (!parsed) {
@@ -219,28 +280,155 @@ export async function confirmBookingFromOrder(
     });
 
     if (shouldIncrementGarment) {
-      await tx.garment.upsert({
-        where: {
-          shop_productId_variantId: {
-            shop,
-            productId: parsed.productId,
-            variantId: parsed.variantId,
-          },
-        },
-        create: {
-          shop,
-          productId: parsed.productId,
-          variantId: parsed.variantId,
-          timesRented: 1,
-          totalRevenue: pricePaid,
-        },
-        update: {
-          timesRented: { increment: 1 },
-          totalRevenue: { increment: pricePaid },
-        },
-      });
+      await recordGarmentHire(
+        shop,
+        parsed.productId,
+        parsed.variantId,
+        pricePaid,
+      );
     }
   });
 
+  await fulfillWaitlistForBooking(
+    shop,
+    parsed.productId,
+    parsed.variantId,
+    customerEmail,
+  );
+
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: { id: parsed.bookingId },
+  });
+
+  if (!existing || existing.status !== "confirmed") {
+    void sendRentalNotification(shop, bookingToNotificationContext(booking), {
+      trigger: "on_create",
+    }).catch(() => undefined);
+  }
+
   return { created: !existing, bookingId: parsed.bookingId };
+}
+
+export async function processOrderBookings(
+  shop: string,
+  orderId: string,
+  lineItems: OrderLineItem[],
+  customerEmail?: string | null,
+): Promise<{ confirmed: number; skipped: number }> {
+  let confirmed = 0;
+  let skipped = 0;
+
+  for (const lineItem of lineItems) {
+    if (!isBookingLineItem(lineItem)) {
+      continue;
+    }
+
+    const result = await confirmBookingFromOrder(
+      shop,
+      orderId,
+      lineItem,
+      customerEmail,
+    );
+    if (result) {
+      confirmed += 1;
+    } else {
+      skipped += 1;
+    }
+  }
+
+  return { confirmed, skipped };
+}
+
+function graphLineItemToOrderLineItem(lineItem: {
+  product?: { legacyResourceId?: string | null } | null;
+  variant?: { legacyResourceId?: string | null } | null;
+  originalUnitPriceSet?: { shopMoney?: { amount?: string | null } | null } | null;
+  customAttributes?: Array<{ key?: string | null; value?: string | null }> | null;
+}): OrderLineItem {
+  return {
+    product_id: lineItem.product?.legacyResourceId ?? null,
+    variant_id: lineItem.variant?.legacyResourceId ?? null,
+    price: lineItem.originalUnitPriceSet?.shopMoney?.amount ?? null,
+    properties: (lineItem.customAttributes ?? []).map((attribute) => ({
+      name: attribute.key ?? undefined,
+      value: attribute.value ?? undefined,
+    })),
+  };
+}
+
+export async function syncRecentOrderBookings(
+  admin: AdminGraphqlClient,
+  shop: string,
+  options: { limit?: number } = {},
+): Promise<{
+  ordersChecked: number;
+  bookingsConfirmed: number;
+  requiresProtectedCustomerData?: boolean;
+  errorMessage?: string;
+}> {
+  const limit = options.limit ?? 50;
+  try {
+    const response = await admin.graphql(RECENT_ORDERS_QUERY, {
+      variables: { first: limit },
+    });
+    const json = (await response.json()) as {
+      data?: {
+        orders?: {
+          nodes?: Array<{
+            legacyResourceId?: string | null;
+            lineItems?: {
+              nodes?: Array<Parameters<typeof graphLineItemToOrderLineItem>[0]>;
+            } | null;
+          }>;
+        };
+      } | null;
+      errors?: Array<{ message?: string }>;
+    };
+
+    if (json.errors?.length) {
+      const message = json.errors.map((error) => error.message).join("; ");
+      if (/protected customer data|not approved to access the order/i.test(message)) {
+        return {
+          ordersChecked: 0,
+          bookingsConfirmed: 0,
+          requiresProtectedCustomerData: true,
+          errorMessage: message,
+        };
+      }
+      throw new Error(message);
+    }
+
+    const orders = json.data?.orders?.nodes ?? [];
+    let bookingsConfirmed = 0;
+
+    for (const order of orders) {
+      const orderId = order.legacyResourceId;
+      if (!orderId) {
+        continue;
+      }
+
+      const lineItems = (order.lineItems?.nodes ?? []).map(
+        graphLineItemToOrderLineItem,
+      );
+      const result = await processOrderBookings(shop, orderId, lineItems);
+      bookingsConfirmed += result.confirmed;
+      await processOrderAppointments(shop, orderId, lineItems);
+    }
+
+    return {
+      ordersChecked: orders.length,
+      bookingsConfirmed,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (/protected customer data|not approved to access the order/i.test(message)) {
+      return {
+        ordersChecked: 0,
+        bookingsConfirmed: 0,
+        requiresProtectedCustomerData: true,
+        errorMessage: message,
+      };
+    }
+    throw error;
+  }
 }

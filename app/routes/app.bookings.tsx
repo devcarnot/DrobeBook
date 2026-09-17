@@ -1,16 +1,36 @@
-import type { HeadersFunction, LoaderFunctionArgs } from "react-router";
-import { Form, useLoaderData, useSearchParams } from "react-router";
+import type {
+  ActionFunctionArgs,
+  HeadersFunction,
+  LoaderFunctionArgs,
+} from "react-router";
+import { Form, useActionData, useLoaderData, useNavigation, useOutlet } from "react-router";
 import { useMemo } from "react";
 
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import { RentalCalendar } from "../components/RentalCalendar";
 import { currentCalendarMonth } from "../lib/garment/garment.server";
 import { getRentalCalendar } from "../lib/booking/rental-calendar.server";
+import { syncRecentOrderBookings } from "../lib/order-booking.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
+
+  let syncSummary: Awaited<ReturnType<typeof syncRecentOrderBookings>> | null =
+    null;
+  try {
+    syncSummary = await syncRecentOrderBookings(admin, session.shop);
+  } catch (error) {
+    console.warn("[bookings] order sync failed", error);
+    syncSummary = {
+      ordersChecked: 0,
+      bookingsConfirmed: 0,
+      errorMessage:
+        error instanceof Error ? error.message : "Order sync failed",
+    };
+  }
 
   const defaults = currentCalendarMonth();
   const year = Number.parseInt(
@@ -41,6 +61,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   return {
     calendar,
     shop: session.shop,
+    syncSummary,
     filters: {
       status: status ?? "",
       deliveryMethod: deliveryMethod ?? "",
@@ -48,6 +69,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     },
     filtersQuery: filterParams.toString(),
   };
+};
+
+export const action = async ({ request }: ActionFunctionArgs) => {
+  const { admin, session } = await authenticate.admin(request);
+
+  if (request.method !== "POST") {
+    return { ok: false, message: "Unsupported method" };
+  }
+
+  try {
+    const summary = await syncRecentOrderBookings(admin, session.shop, {
+      limit: 100,
+    });
+    return {
+      ok: true,
+      message: summary.requiresProtectedCustomerData
+        ? "Order sync needs Protected customer data access in Partner Dashboard. Bookings from cart still appear as pending."
+        : `Synced ${summary.bookingsConfirmed} booking(s) from ${summary.ordersChecked} recent order(s).`,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error instanceof Error
+          ? error.message
+          : "Could not sync orders from Shopify",
+    };
+  }
 };
 
 function MetricCard({
@@ -58,27 +107,37 @@ function MetricCard({
   value: number;
 }) {
   return (
-    <s-box padding="large" border="base" borderRadius="base" background="base">
-      <s-stack direction="block" gap="small">
+    <s-box padding="base" border="base" borderRadius="large" background="base">
+      <s-stack direction="block" gap="small-200">
         <s-text tone="neutral" color="subdued">
           {label}
         </s-text>
-        <s-heading>{String(value)}</s-heading>
+        <s-text type="strong">{String(value)}</s-text>
       </s-stack>
     </s-box>
   );
 }
 
-export default function BookingsPage() {
-  const { calendar, shop, filters, filtersQuery } = useLoaderData<typeof loader>();
-  const [searchParams] = useSearchParams();
-  const view = searchParams.get("view") ?? "calendar";
+export default function BookingsRoute() {
+  const outlet = useOutlet();
+  if (outlet) {
+    return outlet;
+  }
+
+  return <BookingsCalendarPage />;
+}
+
+function BookingsCalendarPage() {
+  const { calendar, shop, filters, filtersQuery, syncSummary } =
+    useLoaderData<typeof loader>();
+  const actionData = useActionData<typeof action>();
+  const navigation = useNavigation();
+  const isSyncing = navigation.state === "submitting";
 
   const stats = useMemo(() => {
     const bookings = calendar.events.filter((event) => event.type === "booking");
     return {
       confirmed: bookings.filter((event) => event.status === "confirmed").length,
-      pending: bookings.filter((event) => event.status === "pending").length,
       blackouts: calendar.events.filter((event) => event.type === "block").length,
     };
   }, [calendar.events]);
@@ -90,50 +149,52 @@ export default function BookingsPage() {
   return (
     <s-page heading="Rental calendar" inlineSize="large">
       <s-stack direction="block" gap="large">
-        <s-box padding="large" background="subdued" borderRadius="large">
-          <s-stack direction="inline" gap="large" alignItems="start">
-            <s-icon type="calendar" />
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">Gown hire at a glance</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                Color-coded rentals and blackout periods. Click any bar to view
-                details, edit buffers, or jump to the garment.
-              </s-paragraph>
-            </s-stack>
-          </s-stack>
-        </s-box>
+        <p className="gk-page-guide">
+          Color-coded rentals and blackouts for this month. Click any bar for
+          details, buffers, or the garment page.
+        </p>
 
-        <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="large">
+        {actionData?.message ? (
+          <s-banner tone={actionData.ok ? "success" : "critical"}>
+            {actionData.message}
+          </s-banner>
+        ) : syncSummary?.bookingsConfirmed ? (
+          <s-banner tone="success">
+            Imported {syncSummary.bookingsConfirmed} booking(s) from recent
+            Shopify orders.
+          </s-banner>
+        ) : syncSummary?.requiresProtectedCustomerData ? (
+          <s-banner tone="warning">
+            Shopify order sync needs Protected customer data in Partner Dashboard.
+          </s-banner>
+        ) : null}
+
+        <div className="gk-calendar-metrics">
           <MetricCard label="Confirmed hires" value={stats.confirmed} />
-          <MetricCard label="Pending hires" value={stats.pending} />
           <MetricCard label="Blackout periods" value={stats.blackouts} />
-        </s-grid>
+        </div>
 
         <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="large">
-            <s-stack
-              direction="inline"
-              gap="base"
-              alignItems="center"
-              justifyContent="space-between"
-            >
-              <s-text type="strong">Filters</s-text>
-              {hasActiveFilters ? (
-                <s-badge tone="info">Filters active</s-badge>
-              ) : (
-                <s-text tone="neutral" color="subdued">
-                  Showing all rentals this month
-                </s-text>
-              )}
-            </s-stack>
-
-            <s-divider />
+          <s-stack direction="block" gap="base">
+            <div className="gk-inventory-toolbar">
+              <span className="gk-inventory-toolbar__count">
+                {hasActiveFilters ? "Filters active" : "Showing all rentals this month"}
+              </span>
+              <Form method="post">
+                <s-button
+                  type="submit"
+                  variant="secondary"
+                  {...(isSyncing ? { loading: true } : {})}
+                >
+                  Sync orders
+                </s-button>
+              </Form>
+            </div>
 
             <Form method="get">
-              <s-grid gridTemplateColumns="2fr 1fr 1fr auto" gap="large" alignItems="end">
+              <ResponsiveGrid layout="filter-row" alignItems="end" gap="base">
                 <input type="hidden" name="year" value={calendar.year} />
                 <input type="hidden" name="month" value={calendar.month} />
-                <input type="hidden" name="view" value={view} />
                 <s-text-field
                   label="Search"
                   name="q"
@@ -141,26 +202,25 @@ export default function BookingsPage() {
                   placeholder="Product, size, order…"
                 />
                 <s-select label="Status" name="status" value={filters.status}>
-                  <option value="">All statuses</option>
-                  <option value="confirmed">Confirmed</option>
-                  <option value="pending">Pending</option>
-                  <option value="cancelled">Cancelled</option>
+                  <s-option value="">All statuses</s-option>
+                  <s-option value="confirmed">Confirmed</s-option>
+                  <s-option value="cancelled">Cancelled</s-option>
                 </s-select>
                 <s-select
                   label="Delivery method"
                   name="deliveryMethod"
                   value={filters.deliveryMethod}
                 >
-                  <option value="">All methods</option>
-                  <option value="post">Post</option>
-                  <option value="pickup">Pickup</option>
+                  <s-option value="">All methods</s-option>
+                  <s-option value="post">Post</s-option>
+                  <s-option value="pickup">Pickup</s-option>
                 </s-select>
                 <s-box paddingBlockStart="large-300">
                   <s-button type="submit" variant="primary">
                     Apply
                   </s-button>
                 </s-box>
-              </s-grid>
+              </ResponsiveGrid>
             </Form>
           </s-stack>
         </s-box>
@@ -173,47 +233,11 @@ export default function BookingsPage() {
           />
         </s-box>
 
-        <s-grid gridTemplateColumns="1fr 1fr" gap="large">
-          <s-box padding="large" background="subdued" borderRadius="base">
-            <s-stack direction="block" gap="base">
-              <s-text type="strong">Quick actions</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                Block dates, adjust buffers, or inspect garment-level bookings.
-              </s-paragraph>
-              <s-stack direction="block" gap="small">
-                <s-link href="/app/buffer-settings">Buffer settings</s-link>
-                <s-link href="/app/blocked-dates">Shop-wide blackouts</s-link>
-                <s-link href="/app/inventory">Inventory &amp; bookings</s-link>
-              </s-stack>
-            </s-stack>
-          </s-box>
-
-          <s-box padding="large" border="base" borderRadius="base" background="base">
-            <s-stack direction="block" gap="base">
-              <s-text type="strong">Legend</s-text>
-              <s-stack direction="block" gap="base">
-                <s-stack direction="inline" gap="large" alignItems="center">
-                  <s-badge tone="success">Confirmed</s-badge>
-                  <s-text tone="neutral" color="subdued">
-                    Paid or confirmed hire
-                  </s-text>
-                </s-stack>
-                <s-stack direction="inline" gap="large" alignItems="center">
-                  <s-badge tone="info">Pending</s-badge>
-                  <s-text tone="neutral" color="subdued">
-                    Awaiting confirmation
-                  </s-text>
-                </s-stack>
-                <s-stack direction="inline" gap="large" alignItems="center">
-                  <s-badge tone="warning">Blackout</s-badge>
-                  <s-text tone="neutral" color="subdued">
-                    Blocked or try-on hold
-                  </s-text>
-                </s-stack>
-              </s-stack>
-            </s-stack>
-          </s-box>
-        </s-grid>
+        <div className="gk-calendar-legend">
+          <s-badge tone="success">Confirmed</s-badge>
+          <s-badge tone="info">Pending</s-badge>
+          <s-badge tone="warning">Blackout</s-badge>
+        </div>
       </s-stack>
     </s-page>
   );

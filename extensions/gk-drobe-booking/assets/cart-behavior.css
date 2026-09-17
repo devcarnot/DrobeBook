@@ -15,7 +15,13 @@
 
 .cart-count-bubble.gk-drobe-cart-empty,
 [data-cart-count].gk-drobe-cart-empty,
-#cart-icon-bubble.gk-drobe-cart-empty,
-.cart-link__bubble.gk-drobe-cart-empty {
+.cart-link__bubble.gk-drobe-cart-empty,
+.header__cart-count.gk-drobe-cart-empty,
+.icon-cart__count.gk-drobe-cart-empty,
+[class*="cart-count-bubble"].gk-drobe-cart-empty,
+[class*="cart__count"].gk-drobe-cart-empty {
   display: none !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
 }

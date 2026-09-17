@@ -1,0 +1,56 @@
+import type { LoaderFunctionArgs } from "react-router";
+
+import { allowedAppointmentDurationMinutes } from "../lib/appointment/appointment-durations";
+import {
+  getUnavailableAppointmentDates,
+  parseAppointmentDuration,
+  parseDayType,
+} from "../lib/appointment/appointment.server";
+import { parseCalendarMonth } from "../lib/booking/availability-calendar.server";
+import { getShopConfig } from "../lib/shop-settings.server";
+import { authenticate } from "../shopify.server";
+
+export const loader = async ({ request }: LoaderFunctionArgs) => {
+  const { session } = await authenticate.admin(request);
+  const url = new URL(request.url);
+  const monthParams = parseCalendarMonth(
+    url.searchParams.get("year"),
+    url.searchParams.get("month"),
+  );
+  const dayType = parseDayType(url.searchParams.get("dayType"));
+  const shopConfig = await getShopConfig(session.shop);
+  const allowedDurations = allowedAppointmentDurationMinutes(
+    shopConfig.appointment.appointmentDurations,
+  );
+  const durationMinutes = parseAppointmentDuration(
+    url.searchParams.get("durationMinutes"),
+    allowedDurations,
+  );
+
+  if (!monthParams || !dayType || !durationMinutes) {
+    return Response.json(
+      {
+        error:
+          "Missing required query params: year, month, dayType, durationMinutes",
+      },
+      { status: 400 },
+    );
+  }
+
+  const unavailableDates = await getUnavailableAppointmentDates({
+    shop: session.shop,
+    year: monthParams.year,
+    month: monthParams.month,
+    dayType,
+    durationMinutes,
+    config: shopConfig.appointment,
+  });
+
+  return Response.json({
+    year: monthParams.year,
+    month: monthParams.month,
+    dayType,
+    durationMinutes,
+    unavailableDates,
+  });
+};

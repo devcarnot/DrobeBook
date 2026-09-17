@@ -1,4 +1,12 @@
 import {
+  DEFAULT_APPOINTMENT_DURATIONS,
+  normalizeAppointmentDurations,
+  syncLegacyDurationLabels,
+  type AppointmentDurationOption,
+} from "./appointment/appointment-durations";
+import { normalizeHireTerms, type HireTerm } from "./hire-terms";
+import { normalizeHireDurations } from "./hire-durations";
+import {
   DEFAULT_WIDGET_CONFIG,
   parseWidgetConfig,
   serializeWidgetConfig,
@@ -16,6 +24,17 @@ import {
   searchColorsFromFormData,
   type SearchColorScheme,
 } from "./search-colors";
+import {
+  DEFAULT_SEARCH_LAYOUT,
+  parseSearchLayout,
+  searchLayoutFromFormData,
+  type SearchLayoutSettings,
+} from "./search-layout";
+import {
+  DEFAULT_NOTIFICATIONS_CONFIG,
+  normalizeNotificationsConfig,
+} from "./notifications/notification-config";
+import type { NotificationsConfig } from "./notifications/notification.types";
 
 export type AppointmentConfig = {
   introText: string;
@@ -25,7 +44,9 @@ export type AppointmentConfig = {
   weekendDayLabel: string;
   durationTypeLabel: string;
   duration50Label: string;
+  duration30Label: string;
   duration20Label: string;
+  appointmentDurations: AppointmentDurationOption[];
   weekdayStart: string;
   weekdayEnd: string;
   saturdayStart: string;
@@ -33,9 +54,11 @@ export type AppointmentConfig = {
   sundayStart: string;
   sundayEnd: string;
   capacity50: number;
+  capacity30: number;
   capacity20: number;
   changeRoomCount: number;
   slotInterval50: number;
+  slotInterval30: number;
   slotInterval20: number;
   timeSlotLabel: string;
   slotPlaceholder: string;
@@ -56,6 +79,14 @@ export type AppointmentConfig = {
   specificItemsPlaceholder: string;
   eventDateLabel: string;
   availabilityCheckboxLabel: string;
+  instagramLabel: string;
+  tryOnTerms: HireTerm[];
+  tryOnVariantId: string;
+  tryOnProductTitle: string;
+  tryOnPriceCents: number;
+  creditEnabled: boolean;
+  creditExpiryDays: number;
+  creditRedemptionCollectionHandle: string;
 };
 
 export type SearchConfig = {
@@ -72,6 +103,19 @@ export type SearchConfig = {
   collectionHandle: string;
   resultsPageUrl: string;
   colors: SearchColorScheme;
+  layout: SearchLayoutSettings;
+};
+
+export type RentalDurationMode = "predefined" | "manual";
+
+export type OnboardingConfig = {
+  completed: boolean;
+  rentalDurationMode: RentalDurationMode;
+  durationModeConfirmed: boolean;
+};
+
+export type WaitlistConfig = {
+  claimWindowHours: number;
 };
 
 export type ShopConfig = {
@@ -79,6 +123,19 @@ export type ShopConfig = {
   appointment: AppointmentConfig;
   search: SearchConfig;
   buffers: BufferConfig;
+  onboarding: OnboardingConfig;
+  waitlist: WaitlistConfig;
+  notifications: NotificationsConfig;
+};
+
+export const DEFAULT_WAITLIST_CONFIG: WaitlistConfig = {
+  claimWindowHours: 48,
+};
+
+export const DEFAULT_ONBOARDING_CONFIG: OnboardingConfig = {
+  completed: false,
+  rentalDurationMode: "predefined",
+  durationModeConfirmed: false,
 };
 
 export const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
@@ -89,17 +146,21 @@ export const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   weekendDayLabel: "Saturday-Sunday",
   durationTypeLabel: "Duration",
   duration50Label: "50 minute Appointment (recommended)",
+  duration30Label: "30 minute Appointment",
   duration20Label: "20 minute (Cocktail wear & re-try only)",
+  appointmentDurations: DEFAULT_APPOINTMENT_DURATIONS.map((entry) => ({ ...entry })),
   weekdayStart: "10:00",
   weekdayEnd: "17:00",
   saturdayStart: "10:00",
   saturdayEnd: "14:00",
   sundayStart: "10:00",
   sundayEnd: "13:00",
-  capacity50: 4,
-  capacity20: 2,
-  changeRoomCount: 3,
+  capacity50: 1,
+  capacity30: 1,
+  capacity20: 1,
+  changeRoomCount: 2,
   slotInterval50: 60,
+  slotInterval30: 30,
   slotInterval20: 30,
   timeSlotLabel: "Available times",
   slotPlaceholder: "Select a time",
@@ -117,10 +178,23 @@ export const DEFAULT_APPOINTMENT_CONFIG: AppointmentConfig = {
   additionalInfoTitle: "Additional information",
   availabilityNote: "Our styles book out, it is important to check availability:",
   specificItemsLabel: "Please list any specific items you would like to try on:",
-  specificItemsPlaceholder: "(Style & size)",
+  specificItemsPlaceholder: "Style & Size",
   eventDateLabel: "Your Event Date:",
   availabilityCheckboxLabel:
     "I have/will check outfit availability for my event date",
+  instagramLabel: "Instagram handle",
+  tryOnTerms: [
+    {
+      id: "try-on-terms",
+      label: "I agree to the GK.Drobe try-on terms and conditions",
+    },
+  ],
+  tryOnVariantId: "",
+  tryOnProductTitle: "",
+  tryOnPriceCents: 0,
+  creditEnabled: true,
+  creditExpiryDays: 90,
+  creditRedemptionCollectionHandle: "",
 };
 
 export const DEFAULT_SEARCH_CONFIG: SearchConfig = {
@@ -137,6 +211,7 @@ export const DEFAULT_SEARCH_CONFIG: SearchConfig = {
   collectionHandle: "all",
   resultsPageUrl: "/pages/search-by-date",
   colors: { ...DEFAULT_SEARCH_COLORS },
+  layout: { ...DEFAULT_SEARCH_LAYOUT },
 };
 
 function parseIntegerField(
@@ -147,7 +222,36 @@ function parseIntegerField(
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseAppointmentDurationsField(formData: FormData) {
+  const raw = String(formData.get("appointmentDurationsJson") ?? "").trim();
+  if (!raw) {
+    return DEFAULT_APPOINTMENT_DURATIONS.map((entry) => ({ ...entry }));
+  }
+
+  try {
+    return normalizeAppointmentDurations(JSON.parse(raw));
+  } catch {
+    return DEFAULT_APPOINTMENT_DURATIONS.map((entry) => ({ ...entry }));
+  }
+}
+
+function parseTryOnTermsField(formData: FormData) {
+  const raw = String(formData.get("tryOnTermsJson") ?? "").trim();
+  if (!raw) {
+    return DEFAULT_APPOINTMENT_CONFIG.tryOnTerms.map((entry) => ({ ...entry }));
+  }
+
+  try {
+    return normalizeHireTerms(JSON.parse(raw));
+  } catch {
+    return DEFAULT_APPOINTMENT_CONFIG.tryOnTerms.map((entry) => ({ ...entry }));
+  }
+}
+
 export function appointmentConfigFromFormData(formData: FormData): AppointmentConfig {
+  const appointmentDurations = parseAppointmentDurationsField(formData);
+  const legacyDurationLabels = syncLegacyDurationLabels(appointmentDurations);
+
   return {
     introText: String(formData.get("introText") ?? DEFAULT_APPOINTMENT_CONFIG.introText),
     timezoneLabel: String(
@@ -165,12 +269,8 @@ export function appointmentConfigFromFormData(formData: FormData): AppointmentCo
     durationTypeLabel: String(
       formData.get("durationTypeLabel") ?? DEFAULT_APPOINTMENT_CONFIG.durationTypeLabel,
     ),
-    duration50Label: String(
-      formData.get("duration50Label") ?? DEFAULT_APPOINTMENT_CONFIG.duration50Label,
-    ),
-    duration20Label: String(
-      formData.get("duration20Label") ?? DEFAULT_APPOINTMENT_CONFIG.duration20Label,
-    ),
+    ...legacyDurationLabels,
+    appointmentDurations,
     weekdayStart: String(
       formData.get("weekdayStart") ?? DEFAULT_APPOINTMENT_CONFIG.weekdayStart,
     ),
@@ -188,6 +288,7 @@ export function appointmentConfigFromFormData(formData: FormData): AppointmentCo
     ),
     sundayEnd: String(formData.get("sundayEnd") ?? DEFAULT_APPOINTMENT_CONFIG.sundayEnd),
     capacity50: parseIntegerField(formData.get("capacity50"), DEFAULT_APPOINTMENT_CONFIG.capacity50),
+    capacity30: parseIntegerField(formData.get("capacity30"), DEFAULT_APPOINTMENT_CONFIG.capacity30),
     capacity20: parseIntegerField(formData.get("capacity20"), DEFAULT_APPOINTMENT_CONFIG.capacity20),
     changeRoomCount: parseIntegerField(
       formData.get("changeRoomCount"),
@@ -196,6 +297,10 @@ export function appointmentConfigFromFormData(formData: FormData): AppointmentCo
     slotInterval50: parseIntegerField(
       formData.get("slotInterval50"),
       DEFAULT_APPOINTMENT_CONFIG.slotInterval50,
+    ),
+    slotInterval30: parseIntegerField(
+      formData.get("slotInterval30"),
+      DEFAULT_APPOINTMENT_CONFIG.slotInterval30,
     ),
     slotInterval20: parseIntegerField(
       formData.get("slotInterval20"),
@@ -259,6 +364,25 @@ export function appointmentConfigFromFormData(formData: FormData): AppointmentCo
       formData.get("availabilityCheckboxLabel") ??
         DEFAULT_APPOINTMENT_CONFIG.availabilityCheckboxLabel,
     ),
+    instagramLabel: String(
+      formData.get("instagramLabel") ?? DEFAULT_APPOINTMENT_CONFIG.instagramLabel,
+    ),
+    tryOnTerms: parseTryOnTermsField(formData),
+    tryOnVariantId: String(formData.get("tryOnVariantId") ?? "").trim(),
+    tryOnProductTitle: String(formData.get("tryOnProductTitle") ?? "").trim(),
+    tryOnPriceCents: parseIntegerField(
+      formData.get("tryOnPriceCents"),
+      DEFAULT_APPOINTMENT_CONFIG.tryOnPriceCents,
+    ),
+    creditEnabled: String(formData.get("creditEnabled") ?? "true") === "true",
+    creditExpiryDays: parseIntegerField(
+      formData.get("creditExpiryDays"),
+      DEFAULT_APPOINTMENT_CONFIG.creditExpiryDays,
+    ),
+    creditRedemptionCollectionHandle: String(
+      formData.get("creditRedemptionCollectionHandle") ??
+        DEFAULT_APPOINTMENT_CONFIG.creditRedemptionCollectionHandle,
+    ).trim(),
   };
 }
 
@@ -300,6 +424,7 @@ export function searchConfigFromFormData(formData: FormData): SearchConfig {
       formData.get("resultsPageUrl") ?? DEFAULT_SEARCH_CONFIG.resultsPageUrl,
     ).trim() || DEFAULT_SEARCH_CONFIG.resultsPageUrl,
     colors: searchColorsFromFormData(formData),
+    layout: searchLayoutFromFormData(formData),
   };
 }
 
@@ -308,6 +433,9 @@ export const DEFAULT_SHOP_CONFIG: ShopConfig = {
   appointment: DEFAULT_APPOINTMENT_CONFIG,
   search: DEFAULT_SEARCH_CONFIG,
   buffers: DEFAULT_BUFFER_CONFIG,
+  onboarding: { ...DEFAULT_ONBOARDING_CONFIG },
+  waitlist: { ...DEFAULT_WAITLIST_CONFIG },
+  notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
 };
 
 export function parseShopConfig(raw: string | null | undefined): ShopConfig {
@@ -323,6 +451,9 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
         widget: {
           ...DEFAULT_WIDGET_CONFIG,
           ...(parsed.widget ?? {}),
+          hireDurations: normalizeHireDurations(
+            (parsed.widget as Partial<WidgetConfig> | undefined)?.hireDurations,
+          ),
           colors: parseWidgetColors(
             (parsed.widget as Partial<WidgetConfig> | undefined)?.colors,
           ),
@@ -330,6 +461,19 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
         appointment: {
           ...DEFAULT_APPOINTMENT_CONFIG,
           ...(parsed.appointment ?? {}),
+          appointmentDurations: normalizeAppointmentDurations(
+            (parsed.appointment as Partial<AppointmentConfig> | undefined)
+              ?.appointmentDurations,
+          ),
+          ...syncLegacyDurationLabels(
+            normalizeAppointmentDurations(
+              (parsed.appointment as Partial<AppointmentConfig> | undefined)
+                ?.appointmentDurations,
+            ),
+          ),
+          tryOnTerms: normalizeHireTerms(
+            (parsed.appointment as Partial<AppointmentConfig> | undefined)?.tryOnTerms,
+          ),
         },
         search: {
           ...DEFAULT_SEARCH_CONFIG,
@@ -337,8 +481,20 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
           colors: parseSearchColors(
             (parsed.search as Partial<SearchConfig> | undefined)?.colors,
           ),
+          layout: parseSearchLayout(
+            (parsed.search as Partial<SearchConfig> | undefined)?.layout,
+          ),
         },
         buffers: parseBufferConfig(parsed.buffers),
+        onboarding: {
+          ...DEFAULT_ONBOARDING_CONFIG,
+          ...(parsed.onboarding ?? {}),
+        },
+        waitlist: {
+          ...DEFAULT_WAITLIST_CONFIG,
+          ...(parsed.waitlist ?? {}),
+        },
+        notifications: normalizeNotificationsConfig(parsed.notifications),
       };
     }
 
@@ -347,6 +503,9 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
       appointment: { ...DEFAULT_APPOINTMENT_CONFIG },
       search: { ...DEFAULT_SEARCH_CONFIG },
       buffers: { ...DEFAULT_BUFFER_CONFIG },
+      onboarding: { ...DEFAULT_ONBOARDING_CONFIG },
+      waitlist: { ...DEFAULT_WAITLIST_CONFIG },
+      notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
     };
   } catch {
     return structuredClone(DEFAULT_SHOP_CONFIG);
@@ -366,6 +525,9 @@ export function shopConfigFromWidgetForm(
     appointment: existing?.appointment ?? { ...DEFAULT_APPOINTMENT_CONFIG },
     search: existing?.search ?? { ...DEFAULT_SEARCH_CONFIG },
     buffers: existing?.buffers ?? { ...DEFAULT_BUFFER_CONFIG },
+    onboarding: existing?.onboarding ?? { ...DEFAULT_ONBOARDING_CONFIG },
+    waitlist: existing?.waitlist ?? { ...DEFAULT_WAITLIST_CONFIG },
+    notifications: existing?.notifications ?? { ...DEFAULT_NOTIFICATIONS_CONFIG },
   };
 }
 

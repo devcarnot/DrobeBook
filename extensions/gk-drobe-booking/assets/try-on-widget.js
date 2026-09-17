@@ -1,4 +1,25 @@
 (() => {
+  async function readJsonResponse(response) {
+    const text = await response.text();
+    const trimmed = text.trim();
+
+    if (!trimmed) {
+      throw new Error(`Try-on API returned an empty response (${response.status}).`);
+    }
+
+    if (trimmed.startsWith("<")) {
+      throw new Error(
+        `Try-on API unavailable (${response.status}). Make sure DrobeBook is running and refresh the page.`,
+      );
+    }
+
+    try {
+      return JSON.parse(trimmed);
+    } catch {
+      throw new Error(`Try-on API returned invalid JSON (${response.status}).`);
+    }
+  }
+
   function formatIso(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -30,7 +51,10 @@
     constructor(root) {
       this.root = root;
       this.proxyBase = root.dataset.proxyBase || "/apps/gk-drobe";
-      this.variantId = root.dataset.variantId;
+      this.gownProductId = root.dataset.gownProductId || root.dataset.productId || "";
+      this.gownTitle = root.dataset.gownTitle || "";
+      this.gownVariantTitle = root.dataset.gownVariantTitle || "";
+      this.variantId = root.dataset.variantId || "";
       this.productTitle = root.dataset.productTitle || "Try On Appointment";
       this.priceCents = Number(root.dataset.variantPrice || 0);
       this.currency = root.dataset.currency || "AUD";
@@ -46,11 +70,11 @@
         unavailableDates: new Set(),
         loadingCalendar: false,
         loadingSlots: false,
+        acceptedTerms: {},
       };
 
       this.cacheElements();
       this.bindEvents();
-      this.init();
     }
 
     cacheElements() {
@@ -90,6 +114,9 @@
       this.backButton = this.root.querySelector("[data-gk-back]");
       this.checkoutButton = this.root.querySelector("[data-gk-checkout]");
       this.errorEl = this.root.querySelector("[data-gk-error]");
+      this.instagramInput = this.root.querySelector("[data-gk-instagram]");
+      this.instagramLabelEl = this.root.querySelector("[data-gk-instagram-label]");
+      this.termsEl = this.root.querySelector("[data-gk-tryon-terms]");
     }
 
     bindEvents() {
@@ -124,6 +151,14 @@
 
     async init() {
       await this.loadConfig();
+
+      if (!this.variantId) {
+        this.showError(
+          "Try-on appointments are not configured yet. Choose a try-on product in DrobeBook admin.",
+        );
+        return;
+      }
+
       this.renderDayButtons();
       this.renderDurationButtons();
       this.updatePrice();
@@ -138,18 +173,24 @@
         ]);
 
         if (appointmentResponse.ok) {
-          this.config = await appointmentResponse.json();
+          this.config = await readJsonResponse(appointmentResponse);
         }
 
         if (widgetResponse.ok) {
-          const widgetConfig = await widgetResponse.json();
-          if (window.GkDrobeTheme && widgetConfig.colors) {
-            window.GkDrobeTheme.apply(this.root, widgetConfig.colors);
-          }
+          this.widgetConfig = await readJsonResponse(widgetResponse);
         }
       } catch {
         this.config = {};
+        this.widgetConfig = {};
       }
+
+      if (this.config.tryOnVariantId) {
+        this.variantId = String(this.config.tryOnVariantId);
+        this.productTitle = this.config.tryOnProductTitle || this.productTitle;
+        this.priceCents = Number(this.config.tryOnPriceCents || 0);
+      }
+
+      const widgetConfig = this.widgetConfig || {};
 
       this.timezoneLabel.textContent = this.config.timezoneLabel || "Brisbane";
       if (this.introEl) {
@@ -185,7 +226,7 @@
       }
       if (this.specificItemsInput) {
         this.specificItemsInput.placeholder =
-          this.config.specificItemsPlaceholder || "(Style & size)";
+          this.config.specificItemsPlaceholder || "Style & Size";
       }
       if (this.timeSlotLabelEl) {
         this.timeSlotLabelEl.textContent =
@@ -211,6 +252,96 @@
       this.availabilityCheckboxLabel.textContent =
         this.config.availabilityCheckboxLabel ||
         "I have/will check outfit availability for my event date";
+      if (this.instagramLabelEl) {
+        this.instagramLabelEl.textContent =
+          this.config.instagramLabel || "Instagram handle";
+      }
+      if (window.GkDrobeTheme && widgetConfig?.colors) {
+        window.GkDrobeTheme.apply(
+          this.root,
+          widgetConfig.colors,
+          widgetConfig.fontFamily,
+        );
+      }
+      this.renderTryOnTerms();
+    }
+
+    getDurationOptions() {
+      if (Array.isArray(this.config.appointmentDurations) && this.config.appointmentDurations.length) {
+        return this.config.appointmentDurations.map((entry) => ({
+          minutes: Number(entry.minutes),
+          label: entry.label,
+        }));
+      }
+
+      return [
+        {
+          minutes: 50,
+          label: this.config.duration50Label || "50 minute Appointment (recommended)",
+        },
+        {
+          minutes: 30,
+          label: this.config.duration30Label || "30 minute Appointment",
+        },
+        {
+          minutes: 20,
+          label: this.config.duration20Label || "20 minute (Cocktail wear & re-try only)",
+        },
+      ];
+    }
+
+    renderTryOnTerms() {
+      if (!this.termsEl) {
+        return;
+      }
+
+      const terms = Array.isArray(this.config.tryOnTerms)
+        ? this.config.tryOnTerms.filter((entry) => entry?.label)
+        : [];
+
+      this.termsEl.innerHTML = "";
+      this.state.acceptedTerms = {};
+
+      if (!terms.length) {
+        this.termsEl.hidden = true;
+        return;
+      }
+
+      this.termsEl.hidden = false;
+      terms.forEach((term, index) => {
+        const termId = term.id || `term-${index + 1}`;
+        const label = document.createElement("label");
+        label.className = "gk-drobe-tryon__checkbox";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.addEventListener("change", () => {
+          this.state.acceptedTerms[termId] = checkbox.checked;
+          this.updateActions();
+        });
+
+        const text = document.createElement("span");
+        text.textContent = term.label;
+
+        label.appendChild(checkbox);
+        label.appendChild(text);
+        this.termsEl.appendChild(label);
+      });
+    }
+
+    allTryOnTermsAccepted() {
+      const terms = Array.isArray(this.config.tryOnTerms)
+        ? this.config.tryOnTerms.filter((entry) => entry?.label)
+        : [];
+
+      if (!terms.length) {
+        return true;
+      }
+
+      return terms.every((term, index) => {
+        const termId = term.id || `term-${index + 1}`;
+        return Boolean(this.state.acceptedTerms[termId]);
+      });
     }
 
     createChoice(label, selected, onClick) {
@@ -251,18 +382,7 @@
 
     renderDurationButtons() {
       this.durationButtonsEl.innerHTML = "";
-      [
-        {
-          minutes: 50,
-          label:
-            this.config.duration50Label || "50 minute Appointment (recommended)",
-        },
-        {
-          minutes: 20,
-          label:
-            this.config.duration20Label || "20 minute (Cocktail wear & re-try only)",
-        },
-      ].forEach(({ minutes, label }) => {
+      this.getDurationOptions().forEach(({ minutes, label }) => {
         this.durationButtonsEl.appendChild(
           this.createChoice(label, this.state.durationMinutes === minutes, () => {
             this.state.durationMinutes = minutes;
@@ -300,7 +420,7 @@
         const response = await fetch(
           `${this.proxyBase}/api/appointment-calendar?${params.toString()}`,
         );
-        const data = await response.json();
+        const data = await readJsonResponse(response);
         if (!response.ok) {
           throw new Error(data.error || "Could not load calendar");
         }
@@ -414,7 +534,7 @@
         const response = await fetch(
           `${this.proxyBase}/api/appointment-slots?${params.toString()}`,
         );
-        const data = await response.json();
+        const data = await readJsonResponse(response);
         if (!response.ok) {
           throw new Error(data.error || "Could not load time slots");
         }
@@ -459,7 +579,8 @@
       const confirmReady =
         ready &&
         this.eventDateInput.value &&
-        this.availabilityCheckbox.checked;
+        this.availabilityCheckbox.checked &&
+        this.allTryOnTermsAccepted();
       this.checkoutButton.disabled = !confirmReady;
     }
 
@@ -470,9 +591,8 @@
     }
 
     durationLabelForMinutes(minutes) {
-      return minutes === 50
-        ? this.config.duration50Label || "50 minute Appointment (recommended)"
-        : this.config.duration20Label || "20 minute (Cocktail wear & re-try only)";
+      const match = this.getDurationOptions().find((entry) => entry.minutes === minutes);
+      return match?.label || `${minutes} minute Appointment`;
     }
 
     showConfirmStep() {
@@ -502,6 +622,36 @@
       const dayLabel = this.dayLabelForType(this.state.dayType);
       const durationLabel = this.durationLabelForMinutes(this.state.durationMinutes);
 
+      const appointmentId =
+        typeof crypto !== "undefined" && crypto.randomUUID
+          ? crypto.randomUUID()
+          : `appt-${Date.now()}`;
+
+      try {
+        const reserveForm = new FormData();
+        reserveForm.set("appointmentId", appointmentId);
+        reserveForm.set("date", this.state.selectedDate);
+        reserveForm.set("time", this.state.selectedSlot.time);
+        reserveForm.set("durationMinutes", String(this.state.durationMinutes));
+
+        const reserveResponse = await fetch(`${this.proxyBase}/api/appointment-reserve`, {
+          method: "POST",
+          body: reserveForm,
+        });
+        const reserveData = await readJsonResponse(reserveResponse);
+        if (!reserveResponse.ok) {
+          throw new Error(
+            reserveData.error || "That time slot is no longer available. Please choose another.",
+          );
+        }
+        this.state.reservedChangeRoomId = reserveData.changeRoomId;
+      } catch (error) {
+        this.showError(error.message);
+        this.checkoutButton.disabled = false;
+        await this.loadSlots();
+        return;
+      }
+
       const properties = {
         Day: dayLabel,
         Duration: durationLabel,
@@ -509,6 +659,11 @@
         "Appointment Time": this.state.selectedSlot.label,
         "Event Date": formatDisplayDate(this.eventDateInput.value),
         "Items to try on": this.specificItemsInput.value || "—",
+        Instagram: this.instagramInput?.value?.trim() || "—",
+        _gk_appointment_id: appointmentId,
+        _gk_appointment_time: this.state.selectedSlot.time,
+        _gk_appointment_duration: String(this.state.durationMinutes),
+        _gk_change_room_id: this.state.reservedChangeRoomId || "",
       };
 
       try {
@@ -542,41 +697,41 @@
     }
   }
 
-  function initMediaGallery(page) {
-    const mainImage = page.querySelector("[data-gk-tryon-main-image]");
-    if (!mainImage) {
-      return;
-    }
+  async function initWidgets() {
+    const roots = document.querySelectorAll("[data-gk-drobe-tryon]");
 
-    page.querySelectorAll("[data-gk-tryon-thumb]").forEach((button) => {
-      button.addEventListener("click", () => {
-        const url = button.dataset.gkMediaUrl;
-        if (!url) {
-          return;
+    for (const root of roots) {
+      if (root.dataset.initialized) {
+        continue;
+      }
+
+      root.dataset.initialized = "true";
+      const shell = root.closest("[data-gk-tryon-shell]") || root;
+
+      try {
+        const widget = new TryOnWidget(root);
+        await widget.init();
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not load the try-on widget.";
+        const errorEl = root.querySelector("[data-gk-error]");
+        if (errorEl) {
+          errorEl.textContent = message;
+          errorEl.hidden = false;
         }
-
-        mainImage.src = url;
-        page.querySelectorAll("[data-gk-tryon-thumb]").forEach((item) => {
-          item.classList.remove("is-active");
-        });
-        button.classList.add("is-active");
-      });
-    });
-  }
-
-  function init() {
-    document.querySelectorAll("[data-gk-tryon-page]").forEach((page) => {
-      initMediaGallery(page);
-    });
-
-    document.querySelectorAll("[data-gk-drobe-tryon]").forEach((root) => {
-      new TryOnWidget(root);
-    });
+      } finally {
+        shell.hidden = false;
+      }
+    }
   }
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", init);
+    document.addEventListener("DOMContentLoaded", () => {
+      void initWidgets();
+    });
   } else {
-    init();
+    void initWidgets();
   }
 })();

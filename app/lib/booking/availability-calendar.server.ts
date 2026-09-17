@@ -1,7 +1,6 @@
 import {
   formatDateIso,
   isProductVariantAvailable,
-  toDateOnly,
   type HireDurationDays,
 } from "./availability";
 import { getEarliestDeliveryDate, meetsDeliveryLeadTime } from "./buffer";
@@ -10,9 +9,10 @@ import {
   parseDeliveryMethod,
   type DeliveryMethod,
 } from "./buffer-config";
-import { getHolidayDates, getShopBufferConfig } from "./buffer.server";
 import {
-  checkProductAvailability,
+  evaluateProductAvailability,
+  loadVariantAvailabilityData,
+  normalizeShopifyResourceId,
   parseHireDuration,
 } from "./availability.server";
 
@@ -46,15 +46,18 @@ export async function getUnavailableDatesForMonth(
   const now = params.now ?? today;
   const deliveryMethod = params.deliveryMethod ?? "post";
 
-  const [bufferConfig, holidays] = await Promise.all([
-    getShopBufferConfig(params.shop),
-    getHolidayDates(params.shop),
-  ]);
+  const productId = normalizeShopifyResourceId(params.productId);
+  const variantId = normalizeShopifyResourceId(params.variantId);
+  const availabilityData = await loadVariantAvailabilityData(
+    params.shop,
+    productId,
+    variantId,
+  );
+  const { bufferConfig, holidays } = availabilityData;
 
   const settings = getBufferDefaultsForMethod(bufferConfig, deliveryMethod);
   const earliestDelivery = getEarliestDeliveryDate(settings, now, holidays);
   const unavailableDates: string[] = [];
-
   const totalDays = daysInMonth(params.year, params.month);
 
   for (let day = 1; day <= totalDays; day += 1) {
@@ -75,16 +78,19 @@ export async function getUnavailableDatesForMonth(
       continue;
     }
 
-    const result = await checkProductAvailability({
-      shop: params.shop,
-      productId: params.productId,
-      variantId: params.variantId,
-      deliveryDate,
-      durationDays: params.durationDays,
-      deliveryMethod,
-      today,
-      now,
-    });
+    const result = evaluateProductAvailability(
+      {
+        shop: params.shop,
+        productId,
+        variantId,
+        deliveryDate,
+        durationDays: params.durationDays,
+        deliveryMethod,
+        today,
+        now,
+      },
+      availabilityData,
+    );
 
     if (!result.available) {
       unavailableDates.push(formatDateIso(deliveryDate));

@@ -7,15 +7,6 @@ embedded = true
 [build]
 automatically_update_urls_on_dev = true
 
-[events]
-api_version = "unstable"
-
-[[events.subscription]]
-handle = "product-updates"
-topic = "Product"
-actions = ["create", "update", "delete"]
-uri = "/webhooks/events/products"
-
 [webhooks]
 api_version = "2025-10"
 
@@ -27,14 +18,22 @@ api_version = "2025-10"
   topics = ["app/scopes_update"]
   uri = "/webhooks/app/scopes_update"
 
-  # Requires Protected customer data access in Partner Dashboard → API access requests.
-  # After enabling (Step 1 is enough for dev stores), uncomment and run shopify app dev.
-  # [[webhooks.subscriptions]]
-  # topics = ["orders/create"]
-  # uri = "/webhooks/orders/create"
+  # Requires Protected customer data approval in Partner Dashboard.
+  # Order sync runs automatically when you open Rental calendar / Inventory.
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "/webhooks/orders/create"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/cancelled"]
+  uri = "/webhooks/orders/cancelled"
+
+  [[webhooks.subscriptions]]
+  topics = ["refunds/create"]
+  uri = "/webhooks/refunds/create"
 
 [access_scopes]
-scopes = "write_app_proxy,read_products,read_orders,read_inventory"
+scopes = "write_app_proxy,read_products,read_orders,write_orders,write_draft_orders,read_customers,write_customers,read_inventory,write_discounts"
 
 [auth]
 redirect_urls = [

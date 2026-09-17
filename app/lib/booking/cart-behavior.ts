@@ -11,8 +11,22 @@ export type CartSnapshot = {
   items: CartLineItem[];
 };
 
+export function getBookingSize(
+  properties?: Record<string, string>,
+): string | null {
+  return properties?._Size ?? properties?.Size ?? null;
+}
+
+export function getBookingDuration(
+  properties?: Record<string, string>,
+): string | null {
+  return properties?._Duration ?? properties?.Duration ?? null;
+}
+
 export function isBookingItem(item: CartLineItem): boolean {
-  return Boolean(item.properties?.Size && item.properties?.Duration);
+  return Boolean(
+    getBookingSize(item.properties) && getBookingDuration(item.properties),
+  );
 }
 
 export function normalizeDescriptor(value: string): string {
@@ -28,7 +42,10 @@ export function buildMainDescriptor(item: CartLineItem): string | null {
     return null;
   }
 
-  const parts = [item.properties!.Size, item.properties!.Duration];
+  const parts = [
+    getBookingSize(item.properties)!,
+    getBookingDuration(item.properties)!,
+  ];
   if (item.properties?.Color) {
     parts.push(item.properties.Color);
   }

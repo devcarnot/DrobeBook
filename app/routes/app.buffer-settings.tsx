@@ -4,7 +4,9 @@ import type {
   LoaderFunctionArgs,
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
+import { useEffect, useState } from "react";
 
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
   bufferConfigFromFormData,
   DEFAULT_BUFFER_CONFIG,
@@ -68,31 +70,27 @@ function TimelineStep({
 
 function BufferTimeline({ settings }: { settings: DeliveryBufferDefaults }) {
   return (
-    <s-grid
-      gridTemplateColumns="1fr auto 1fr auto 1fr auto 1fr"
-      gap="small-200"
-      alignItems="center"
-    >
+    <ResponsiveGrid layout="timeline" gap="small-200" alignItems="center">
       <TimelineStep
         label="Lead time"
         value={`${settings.blockedDaysFromToday}d`}
       />
-      <s-text tone="neutral" color="subdued">
-        →
-      </s-text>
+      <span className="gk-timeline-arrow" aria-hidden="true">
+        <s-text tone="neutral" color="subdued">→</s-text>
+      </span>
       <TimelineStep
         label="Before"
         value={`${settings.bufferBeforeRental}d`}
       />
-      <s-text tone="neutral" color="subdued">
-        →
-      </s-text>
+      <span className="gk-timeline-arrow" aria-hidden="true">
+        <s-text tone="neutral" color="subdued">→</s-text>
+      </span>
       <TimelineStep label="Rental" value="Hire dates" emphasis />
-      <s-text tone="neutral" color="subdued">
-        →
-      </s-text>
+      <span className="gk-timeline-arrow" aria-hidden="true">
+        <s-text tone="neutral" color="subdued">→</s-text>
+      </span>
       <TimelineStep label="After" value={`${settings.bufferAfterRental}d`} />
-    </s-grid>
+    </ResponsiveGrid>
   );
 }
 
@@ -101,11 +99,16 @@ function BufferMethodCard({
   title,
   badge,
   settings,
+  onChange,
 }: {
   method: "post" | "pickup";
   title: string;
   badge: string;
   settings: DeliveryBufferDefaults;
+  onChange: (
+    field: keyof DeliveryBufferDefaults,
+    value: string | number,
+  ) => void;
 }) {
   return (
     <s-box padding="large" border="base" borderRadius="large" background="base">
@@ -134,21 +137,30 @@ function BufferMethodCard({
               counting.
             </s-paragraph>
           </s-stack>
-          <s-grid gridTemplateColumns="1fr 1fr 1fr" gap="large" alignItems="end">
+          <ResponsiveGrid layout="3" alignItems="end">
             <s-number-field
               label="Blocked days from today"
               name={`${method}_blockedDaysFromToday`}
               value={String(settings.blockedDaysFromToday)}
               min={0}
               step={1}
+              onChange={(event) =>
+                onChange(
+                  "blockedDaysFromToday",
+                  Number.parseInt(event.currentTarget.value, 10) || 0,
+                )
+              }
             />
             <s-select
               label="Unit"
               name={`${method}_blockedDaysUnit`}
               value={settings.blockedDaysUnit}
+              onChange={(event) =>
+                onChange("blockedDaysUnit", event.currentTarget.value)
+              }
             >
-              <option value="calendar">Calendar days</option>
-              <option value="business">Business days</option>
+              <s-option value="calendar">Calendar days</s-option>
+              <s-option value="business">Business days</s-option>
             </s-select>
             <s-text-field
               label="Cut-off time"
@@ -156,8 +168,9 @@ function BufferMethodCard({
               value={settings.cutOffTime}
               placeholder="13:00"
               details="24-hour HH:MM"
+              onChange={(event) => onChange("cutOffTime", event.currentTarget.value)}
             />
-          </s-grid>
+          </ResponsiveGrid>
         </s-stack>
 
         <s-stack direction="block" gap="large">
@@ -168,40 +181,58 @@ function BufferMethodCard({
               dispatch.
             </s-paragraph>
           </s-stack>
-          <s-grid gridTemplateColumns="1fr 1fr" gap="large" alignItems="end">
+          <ResponsiveGrid layout="2" alignItems="end">
             <s-number-field
               label="Buffer before rental"
               name={`${method}_bufferBeforeRental`}
               value={String(settings.bufferBeforeRental)}
               min={0}
               step={1}
+              onChange={(event) =>
+                onChange(
+                  "bufferBeforeRental",
+                  Number.parseInt(event.currentTarget.value, 10) || 0,
+                )
+              }
             />
             <s-select
               label="Unit"
               name={`${method}_bufferBeforeUnit`}
               value={settings.bufferBeforeUnit}
+              onChange={(event) =>
+                onChange("bufferBeforeUnit", event.currentTarget.value)
+              }
             >
-              <option value="calendar">Calendar days</option>
-              <option value="business">Business days</option>
+              <s-option value="calendar">Calendar days</s-option>
+              <s-option value="business">Business days</s-option>
             </s-select>
-          </s-grid>
-          <s-grid gridTemplateColumns="1fr 1fr" gap="large" alignItems="end">
+          </ResponsiveGrid>
+          <ResponsiveGrid layout="2" alignItems="end">
             <s-number-field
               label="Buffer after rental"
               name={`${method}_bufferAfterRental`}
               value={String(settings.bufferAfterRental)}
               min={0}
               step={1}
+              onChange={(event) =>
+                onChange(
+                  "bufferAfterRental",
+                  Number.parseInt(event.currentTarget.value, 10) || 0,
+                )
+              }
             />
             <s-select
               label="Unit"
               name={`${method}_bufferAfterUnit`}
               value={settings.bufferAfterUnit}
+              onChange={(event) =>
+                onChange("bufferAfterUnit", event.currentTarget.value)
+              }
             >
-              <option value="calendar">Calendar days</option>
-              <option value="business">Business days</option>
+              <s-option value="calendar">Calendar days</s-option>
+              <s-option value="business">Business days</s-option>
             </s-select>
-          </s-grid>
+          </ResponsiveGrid>
         </s-stack>
       </s-stack>
     </s-box>
@@ -213,7 +244,25 @@ export default function BufferSettingsPage() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const isSubmitting = navigation.state === "submitting";
-  const activeBuffers: BufferConfig = actionData?.buffers ?? buffers;
+  const [draft, setDraft] = useState<BufferConfig>(buffers);
+
+  useEffect(() => {
+    setDraft(actionData?.buffers ?? buffers);
+  }, [buffers, actionData?.buffers]);
+
+  function updateMethodSetting(
+    method: "post" | "pickup",
+    field: keyof DeliveryBufferDefaults,
+    value: string | number,
+  ) {
+    setDraft((current) => ({
+      ...current,
+      [method]: {
+        ...current[method],
+        [field]: value,
+      },
+    }));
+  }
 
   return (
     <s-page heading="Buffer settings" inlineSize="large">
@@ -242,20 +291,26 @@ export default function BufferSettingsPage() {
 
         <Form method="post">
           <s-stack direction="block" gap="large">
-            <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+            <ResponsiveGrid layout="2">
               <BufferMethodCard
                 method="post"
                 title="Post delivery"
                 badge="Shipping"
-                settings={activeBuffers.post}
+                settings={draft.post}
+                onChange={(field, value) =>
+                  updateMethodSetting("post", field, value)
+                }
               />
               <BufferMethodCard
                 method="pickup"
                 title="Local pickup"
                 badge="Pickup"
-                settings={activeBuffers.pickup}
+                settings={draft.pickup}
+                onChange={(field, value) =>
+                  updateMethodSetting("pickup", field, value)
+                }
               />
-            </s-grid>
+            </ResponsiveGrid>
 
             <s-box padding="large" border="base" borderRadius="large" background="base">
               <s-stack

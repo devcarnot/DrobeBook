@@ -5,8 +5,8 @@
  * "View product costs" permission — if the merchant's account lacks it, the
  * API returns null and we show "Not set" rather than erroring.
  *
- * PROFIT ASSUMPTION (confirm with client): profit = totalRevenue − unitCost once
- * per garment (acquisition cost), NOT per-rental cleaning/maintenance costs.
+ * Profit = totalRevenue − purchase cost − (cleaning cost per hire × times rented).
+ * Purchase cost uses the garment override when set, otherwise Shopify unit cost.
  */
 
 export type VariantUnitCost = {
@@ -95,20 +95,46 @@ export async function fetchVariantUnitCost(
   }
 }
 
+export function resolvePurchaseCost(
+  unitCost: VariantUnitCost,
+  purchaseCostOverride: number | null | undefined,
+): number | null {
+  if (purchaseCostOverride != null && !Number.isNaN(purchaseCostOverride)) {
+    return purchaseCostOverride;
+  }
+
+  return unitCost.amount;
+}
+
 export function computeGarmentProfit(
   totalRevenue: number,
+  timesRented: number,
   unitCost: VariantUnitCost,
-): { profit: number | null; profitLabel: string } {
-  if (unitCost.amount == null) {
+  options: {
+    purchaseCostOverride?: number | null;
+    cleaningCostPerHire?: number | null;
+  } = {},
+): { profit: number | null; profitLabel: string; purchaseCost: number | null } {
+  const purchaseCost = resolvePurchaseCost(
+    unitCost,
+    options.purchaseCostOverride ?? null,
+  );
+  const cleaningCost = options.cleaningCostPerHire ?? 0;
+
+  if (purchaseCost == null && cleaningCost <= 0) {
     return {
       profit: null,
+      purchaseCost: null,
       profitLabel: unitCost.available ? "Cost not set" : "Cost unavailable",
     };
   }
 
-  const profit = totalRevenue - unitCost.amount;
+  const totalCosts = (purchaseCost ?? 0) + cleaningCost * timesRented;
+  const profit = totalRevenue - totalCosts;
+
   return {
     profit,
+    purchaseCost,
     profitLabel: formatMoney(profit, unitCost.currencyCode),
   };
 }

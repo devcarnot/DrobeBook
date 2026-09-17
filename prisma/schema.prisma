@@ -32,13 +32,15 @@ model Session {
 }
 
 model Garment {
-  id           String   @id @default(cuid())
-  shop         String
-  productId    String
-  variantId    String
-  timesRented  Int      @default(0)
-  totalRevenue Decimal  @default(0)
-  createdAt    DateTime @default(now())
+  id                   String   @id @default(cuid())
+  shop                 String
+  productId            String
+  variantId            String
+  timesRented          Int      @default(0)
+  totalRevenue         Decimal  @default(0)
+  purchaseCostOverride Decimal?
+  cleaningCostPerHire  Decimal?
+  createdAt            DateTime @default(now())
 
   @@unique([shop, productId, variantId])
   @@index([shop])
@@ -56,15 +58,30 @@ model Booking {
   eventDate      DateTime
   orderId        String?
   status         String // "pending" | "confirmed" | "cancelled"
+  workflowStatus String   @default("reserved") // reserved | confirmed | packed | dispatched | returned | cancelled
   pricePaid      Decimal?
   bufferBeforeDays Int?
   bufferBeforeUnit String?
   bufferAfterDays  Int?
   bufferAfterUnit  String?
+  customerName   String?
+  customerEmail  String?
+  productTitle   String?
+  rentalNotes    String?
+  fulfillmentTrackingNumber String?
+  fulfillmentTrackingLink   String?
+  returnTrackingNumber      String?
+  returnTrackingLink        String?
+  tags           String?
+  shopifyOrderMode String @default("none") // none | draft | pending | paid
+  deliveryAddressJson String?
   createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([shop, productId, variantId, status])
   @@index([shop, startDate, endDate])
+  @@index([shop, workflowStatus])
+  @@index([shop, createdAt])
 }
 
 model AppointmentSlot {
@@ -78,7 +95,102 @@ model AppointmentSlot {
   bookedCount     Int      @default(0)
   orderId         String?
 
+  @@unique([shop, date, time, durationMinutes, changeRoomId])
   @@index([shop, date, durationMinutes, changeRoomId])
+}
+
+model AppointmentBooking {
+  id              String    @id
+  shop            String
+  orderId         String
+  date            DateTime
+  time            String
+  durationMinutes Int
+  changeRoomId    String    @default("default")
+  source          String    @default("online")
+  customerName    String?
+  customerEmail   String?
+  eventDate       DateTime?
+  itemsToTryOn    String?
+  instagram       String?
+  gownProductId   String?
+  gownVariantId   String?
+  createdAt       DateTime  @default(now())
+
+  @@index([shop, orderId])
+  @@index([shop, date, time])
+  @@index([shop, gownProductId, gownVariantId])
+}
+
+model AppointmentHold {
+  id              String   @id
+  shop            String
+  date            DateTime
+  time            String
+  durationMinutes Int
+  changeRoomId    String
+  expiresAt       DateTime
+  createdAt       DateTime @default(now())
+
+  @@unique([shop, date, time, durationMinutes, changeRoomId])
+  @@index([shop, expiresAt])
+  @@index([shop, date, time, durationMinutes])
+}
+
+model TryOnCredit {
+  id                String   @id @default(cuid())
+  shop              String
+  orderId           String
+  appointmentId     String   @unique
+  customerEmail     String
+  shopifyCustomerId String?
+  discountCode      String
+  shopifyDiscountId String?
+  amount            Decimal
+  expiresAt         DateTime
+  status            String   @default("active")
+  createdAt         DateTime @default(now())
+
+  @@index([shop, customerEmail])
+  @@index([shop, status])
+}
+
+model NotificationSend {
+  id             String   @id @default(cuid())
+  shop           String
+  templateId     String
+  bookingId      String?
+  recipientEmail String
+  subject        String
+  status         String
+  triggerKey     String   @unique
+  error          String?
+  createdAt      DateTime @default(now())
+
+  @@index([shop, bookingId])
+  @@index([shop, createdAt])
+}
+
+model WaitlistEntry {
+  id             String    @id @default(cuid())
+  shop           String
+  productId      String
+  productTitle   String?
+  variantId      String?
+  size           String?
+  eventDate      DateTime?
+  email          String
+  name           String?
+  notes          String?
+  status         String    @default("waiting")
+  notifiedAt     DateTime?
+  claimToken     String?   @unique
+  claimExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([shop, status])
+  @@index([shop, productId])
+  @@index([shop, productId, variantId])
 }
 
 model BlockedDate {
@@ -100,4 +212,54 @@ model ShopSettings {
   shop      String   @unique
   config    String
   updatedAt DateTime @updatedAt
+}
+
+model RentalProduct {
+  id               String   @id @default(cuid())
+  shop             String
+  shopifyProductId String
+  title            String
+  handle           String
+  featuredImageUrl String?
+  shopifyStatus    String
+  vendor           String?
+  productType      String?
+  rentalEnabled    Boolean  @default(false)
+  isConfigured     Boolean  @default(false)
+  shopifyAvailable Boolean  @default(true)
+  syncError        String?
+  removedAt        DateTime?
+  lastSyncedAt     DateTime?
+  importedAt       DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  variants RentalProductVariant[]
+
+  @@unique([shop, shopifyProductId])
+  @@index([shop, removedAt])
+  @@index([shop, shopifyStatus])
+  @@index([shop, title])
+  @@index([shop, updatedAt])
+}
+
+model RentalProductVariant {
+  id                  String   @id @default(cuid())
+  rentalProductId     String
+  shop                String
+  shopifyVariantId    String
+  title               String
+  sku                 String?
+  price               String?
+  inventoryItemId     String?
+  inventoryQuantity   Int?
+  availableInShopify  Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  rentalProduct RentalProduct @relation(fields: [rentalProductId], references: [id], onDelete: Cascade)
+
+  @@unique([shop, shopifyVariantId])
+  @@index([rentalProductId])
+  @@index([shop, sku])
 }

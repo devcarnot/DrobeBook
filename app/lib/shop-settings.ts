@@ -1,4 +1,16 @@
 import {
+  DEFAULT_HIRE_DURATIONS,
+  hireDurationsFromFormData,
+  normalizeHireDurations,
+  type HireDurationOption,
+} from "./hire-durations";
+import {
+  DEFAULT_HIRE_TERMS,
+  hireTermsFromFormData,
+  normalizeHireTerms,
+  type HireTerm,
+} from "./hire-terms";
+import {
   DEFAULT_WIDGET_COLORS,
   parseWidgetColors,
   widgetColorsFromFormData,
@@ -10,6 +22,7 @@ export type WidgetConfig = {
   postageNote: string;
   pickupLabel: string;
   postLabel: string;
+  hireDurations: HireDurationOption[];
   damageProtectionPrice: string;
   damageProtectionVariantId: string;
   damageProtectionProductTitle: string;
@@ -18,6 +31,8 @@ export type WidgetConfig = {
   moreInfoLabel: string;
   buttonLabelPending: string;
   buttonLabelReady: string;
+  hireTerms: HireTerm[];
+  fontFamily: string;
   colors: WidgetColorScheme;
 };
 
@@ -28,6 +43,7 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
     "Nationwide postage is $12.50-18.5 and will be added at checkout. Please ensure you also select Postage as your delivery method when you get to the checkout.",
   pickupLabel: "Local Pickup (Gold Coast, QLD)",
   postLabel: "Post",
+  hireDurations: DEFAULT_HIRE_DURATIONS.map((entry) => ({ ...entry })),
   damageProtectionPrice: "19.95",
   damageProtectionVariantId: "",
   damageProtectionProductTitle: "",
@@ -36,6 +52,9 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   moreInfoLabel: "More Info",
   buttonLabelPending: "Select dates first",
   buttonLabelReady: "Add hire to cart",
+  hireTerms: DEFAULT_HIRE_TERMS.map((entry) => ({ ...entry })),
+  fontFamily:
+    'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
   colors: { ...DEFAULT_WIDGET_COLORS },
 };
 
@@ -68,6 +87,7 @@ export function widgetConfigFromFormData(formData: FormData): WidgetConfig {
     postLabel: String(
       formData.get("postLabel") ?? DEFAULT_WIDGET_CONFIG.postLabel,
     ),
+    hireDurations: hireDurationsFromFormData(formData),
     damageProtectionPrice: String(
       formData.get("damageProtectionPrice") ??
         DEFAULT_WIDGET_CONFIG.damageProtectionPrice,
@@ -96,6 +116,10 @@ export function widgetConfigFromFormData(formData: FormData): WidgetConfig {
       formData.get("buttonLabelReady") ??
         DEFAULT_WIDGET_CONFIG.buttonLabelReady,
     ),
+    hireTerms: hireTermsFromFormData(formData),
+    fontFamily: String(
+      formData.get("fontFamily") ?? DEFAULT_WIDGET_CONFIG.fontFamily,
+    ),
     colors: widgetColorsFromFormData(formData),
   };
 }
@@ -114,6 +138,10 @@ export function parseWidgetConfig(raw: string | null | undefined): WidgetConfig 
       parsed.damageProtectionVariantId,
     );
     parsed.colors = parseWidgetColors(parsed.colors);
+    parsed.hireDurations = normalizeHireDurations(parsed.hireDurations);
+    parsed.hireTerms = normalizeHireTerms(parsed.hireTerms);
+    parsed.fontFamily =
+      String(parsed.fontFamily ?? "").trim() || DEFAULT_WIDGET_CONFIG.fontFamily;
     return parsed;
   } catch {
     return { ...DEFAULT_WIDGET_CONFIG };

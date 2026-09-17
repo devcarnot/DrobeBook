@@ -6,7 +6,11 @@ import {
   meetsLeadTime,
   toDateOnly,
 } from "../booking/availability";
-import { checkProductAvailability, parseIsoDate } from "../booking/availability.server";
+import {
+  evaluateProductAvailability,
+  loadShopAvailabilityData,
+  parseIsoDate,
+} from "../booking/availability.server";
 import type { SearchConfig } from "../shop-config";
 
 export type SearchByDateParams = {
@@ -14,6 +18,7 @@ export type SearchByDateParams = {
   eventDate: string;
   size: string;
   durationDays: HireDurationDays;
+  deliveryMethod?: "post" | "pickup";
   collectionHandle: string;
   today?: Date;
 };
@@ -56,6 +61,8 @@ type ShopifyProductNode = {
     }>;
   };
 };
+
+type ShopifyVariantNode = ShopifyProductNode["variants"]["nodes"][number];
 
 function deliveryDateFromEventDate(eventDate: Date): Date {
   return addDays(toDateOnly(eventDate), -1);
@@ -195,23 +202,37 @@ export async function searchProductsByDate(
     payload.data?.products?.nodes ??
     ([] as ShopifyProductNode[]);
 
+  const availabilityData = await loadShopAvailabilityData(params.shop);
   const results: SearchProductResult[] = [];
 
   for (const product of products) {
     const matchingVariants = product.variants.nodes.filter(
-      (variant) =>
+      (variant: ShopifyVariantNode) =>
         variant.availableForSale && variantMatchesSize(variant, params.size),
     );
 
     for (const variant of matchingVariants) {
-      const availability = await checkProductAvailability({
-        shop: params.shop,
-        productId: extractNumericId(product.id),
-        variantId: extractNumericId(variant.id),
-        deliveryDate,
-        durationDays: params.durationDays,
-        today,
-      });
+      const productId = extractNumericId(product.id);
+      const variantId = extractNumericId(variant.id);
+      const availability = evaluateProductAvailability(
+        {
+          shop: params.shop,
+          productId,
+          variantId,
+          deliveryDate,
+          durationDays: params.durationDays,
+          deliveryMethod: params.deliveryMethod ?? "post",
+          today,
+        },
+        {
+          bufferConfig: availabilityData.bufferConfig,
+          holidays: availabilityData.holidays,
+          bookings:
+            availabilityData.bookingsByVariant.get(`${productId}:${variantId}`) ??
+            [],
+          blockedDates: availabilityData.blockedDates,
+        },
+      );
 
       if (!availability.available) {
         continue;

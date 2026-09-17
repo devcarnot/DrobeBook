@@ -10,6 +10,7 @@ import {
   parseDeliveryMethod,
   resolveBookingBuffers,
 } from "./buffer-config";
+import { parseBufferDayUnit } from "./availability.server";
 import {
   layoutCalendarBars,
   monthLabel,
@@ -22,9 +23,15 @@ export type RentalCalendarFilters = {
   search?: string | null;
 };
 
+export type RentalCalendarEventType =
+  | "booking"
+  | "block"
+  | "appointment"
+  | "appointment_hold";
+
 export type RentalCalendarEvent = {
   id: string;
-  type: "booking" | "block";
+  type: RentalCalendarEventType;
   label: string;
   sublabel: string;
   startDate: string;
@@ -42,6 +49,11 @@ export type RentalCalendarEvent = {
   color: string;
   bufferBeforeDays: number;
   bufferAfterDays: number;
+  appointmentTime: string | null;
+  durationMinutes: number | null;
+  changeRoomId: string | null;
+  itemsToTryOn: string | null;
+  customerName: string | null;
 };
 
 export type RentalCalendarPayload = {
@@ -77,6 +89,31 @@ const PRODUCT_TITLES_QUERY = `#graphql
   }
 `;
 
+const ORDER_DETAILS_QUERY = `#graphql
+  query RentalCalendarOrders($ids: [ID!]!) {
+    nodes(ids: $ids) {
+      ... on Order {
+        legacyResourceId
+        name
+        customer {
+          displayName
+        }
+        lineItems(first: 25) {
+          nodes {
+            customAttributes {
+              key
+              value
+            }
+          }
+        }
+      }
+    }
+  }
+`;
+
+const TRY_ON_APPOINTMENT_COLOR = "#e67700";
+const TRY_ON_HOLD_COLOR = "#f4a261";
+
 function extractNumericId(gid: string): string {
   const match = gid.match(/\/(\d+)$/);
   return match ? match[1] : gid;
@@ -88,9 +125,18 @@ function toProductGid(productId: string): string {
     : `gid://shopify/Product/${productId}`;
 }
 
-function statusColor(status: string, type: "booking" | "block"): string {
+function statusColor(
+  status: string,
+  type: RentalCalendarEventType,
+): string {
   if (type === "block") {
     return "#b98900";
+  }
+  if (type === "appointment") {
+    return TRY_ON_APPOINTMENT_COLOR;
+  }
+  if (type === "appointment_hold") {
+    return TRY_ON_HOLD_COLOR;
   }
   if (status === "confirmed") {
     return "#008060";
@@ -102,6 +148,100 @@ function statusColor(status: string, type: "booking" | "block"): string {
     return "#c9cccf";
   }
   return "#8051ff";
+}
+
+function formatAppointmentTime(time: string): string {
+  const [hoursRaw, minutesRaw] = time.split(":");
+  const hours = Number.parseInt(hoursRaw ?? "0", 10) || 0;
+  const minutes = Number.parseInt(minutesRaw ?? "0", 10) || 0;
+  const period = hours >= 12 ? "pm" : "am";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  const minuteText = minutes ? `:${String(minutes).padStart(2, "0")}` : "";
+  return `${hour12}${minuteText} ${period}`;
+}
+
+function formatChangeRoomLabel(changeRoomId: string | null): string | null {
+  if (!changeRoomId) {
+    return null;
+  }
+
+  const match = changeRoomId.match(/^room-(\d+)$/i);
+  if (match) {
+    return `Change room ${match[1]}`;
+  }
+
+  return changeRoomId;
+}
+
+function toOrderGid(orderId: string): string {
+  return orderId.startsWith("gid://")
+    ? orderId
+    : `gid://shopify/Order/${orderId}`;
+}
+
+type OrderCalendarMeta = {
+  customerName: string | null;
+  itemsToTryOn: string | null;
+  orderName: string | null;
+};
+
+async function fetchOrderMeta(
+  admin: AdminGraphqlClient,
+  orderIds: string[],
+): Promise<Map<string, OrderCalendarMeta>> {
+  const map = new Map<string, OrderCalendarMeta>();
+  if (orderIds.length === 0) {
+    return map;
+  }
+
+  const uniqueIds = [...new Set(orderIds)];
+  const response = await admin.graphql(ORDER_DETAILS_QUERY, {
+    variables: { ids: uniqueIds.map((id) => toOrderGid(id)) },
+  });
+  const json = (await response.json()) as {
+    data?: {
+      nodes?: Array<{
+        legacyResourceId?: string;
+        name?: string;
+        customer?: { displayName?: string | null } | null;
+        lineItems?: {
+          nodes?: Array<{
+            customAttributes?: Array<{ key?: string; value?: string }>;
+          }>;
+        };
+      } | null>;
+    };
+  };
+
+  for (const node of json.data?.nodes ?? []) {
+    if (!node?.legacyResourceId) {
+      continue;
+    }
+
+    let itemsToTryOn: string | null = null;
+    for (const lineItem of node.lineItems?.nodes ?? []) {
+      for (const attribute of lineItem.customAttributes ?? []) {
+        if (attribute.key?.toLowerCase() === "items to try on") {
+          const value = attribute.value?.trim();
+          if (value && value !== "—") {
+            itemsToTryOn = value;
+            break;
+          }
+        }
+      }
+      if (itemsToTryOn) {
+        break;
+      }
+    }
+
+    map.set(node.legacyResourceId, {
+      customerName: node.customer?.displayName?.trim() || null,
+      itemsToTryOn,
+      orderName: node.name ?? null,
+    });
+  }
+
+  return map;
 }
 
 async function fetchProductMeta(
@@ -153,6 +293,10 @@ function matchesSearch(
     event.size,
     event.reason,
     event.orderId,
+    event.customerName,
+    event.itemsToTryOn,
+    event.appointmentTime,
+    event.changeRoomId,
   ]
     .filter(Boolean)
     .join(" ")
@@ -170,30 +314,70 @@ export async function getRentalCalendar(
   const monthStart = new Date(Date.UTC(year, month - 1, 1));
   const monthEnd = new Date(Date.UTC(year, month, 0));
 
-  const [bookings, blockedDates, bufferConfig, holidays] = await Promise.all([
-    prisma.booking.findMany({
-      where: {
-        shop,
-        ...(filters.status ? { status: filters.status } : {}),
-        ...(filters.deliveryMethod
-          ? { deliveryMethod: filters.deliveryMethod }
-          : {}),
-        startDate: { lte: monthEnd },
-        endDate: { gte: monthStart },
-      },
-      orderBy: { startDate: "asc" },
-    }),
-    prisma.blockedDate.findMany({
-      where: {
-        shop,
-        startDate: { lte: monthEnd },
-        endDate: { gte: monthStart },
-      },
-      orderBy: { startDate: "asc" },
-    }),
-    getShopBufferConfig(shop),
-    getHolidayDates(shop),
-  ]);
+  const holdsAvailable =
+    typeof (prisma as { appointmentHold?: unknown }).appointmentHold !==
+    "undefined";
+
+  const [bookings, blockedDates, appointments, appointmentHolds, bufferConfig, holidays] =
+    await Promise.all([
+      prisma.booking.findMany({
+        where: {
+          shop,
+          ...(filters.status ? { status: filters.status } : {}),
+          ...(filters.deliveryMethod
+            ? { deliveryMethod: filters.deliveryMethod }
+            : {}),
+          startDate: { lte: monthEnd },
+          endDate: { gte: monthStart },
+        },
+        orderBy: { startDate: "asc" },
+      }),
+      prisma.blockedDate.findMany({
+        where: {
+          shop,
+          startDate: { lte: monthEnd },
+          endDate: { gte: monthStart },
+        },
+        orderBy: { startDate: "asc" },
+      }),
+      prisma.appointmentBooking.findMany({
+        where: {
+          shop,
+          date: {
+            gte: monthStart,
+            lte: monthEnd,
+          },
+        },
+        orderBy: [{ date: "asc" }, { time: "asc" }],
+      }),
+      holdsAvailable
+        ? prisma.appointmentHold.findMany({
+            where: {
+              shop,
+              date: {
+                gte: monthStart,
+                lte: monthEnd,
+              },
+              expiresAt: { gt: new Date() },
+            },
+            orderBy: [{ date: "asc" }, { time: "asc" }],
+          })
+        : Promise.resolve([]),
+      getShopBufferConfig(shop),
+      getHolidayDates(shop),
+    ]);
+
+  const confirmedAppointmentIds = new Set(appointments.map((entry) => entry.id));
+  const activeHolds = appointmentHolds.filter(
+    (hold) => !confirmedAppointmentIds.has(hold.id),
+  );
+
+  const orderMeta = await fetchOrderMeta(
+    admin,
+    appointments
+      .filter((appointment) => !appointment.orderId.startsWith("admin-"))
+      .map((appointment) => appointment.orderId),
+  );
 
   const productMeta = await fetchProductMeta(admin, [
     ...bookings.map((booking) => booking.productId),
@@ -213,9 +397,9 @@ export async function getRentalCalendar(
         endDate: booking.endDate,
         deliveryMethod: booking.deliveryMethod,
         bufferBeforeDays: booking.bufferBeforeDays,
-        bufferBeforeUnit: booking.bufferBeforeUnit,
+        bufferBeforeUnit: parseBufferDayUnit(booking.bufferBeforeUnit),
         bufferAfterDays: booking.bufferAfterDays,
-        bufferAfterUnit: booking.bufferAfterUnit,
+        bufferAfterUnit: parseBufferDayUnit(booking.bufferAfterUnit),
       },
       bufferConfig,
       holidays,
@@ -223,7 +407,12 @@ export async function getRentalCalendar(
     const buffers = resolveBookingBuffers(
       parseDeliveryMethod(booking.deliveryMethod),
       bufferConfig,
-      booking,
+      {
+        bufferBeforeDays: booking.bufferBeforeDays,
+        bufferBeforeUnit: parseBufferDayUnit(booking.bufferBeforeUnit),
+        bufferAfterDays: booking.bufferAfterDays,
+        bufferAfterUnit: parseBufferDayUnit(booking.bufferAfterUnit),
+      },
     );
     const meta = productMeta.get(booking.productId);
     const label = meta?.title ?? `Product ${booking.productId}`;
@@ -249,6 +438,94 @@ export async function getRentalCalendar(
       color: statusColor(booking.status, "booking"),
       bufferBeforeDays: buffers.bufferBeforeDays,
       bufferAfterDays: buffers.bufferAfterDays,
+      appointmentTime: null,
+      durationMinutes: null,
+      changeRoomId: null,
+      itemsToTryOn: null,
+      customerName: null,
+    });
+  }
+
+  for (const appointment of appointments) {
+    const dateIso = appointment.date.toISOString().slice(0, 10);
+    const timeLabel = formatAppointmentTime(appointment.time);
+    const order = appointment.orderId.startsWith("admin-")
+      ? null
+      : orderMeta.get(appointment.orderId);
+    const customerName =
+      appointment.customerName ?? order?.customerName ?? null;
+    const itemsToTryOn =
+      appointment.itemsToTryOn ?? order?.itemsToTryOn ?? null;
+    const roomLabel = formatChangeRoomLabel(appointment.changeRoomId);
+    const label = customerName ?? "Try-on appointment";
+    const sublabelParts = [timeLabel, `${appointment.durationMinutes} min`];
+    if (roomLabel) {
+      sublabelParts.push(roomLabel);
+    }
+    if (itemsToTryOn) {
+      sublabelParts.push(itemsToTryOn);
+    }
+
+    events.push({
+      id: appointment.id,
+      type: "appointment",
+      label,
+      sublabel: sublabelParts.join(" · "),
+      startDate: dateIso,
+      endDate: dateIso,
+      displayStartDate: dateIso,
+      displayEndDate: dateIso,
+      status: "confirmed",
+      deliveryMethod: null,
+      orderId: appointment.orderId,
+      reason: null,
+      productId: null,
+      variantId: null,
+      size: null,
+      imageUrl: null,
+      color: statusColor("confirmed", "appointment"),
+      bufferBeforeDays: 0,
+      bufferAfterDays: 0,
+      appointmentTime: appointment.time,
+      durationMinutes: appointment.durationMinutes,
+      changeRoomId: appointment.changeRoomId,
+      itemsToTryOn,
+      customerName,
+    });
+  }
+
+  for (const hold of activeHolds) {
+    const dateIso = hold.date.toISOString().slice(0, 10);
+    const timeLabel = formatAppointmentTime(hold.time);
+    const roomLabel = formatChangeRoomLabel(hold.changeRoomId);
+
+    events.push({
+      id: `hold-${hold.id}`,
+      type: "appointment_hold",
+      label: "Try-on hold",
+      sublabel: [timeLabel, `${hold.durationMinutes} min`, roomLabel]
+        .filter(Boolean)
+        .join(" · "),
+      startDate: dateIso,
+      endDate: dateIso,
+      displayStartDate: dateIso,
+      displayEndDate: dateIso,
+      status: "pending",
+      deliveryMethod: null,
+      orderId: null,
+      reason: "Customer is checking out — hold expires in 15 minutes.",
+      productId: null,
+      variantId: null,
+      size: null,
+      imageUrl: null,
+      color: statusColor("pending", "appointment_hold"),
+      bufferBeforeDays: 0,
+      bufferAfterDays: 0,
+      appointmentTime: hold.time,
+      durationMinutes: hold.durationMinutes,
+      changeRoomId: hold.changeRoomId,
+      itemsToTryOn: null,
+      customerName: null,
     });
   }
 
@@ -281,6 +558,11 @@ export async function getRentalCalendar(
       color: statusColor("blocked", "block"),
       bufferBeforeDays: 0,
       bufferAfterDays: 0,
+      appointmentTime: null,
+      durationMinutes: null,
+      changeRoomId: null,
+      itemsToTryOn: null,
+      customerName: null,
     });
   }
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -24,8 +24,12 @@ import {
 } from "../lib/shop-settings.server";
 import { ColorField } from "../components/ColorField";
 import { GownHireWidgetPreview } from "../components/GownHireWidgetPreview";
+import { HireTermsEditor } from "../components/HireTermsEditor";
 import { DamageProtectionProductPicker } from "../components/DamageProtectionProductPicker";
+import { ScrollablePillTabs } from "../components/ScrollablePillTabs";
 import { SettingsFeatureNav } from "../components/SettingsFeatureNav";
+import { SettingsSplitLayout } from "../components/SettingsSplitLayout";
+import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
   DEFAULT_WIDGET_COLORS,
   WIDGET_COLOR_GROUPS,
@@ -58,8 +62,16 @@ const SETTINGS_TABS = [
       "The main button text changes depending on whether dates are selected.",
   },
   {
-    id: "protection",
+    id: "terms",
     step: "4",
+    label: "Hire terms",
+    title: "Mandatory hire terms",
+    description:
+      "Checkboxes customers must accept before adding a hire to cart.",
+  },
+  {
+    id: "protection",
+    step: "5",
     label: "Damage protection",
     title: "Damage protection",
     description:
@@ -67,11 +79,11 @@ const SETTINGS_TABS = [
   },
   {
     id: "colors",
-    step: "5",
+    step: "6",
     label: "Colors",
     title: "Color scheme",
     description:
-      "Match the booking widget to your theme — calendar dates, buttons, and choices.",
+      "Match the booking widget to your theme — calendar dates, buttons, choices, and font.",
   },
 ] as const;
 
@@ -79,40 +91,6 @@ type SettingsTabId = (typeof SETTINGS_TABS)[number]["id"];
 
 function isSettingsTab(value: string | null): value is SettingsTabId {
   return SETTINGS_TABS.some((tab) => tab.id === value);
-}
-
-function tabButtonStyle(active: boolean): CSSProperties {
-  return {
-    appearance: "none",
-    border: active ? "1px solid #c9cccf" : "1px solid transparent",
-    background: active ? "#ffffff" : "transparent",
-    color: active ? "#202223" : "#616161",
-    font: "inherit",
-    fontSize: "13px",
-    fontWeight: 550,
-    padding: "10px 16px",
-    cursor: "pointer",
-    display: "inline-flex",
-    alignItems: "center",
-    gap: "8px",
-    whiteSpace: "nowrap",
-    flex: "0 0 auto",
-  };
-}
-
-function tabStepStyle(active: boolean): CSSProperties {
-  return {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    minWidth: "22px",
-    height: "22px",
-    padding: "0 6px",
-    background: active ? "#005bd3" : "#e3f2ff",
-    color: active ? "#ffffff" : "#00527c",
-    fontSize: "11px",
-    fontWeight: 700,
-  };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -132,8 +110,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     return { config: DEFAULT_WIDGET_CONFIG, saved: true, reset: true };
   }
 
+  const existing = await getShopWidgetConfig(session.shop);
   const config = widgetConfigFromFormData(formData);
-  await saveShopWidgetConfig(session.shop, config);
+  await saveShopWidgetConfig(session.shop, {
+    ...config,
+    hireDurations: existing.hireDurations,
+  });
 
   return { config, saved: true, reset: false };
 };
@@ -166,6 +148,12 @@ function WidgetConfigHiddenFields({ draft }: { draft: WidgetConfig }) {
       <input type="hidden" name="postageNote" value={draft.postageNote} />
       <input type="hidden" name="buttonLabelPending" value={draft.buttonLabelPending} />
       <input type="hidden" name="buttonLabelReady" value={draft.buttonLabelReady} />
+      <input
+        type="hidden"
+        name="hireTermsJson"
+        value={JSON.stringify(draft.hireTerms)}
+      />
+      <input type="hidden" name="fontFamily" value={draft.fontFamily} />
       <input type="hidden" name="damageProtectionVariantId" value={draft.damageProtectionVariantId} />
       <input type="hidden" name="damageProtectionProductTitle" value={draft.damageProtectionProductTitle} />
       <input type="hidden" name="damageProtectionLabel" value={draft.damageProtectionLabel} />
@@ -194,7 +182,7 @@ function SettingsTabPanel({
 }) {
   if (tab.id === "delivery") {
     return (
-      <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+      <ResponsiveGrid layout="2">
         <s-text-field
           label="Postage button text"
           value={draft.postLabel}
@@ -211,7 +199,7 @@ function SettingsTabPanel({
           onChange={(event) => updateDraft("pickupLabel", event.currentTarget.value)}
           details="Include your city or suburb so customers know where to collect"
         />
-      </s-grid>
+      </ResponsiveGrid>
     );
   }
 
@@ -249,7 +237,7 @@ function SettingsTabPanel({
 
   if (tab.id === "button") {
     return (
-      <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+      <ResponsiveGrid layout="2">
         <s-text-field
           label="Before dates are selected"
           value={draft.buttonLabelPending}
@@ -266,7 +254,21 @@ function SettingsTabPanel({
             updateDraft("buttonLabelReady", event.currentTarget.value)
           }
         />
-      </s-grid>
+      </ResponsiveGrid>
+    );
+  }
+
+  if (tab.id === "terms") {
+    return (
+      <HireTermsEditor
+        terms={draft.hireTerms}
+        onChange={(hireTerms) =>
+          setDraft((current) => ({
+            ...current,
+            hireTerms,
+          }))
+        }
+      />
     );
   }
 
@@ -289,11 +291,12 @@ function SettingsTabPanel({
               ...current,
               damageProtectionProductTitle: "",
               damageProtectionVariantId: "",
+              damageProtectionPrice: "",
             }));
           }}
         />
 
-        <s-grid gridTemplateColumns="1fr 1fr" gap="large">
+        <ResponsiveGrid layout="2">
           <s-text-field
             label="Checkbox label"
             value={draft.damageProtectionLabel}
@@ -319,7 +322,7 @@ function SettingsTabPanel({
             }
             details="Auto-filled from the product price when you choose a product"
           />
-        </s-grid>
+        </ResponsiveGrid>
 
         <s-url-field
           label="More info page URL"
@@ -336,10 +339,12 @@ function SettingsTabPanel({
             Choose a damage protection product so customers can add it at checkout.
           </s-banner>
         ) : (
-          <s-banner tone="success">
+          <s-banner tone="info">
             {draft.damageProtectionProductTitle
               ? `${draft.damageProtectionProductTitle} is connected.`
-              : "Damage protection is configured."}
+              : "Damage protection is configured."}{" "}
+            Customers can add it via the booking checkbox; the product also remains
+            visible in your catalog.
           </s-banner>
         )}
       </s-stack>
@@ -348,6 +353,14 @@ function SettingsTabPanel({
 
   return (
     <s-stack direction="block" gap="large">
+      <s-text-field
+        label="Font family"
+        value={draft.fontFamily}
+        placeholder='Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
+        onChange={(event) => updateDraft("fontFamily", event.currentTarget.value)}
+        details="Applied to booking, try-on, and search widgets on your storefront"
+      />
+
       {WIDGET_COLOR_GROUPS.map((group) => (
         <s-stack key={group.title} direction="block" gap="base">
           <s-stack direction="block" gap="small">
@@ -396,6 +409,10 @@ function SettingsTabPanel({
 
 function SettingsTips() {
   const tips = [
+    {
+      title: "Hire length (days)",
+      body: 'Add a "Duration" option on rental products in Shopify (e.g. "5 Days", "8 days"). The booking widget and calendar use those variant days automatically.',
+    },
     {
       title: "Keep messages short",
       body: "Customers read these on mobile. Two or three sentences work best.",
@@ -501,7 +518,7 @@ function GownHireSettingsPage() {
   }
 
   return (
-    <s-page heading="Gown Hire" inlineSize="large">
+    <s-page heading="Store Front widget" inlineSize="large">
       <s-stack direction="block" gap="large">
         {showSaved ? (
           <s-banner tone="success" dismissible onDismiss={() => setShowSaved(false)}>
@@ -526,23 +543,17 @@ function GownHireSettingsPage() {
           </s-stack>
         </s-box>
 
-        <s-grid gridTemplateColumns="1.4fr 1fr" gap="large" alignItems="start">
+        <SettingsSplitLayout
+          editor={
           <Form method="post">
             <input type="hidden" name="intent" value="save" />
 
             <s-box padding="large" background="base" border="base" borderRadius="large">
               <s-stack direction="block" gap="large">
-                <div
-                  role="tablist"
-                  aria-label="Gown hire text steps"
-                  style={{
-                    display: "flex",
-                    flexWrap: "wrap",
-                    gap: "8px",
-                    padding: "8px",
-                    background: "#f6f6f7",
-                    border: "1px solid #e1e3e5",
-                  }}
+                <ScrollablePillTabs
+                  ariaLabel="Gown hire text steps"
+                  activeKey={activeTabId}
+                  hint={`Step ${activeTabIndex + 1} of ${SETTINGS_TABS.length} · Scroll sideways for all steps`}
                 >
                   {SETTINGS_TABS.map((tab) => {
                     const active = activeTabId === tab.id;
@@ -552,15 +563,15 @@ function GownHireSettingsPage() {
                         type="button"
                         role="tab"
                         aria-selected={active}
-                        style={tabButtonStyle(active)}
+                        className={`gk-settings-step-tab${active ? " gk-settings-step-tab--active" : ""}`}
                         onClick={() => selectTab(tab.id)}
                       >
-                        <span style={tabStepStyle(active)}>{tab.step}</span>
+                        <span className="gk-settings-step-tab__badge">{tab.step}</span>
                         {tab.label}
                       </button>
                     );
                   })}
-                </div>
+                </ScrollablePillTabs>
 
                 <s-divider />
 
@@ -628,12 +639,11 @@ function GownHireSettingsPage() {
               </s-stack>
             </s-box>
           </Form>
+          }
+          preview={<GownHireWidgetPreview config={draft} />}
+        />
 
-          <s-stack direction="block" gap="large">
-            <GownHireWidgetPreview config={draft} />
-            <SettingsTips />
-          </s-stack>
-        </s-grid>
+        <SettingsTips />
 
         <Form method="post">
           <s-box padding="large" background="subdued" borderRadius="large">
