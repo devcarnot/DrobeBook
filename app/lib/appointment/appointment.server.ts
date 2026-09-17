@@ -1,6 +1,6 @@
 import prisma from "../../db.server";
 import { parseAppointmentDurationMinutes } from "./appointment-durations";
-import { getHoldCountsByTimeForDate } from "./appointment-hold.server";
+import { cleanupExpiredAppointmentHolds } from "./appointment-hold.server";
 import type { AppointmentConfig } from "../shop-config";
 import {
   capacityPerChangeRoom,
@@ -10,6 +10,7 @@ import {
   type AppointmentDuration,
   type AppointmentSlotView,
   type DayType,
+  appointmentOccupiesSlot,
   dateMatchesDayType,
   earliestAppointmentDate,
   formatIsoDate,
@@ -37,122 +38,202 @@ export type AppointmentSlotsParams = {
   today?: Date;
 };
 
+export type RoomOccupancy = {
+  time: string;
+  durationMinutes: number;
+  changeRoomId: string;
+};
+
 function daysInMonth(year: number, month: number): number {
   return new Date(Date.UTC(year, month, 0)).getUTCDate();
 }
 
-type BookedByTimeAndRoom = Map<string, Map<string, number>>;
-
-async function getBookedCountsByRoom(
-  shop: string,
-  dateIso: string,
-  durationMinutes: AppointmentDuration,
-): Promise<BookedByTimeAndRoom> {
-  const date = parseIsoDate(dateIso);
-  if (!date) {
-    return new Map();
-  }
-
-  const records = await prisma.appointmentSlot.findMany({
-    where: {
-      shop,
-      date,
-      durationMinutes,
-    },
-    select: {
-      time: true,
-      changeRoomId: true,
-      bookedCount: true,
-    },
-  });
-
-  const byTime = new Map<string, Map<string, number>>();
-  for (const record of records) {
-    const rooms = byTime.get(record.time) ?? new Map<string, number>();
-    rooms.set(record.changeRoomId, record.bookedCount);
-    byTime.set(record.time, rooms);
-  }
-
-  return byTime;
+function holdsAvailable() {
+  return typeof (prisma as { appointmentHold?: unknown }).appointmentHold !== "undefined";
 }
 
-async function getBookedCountsForMonth(
+async function getOccupanciesForDate(
+  shop: string,
+  dateIso: string,
+): Promise<RoomOccupancy[]> {
+  const date = parseIsoDate(dateIso);
+  if (!date) {
+    return [];
+  }
+
+  if (holdsAvailable()) {
+    await cleanupExpiredAppointmentHolds(shop);
+  }
+
+  const [bookings, holds] = await Promise.all([
+    prisma.appointmentBooking.findMany({
+      where: { shop, date },
+      select: {
+        time: true,
+        durationMinutes: true,
+        changeRoomId: true,
+      },
+    }),
+    holdsAvailable()
+      ? prisma.appointmentHold.findMany({
+          where: {
+            shop,
+            date,
+            expiresAt: { gt: new Date() },
+          },
+          select: {
+            time: true,
+            durationMinutes: true,
+            changeRoomId: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  return [
+    ...bookings.map((entry) => ({
+      time: entry.time,
+      durationMinutes: entry.durationMinutes,
+      changeRoomId: entry.changeRoomId,
+    })),
+    ...holds.map((entry) => ({
+      time: entry.time,
+      durationMinutes: entry.durationMinutes,
+      changeRoomId: entry.changeRoomId,
+    })),
+  ];
+}
+
+async function getOccupanciesForMonth(
   shop: string,
   year: number,
   month: number,
-  durationMinutes: AppointmentDuration,
-): Promise<Map<string, BookedByTimeAndRoom>> {
+): Promise<Map<string, RoomOccupancy[]>> {
   const monthStart = new Date(Date.UTC(year, month - 1, 1));
   const monthEnd = new Date(Date.UTC(year, month, 0));
 
-  const records = await prisma.appointmentSlot.findMany({
-    where: {
-      shop,
-      durationMinutes,
-      date: {
-        gte: monthStart,
-        lte: monthEnd,
-      },
-    },
-    select: {
-      date: true,
-      time: true,
-      changeRoomId: true,
-      bookedCount: true,
-    },
-  });
+  if (holdsAvailable()) {
+    await cleanupExpiredAppointmentHolds(shop);
+  }
 
-  const byDate = new Map<string, BookedByTimeAndRoom>();
-  for (const record of records) {
-    const dateIso = formatIsoDate(record.date);
-    const byTime = byDate.get(dateIso) ?? new Map<string, Map<string, number>>();
-    const rooms = byTime.get(record.time) ?? new Map<string, number>();
-    rooms.set(record.changeRoomId, record.bookedCount);
-    byTime.set(record.time, rooms);
-    byDate.set(dateIso, byTime);
+  const [bookings, holds] = await Promise.all([
+    prisma.appointmentBooking.findMany({
+      where: {
+        shop,
+        date: { gte: monthStart, lte: monthEnd },
+      },
+      select: {
+        date: true,
+        time: true,
+        durationMinutes: true,
+        changeRoomId: true,
+      },
+    }),
+    holdsAvailable()
+      ? prisma.appointmentHold.findMany({
+          where: {
+            shop,
+            date: { gte: monthStart, lte: monthEnd },
+            expiresAt: { gt: new Date() },
+          },
+          select: {
+            date: true,
+            time: true,
+            durationMinutes: true,
+            changeRoomId: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  const byDate = new Map<string, RoomOccupancy[]>();
+
+  function push(
+    dateValue: Date,
+    entry: { time: string; durationMinutes: number; changeRoomId: string },
+  ) {
+    const dateIso = formatIsoDate(dateValue);
+    const list = byDate.get(dateIso) ?? [];
+    list.push({
+      time: entry.time,
+      durationMinutes: entry.durationMinutes,
+      changeRoomId: entry.changeRoomId,
+    });
+    byDate.set(dateIso, list);
+  }
+
+  for (const booking of bookings) {
+    push(booking.date, booking);
+  }
+  for (const hold of holds) {
+    push(hold.date, hold);
   }
 
   return byDate;
 }
 
+export function getOccupiedRoomsForWindow(
+  occupancies: RoomOccupancy[],
+  slotTime: string,
+  slotDurationMinutes: number,
+  changeRoomCount: number,
+): Set<string> {
+  const roomIds = getChangeRoomIds(changeRoomCount);
+  const roomCapacity = capacityPerChangeRoom();
+  const occupied = new Set<string>();
+
+  for (const roomId of roomIds) {
+    const roomOccupancies = occupancies.filter(
+      (entry) =>
+        entry.changeRoomId === roomId &&
+        appointmentOccupiesSlot(
+          entry.time,
+          entry.durationMinutes,
+          slotTime,
+          slotDurationMinutes,
+        ),
+    );
+
+    if (roomOccupancies.length >= roomCapacity) {
+      occupied.add(roomId);
+    }
+  }
+
+  return occupied;
+}
+
 function aggregateSlotAvailability(
   template: { time: string; endTime: string; label: string; capacity: number },
-  bookedByRoom: Map<string, number> | undefined,
-  holdByRoom: Map<string, number> | undefined,
+  occupancies: RoomOccupancy[],
   changeRoomCount: number,
   durationMinutes: AppointmentDuration,
 ): AppointmentSlotView {
   const roomIds = getChangeRoomIds(changeRoomCount);
-  const roomCapacity = capacityPerChangeRoom();
-  let available = 0;
-  let bookedCount = 0;
-
-  for (const roomId of roomIds) {
-    const roomBooked = bookedByRoom?.get(roomId) ?? 0;
-    const roomHeld = holdByRoom?.get(roomId) ?? 0;
-    const roomOccupied = roomBooked + roomHeld;
-    bookedCount += roomOccupied;
-    if (roomOccupied < roomCapacity) {
-      available += roomCapacity - roomOccupied;
-    }
-  }
+  const occupied = getOccupiedRoomsForWindow(
+    occupancies,
+    template.time,
+    durationMinutes,
+    changeRoomCount,
+  );
+  const available = roomIds.filter((roomId) => !occupied.has(roomId)).length;
+  const bookedCount = roomIds.length - available;
 
   return {
     time: template.time,
     endTime: template.endTime,
     label: template.label,
     durationMinutes,
-    capacity: roomIds.length * roomCapacity,
+    capacity: roomIds.length * capacityPerChangeRoom(),
     bookedCount,
     available,
     soldOut: available <= 0,
   };
 }
 
-async function buildAppointmentSlots(
+function buildAppointmentSlotsFromOccupancies(
   params: AppointmentSlotsParams,
-  bookedByTime: BookedByTimeAndRoom,
-): Promise<AppointmentSlotView[]> {
+  occupancies: RoomOccupancy[],
+): AppointmentSlotView[] {
   const date = parseIsoDate(params.date);
   if (!date || isPastDate(date, params.today)) {
     return [];
@@ -163,17 +244,11 @@ async function buildAppointmentSlots(
     params.durationMinutes,
     params.config,
   );
-  const holdByTime = await getHoldCountsByTimeForDate(
-    params.shop,
-    params.date,
-    params.durationMinutes,
-  );
 
   return templates.map((template) =>
     aggregateSlotAvailability(
       template,
-      bookedByTime.get(template.time),
-      holdByTime.get(template.time),
+      occupancies,
       params.config.changeRoomCount,
       params.durationMinutes,
     ),
@@ -186,11 +261,10 @@ export async function getUnavailableAppointmentDates(
   const today = params.today ?? new Date();
   const unavailable: string[] = [];
   const totalDays = daysInMonth(params.year, params.month);
-  const bookedByDate = await getBookedCountsForMonth(
+  const occupanciesByDate = await getOccupanciesForMonth(
     params.shop,
     params.year,
     params.month,
-    params.durationMinutes,
   );
 
   for (let day = 1; day <= totalDays; day += 1) {
@@ -210,7 +284,7 @@ export async function getUnavailableAppointmentDates(
       continue;
     }
 
-    const slots = await buildAppointmentSlots(
+    const slots = buildAppointmentSlotsFromOccupancies(
       {
         shop: params.shop,
         date: dateIso,
@@ -218,7 +292,7 @@ export async function getUnavailableAppointmentDates(
         config: params.config,
         today,
       },
-      bookedByDate.get(dateIso) ?? new Map(),
+      occupanciesByDate.get(dateIso) ?? [],
     );
 
     if (!slots.length || slots.every((slot) => slot.soldOut)) {
@@ -232,13 +306,8 @@ export async function getUnavailableAppointmentDates(
 export async function getAppointmentSlots(
   params: AppointmentSlotsParams,
 ): Promise<AppointmentSlotView[]> {
-  const bookedByTime = await getBookedCountsByRoom(
-    params.shop,
-    params.date,
-    params.durationMinutes,
-  );
-
-  return await buildAppointmentSlots(params, bookedByTime);
+  const occupancies = await getOccupanciesForDate(params.shop, params.date);
+  return buildAppointmentSlotsFromOccupancies(params, occupancies);
 }
 
 export function parseAppointmentDuration(
@@ -255,4 +324,4 @@ export function parseDayType(value: string | null): DayType | null {
   return null;
 }
 
-export { getDayTypeForDate, dateMatchesDayType };
+export { getDayTypeForDate, dateMatchesDayType, getOccupanciesForDate };

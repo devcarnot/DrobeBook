@@ -56,6 +56,9 @@ function formatSlotOption(
   config: AppointmentConfig,
   slot: AppointmentSlotView,
 ): string {
+  if (slot.soldOut || slot.available <= 0) {
+    return `${slot.label} / ${config.slotSoldOutText || "Sold out"}`;
+  }
   if (slot.available === 1) {
     return `${slot.label} / ${config.slotAvailableSingularText}`;
   }
@@ -192,13 +195,16 @@ export function AdminTryOnBookingModal({
         throw new Error(data.error || "Could not load time slots");
       }
 
-      const nextSlots = (data.slots ?? []).filter((slot) => !slot.soldOut);
+      const nextSlots = data.slots ?? [];
       setSlots(nextSlots);
       setSelectedSlot((current) => {
-        if (current && nextSlots.some((slot) => slot.time === current.time)) {
+        if (
+          current &&
+          nextSlots.some((slot) => slot.time === current.time && !slot.soldOut)
+        ) {
           return current;
         }
-        const first = nextSlots[0];
+        const first = nextSlots.find((slot) => !slot.soldOut);
         return first
           ? { time: first.time, endTime: first.endTime, label: first.label }
           : null;
@@ -474,7 +480,11 @@ export function AdminTryOnBookingModal({
                           : config.slotSoldOutText}
                     </option>
                     {slots.map((slot) => (
-                      <option key={slot.time} value={slot.time}>
+                      <option
+                        key={slot.time}
+                        value={slot.time}
+                        disabled={slot.soldOut}
+                      >
                         {formatSlotOption(config, slot)}
                       </option>
                     ))}

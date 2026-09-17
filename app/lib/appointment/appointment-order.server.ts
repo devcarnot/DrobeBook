@@ -9,6 +9,7 @@ import {
   capacityPerChangeRoom,
   getChangeRoomIds,
 } from "./change-rooms";
+import { appointmentOccupiesSlot } from "./slots";
 
 function getLineProperty(
   properties: OrderLineItem["properties"],
@@ -32,20 +33,28 @@ async function findAvailableChangeRoom(
   changeRoomCount: number,
 ): Promise<string | null> {
   const roomCapacity = capacityPerChangeRoom();
+  const bookings = await prisma.appointmentBooking.findMany({
+    where: { shop, date },
+    select: {
+      time: true,
+      durationMinutes: true,
+      changeRoomId: true,
+    },
+  });
 
   for (const changeRoomId of getChangeRoomIds(changeRoomCount)) {
-    const slot = await prisma.appointmentSlot.findFirst({
-      where: {
-        shop,
-        date,
-        time,
-        durationMinutes,
-        changeRoomId,
-      },
-      select: { bookedCount: true },
-    });
+    const overlapping = bookings.filter(
+      (entry) =>
+        entry.changeRoomId === changeRoomId &&
+        appointmentOccupiesSlot(
+          entry.time,
+          entry.durationMinutes,
+          time,
+          durationMinutes,
+        ),
+    ).length;
 
-    if ((slot?.bookedCount ?? 0) < roomCapacity) {
+    if (overlapping < roomCapacity) {
       return changeRoomId;
     }
   }

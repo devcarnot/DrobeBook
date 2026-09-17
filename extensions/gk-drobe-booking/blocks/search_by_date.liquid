@@ -19,70 +19,103 @@
       <h1 class="gk-drobe-search__title">{{ block.settings.heading | default: 'Search By Date' }}</h1>
     </header>
 
-    <div class="gk-drobe-search__form-wrap" data-gk-search-landing>
-      <form class="gk-drobe-search__form" data-gk-search-form>
-        <div class="gk-drobe-search__field">
-          <label class="gk-drobe-search__label" for="gk-search-event-date">{{ 'search.event_date' | t }}</label>
-          <input
-            id="gk-search-event-date"
-            class="gk-drobe-search__input"
-            type="date"
-            name="eventDate"
-            required
-          >
-        </div>
+    {% if display_mode == 'landing' %}
+      <div class="gk-drobe-search__form-wrap" data-gk-search-landing>
+        <form class="gk-drobe-search__form gk-drobe-search__form--landing" data-gk-search-form>
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-event-date">{{ 'search.event_date' | t }}</label>
+            <input
+              id="gk-search-event-date"
+              class="gk-drobe-search__input"
+              type="date"
+              name="eventDate"
+              required
+            >
+          </div>
 
-        <div class="gk-drobe-search__field">
-          <label class="gk-drobe-search__label" for="gk-search-size">{{ 'search.size' | t }}</label>
-          <select id="gk-search-size" class="gk-drobe-search__select" name="size" required>
-            <option value="">{{ 'search.size_placeholder' | t }}</option>
-            {% assign size_values = block.settings.sizes | split: ',' %}
-            {% for size in size_values %}
-              {% assign trimmed = size | strip %}
-              {% if trimmed != blank %}
-                <option value="{{ trimmed }}">{{ trimmed }}</option>
-              {% endif %}
-            {% endfor %}
-          </select>
-        </div>
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-size">{{ 'search.size' | t }}</label>
+            <select id="gk-search-size" class="gk-drobe-search__select" name="size" required>
+              <option value="">{{ 'search.size_placeholder' | t }}</option>
+              {% assign size_values = block.settings.sizes | split: ',' %}
+              {% for size in size_values %}
+                {% assign trimmed = size | strip %}
+                {% if trimmed != blank %}
+                  <option value="{{ trimmed }}">{{ trimmed }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
 
-        <button type="submit" class="gk-drobe-search__button">{{ block.settings.button_label | default: "Find your dream 'Fit" }}</button>
-      </form>
-    </div>
+          <div class="gk-drobe-search__field gk-drobe-search__field--action">
+            <span class="gk-drobe-search__label gk-drobe-search__label--spacer" aria-hidden="true">&nbsp;</span>
+            <button type="submit" class="gk-drobe-search__button">
+              {{ block.settings.button_label | default: "Find your dream 'Fit" }}
+            </button>
+          </div>
+        </form>
+      </div>
+    {% else %}
+      <div class="gk-drobe-search__toolbar-wrap" data-gk-search-filters>
+        <form class="gk-drobe-search__toolbar" data-gk-search-form>
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-event-date">{{ 'search.event_date' | t }}</label>
+            <input
+              id="gk-search-event-date"
+              class="gk-drobe-search__input"
+              type="date"
+              name="eventDate"
+              required
+            >
+          </div>
 
-    {% unless display_mode == 'landing' %}
-      <div class="gk-drobe-search__filters-bar" data-gk-search-filters hidden>
-        <div class="gk-drobe-search__filters">
-          <div class="gk-drobe-search__filter">
-            <span class="gk-drobe-search__filter-label">{{ 'search.duration' | t }}</span>
-            <select data-gk-filter-duration>
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-size">{{ 'search.size' | t }}</label>
+            <select id="gk-search-size" class="gk-drobe-search__select" name="size" required>
+              <option value="">{{ 'search.size_placeholder' | t }}</option>
+              {% assign size_values = block.settings.sizes | split: ',' %}
+              {% for size in size_values %}
+                {% assign trimmed = size | strip %}
+                {% if trimmed != blank %}
+                  <option value="{{ trimmed }}">{{ trimmed }}</option>
+                {% endif %}
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-duration">{{ 'search.duration' | t }}</label>
+            <select id="gk-search-duration" class="gk-drobe-search__select" data-gk-filter-duration>
               <option value="4">4 days</option>
               <option value="8">8 days</option>
             </select>
           </div>
-          <div class="gk-drobe-search__filter">
-            <span class="gk-drobe-search__filter-label">{{ 'search.delivery_method' | t }}</span>
-            <select data-gk-filter-delivery>
+
+          <div class="gk-drobe-search__field">
+            <label class="gk-drobe-search__label" for="gk-search-delivery">{{ 'search.delivery_method' | t }}</label>
+            <select id="gk-search-delivery" class="gk-drobe-search__select" data-gk-filter-delivery>
               <option value="post">{{ 'search.post' | t }}</option>
               <option value="pickup">{{ 'search.pickup' | t }}</option>
             </select>
           </div>
-          <div class="gk-drobe-search__filter">
-            <span class="gk-drobe-search__filter-label">{{ 'search.delivery_date' | t }}</span>
-            <input type="text" readonly data-gk-filter-delivery-date>
+
+          <div class="gk-drobe-search__field">
+            <span class="gk-drobe-search__label">{{ 'search.delivery_date' | t }}</span>
+            <input class="gk-drobe-search__input gk-drobe-search__input--readonly" type="text" readonly data-gk-filter-delivery-date>
           </div>
-          <div class="gk-drobe-search__filter">
-            <span class="gk-drobe-search__filter-label">{{ 'search.return_date' | t }}</span>
-            <input type="text" readonly data-gk-filter-return-date>
+
+          <div class="gk-drobe-search__field">
+            <span class="gk-drobe-search__label">{{ 'search.return_date' | t }}</span>
+            <input class="gk-drobe-search__input gk-drobe-search__input--readonly" type="text" readonly data-gk-filter-return-date>
           </div>
-          <div class="gk-drobe-search__filter">
-            <span class="gk-drobe-search__filter-label">{{ 'search.size' | t }}</span>
-            <input type="text" readonly data-gk-filter-size>
+
+          <div class="gk-drobe-search__field gk-drobe-search__field--action">
+            <span class="gk-drobe-search__label gk-drobe-search__label--spacer" aria-hidden="true">&nbsp;</span>
+            <button type="button" class="gk-drobe-search__button" data-gk-refine-search>
+              {{ 'search.search_button' | t }}
+            </button>
           </div>
-          <button type="button" class="gk-drobe-search__button gk-drobe-search__button--compact" data-gk-refine-search>
-            {{ 'search.search_button' | t }}
-          </button>
-        </div>
+        </form>
       </div>
 
       <div class="gk-drobe-search__results" data-gk-results hidden>
@@ -106,7 +139,7 @@
           <section class="gk-drobe-search__main">
             <div class="gk-drobe-search__results-head">
               <p data-gk-results-count></p>
-              <select data-gk-sort>
+              <select class="gk-drobe-search__select" data-gk-sort>
                 <option value="newest">{{ 'search.sort_newest' | t }}</option>
                 <option value="price-asc">{{ 'search.sort_price_low' | t }}</option>
                 <option value="price-desc">{{ 'search.sort_price_high' | t }}</option>
@@ -118,7 +151,7 @@
           </section>
         </div>
       </div>
-    {% endunless %}
+    {% endif %}
 
     <p class="gk-drobe-search__error" data-gk-error hidden></p>
   </div>

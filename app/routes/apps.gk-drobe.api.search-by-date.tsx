@@ -24,9 +24,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const deliveryMethod = parseDeliveryMethod(url.searchParams.get("deliveryMethod"));
   const collectionHandle = url.searchParams.get("collection");
 
-  if (!eventDate || !size) {
+  if (!eventDate) {
     return Response.json(
-      { error: "Missing required query params: eventDate, size" },
+      { error: "Missing required query params: eventDate" },
       { status: 400 },
     );
   }

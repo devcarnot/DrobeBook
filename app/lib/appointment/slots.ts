@@ -55,6 +55,35 @@ function parseTimeParts(value: string): { hours: number; minutes: number } {
   return { hours: hours || 0, minutes: minutes || 0 };
 }
 
+/** Convert "HH:MM" to minutes from midnight. */
+export function timeToMinutes(value: string): number {
+  const parts = parseTimeParts(value);
+  return toMinutes(parts.hours, parts.minutes);
+}
+
+/** Half-open range overlap: [startA, endA) overlaps [startB, endB). */
+export function timeRangesOverlap(
+  startA: number,
+  endA: number,
+  startB: number,
+  endB: number,
+): boolean {
+  return startA < endB && startB < endA;
+}
+
+export function appointmentOccupiesSlot(
+  bookingTime: string,
+  bookingDurationMinutes: number,
+  slotTime: string,
+  slotDurationMinutes: number,
+): boolean {
+  const bookingStart = timeToMinutes(bookingTime);
+  const bookingEnd = bookingStart + bookingDurationMinutes;
+  const slotStart = timeToMinutes(slotTime);
+  const slotEnd = slotStart + slotDurationMinutes;
+  return timeRangesOverlap(bookingStart, bookingEnd, slotStart, slotEnd);
+}
+
 function formatTimeLabel(hours: number, minutes: number): string {
   const period = hours >= 12 ? "pm" : "am";
   const hour12 = hours % 12 === 0 ? 12 : hours % 12;

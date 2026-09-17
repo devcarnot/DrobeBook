@@ -5,6 +5,7 @@ import {
   capacityPerChangeRoom,
   getChangeRoomIds,
 } from "./change-rooms";
+import { appointmentOccupiesSlot } from "./slots";
 
 export const APPOINTMENT_HOLD_MINUTES = 15;
 
@@ -25,6 +26,7 @@ export async function cleanupExpiredAppointmentHolds(shop: string) {
   });
 }
 
+/** Exact-time hold counts (same duration). Prefer overlap-aware occupancy for display. */
 export async function getHoldCountsByTimeForDate(
   shop: string,
   dateIso: string,
@@ -77,35 +79,46 @@ async function getOccupiedRoomsForSlot(
   const roomCapacity = capacityPerChangeRoom();
   const occupied = new Set<string>();
 
-  const [slots, holds, bookings] = await Promise.all([
-    prisma.appointmentSlot.findMany({
-      where: { shop, date, time, durationMinutes },
-      select: { changeRoomId: true, bookedCount: true },
-    }),
-    prisma.appointmentHold.findMany({
-      where: {
-        shop,
-        date,
-        time,
-        durationMinutes,
-        expiresAt: { gt: new Date() },
-      },
-      select: { changeRoomId: true },
-    }),
+  const [holds, bookings] = await Promise.all([
+    holdsAvailable()
+      ? prisma.appointmentHold.findMany({
+          where: {
+            shop,
+            date,
+            expiresAt: { gt: new Date() },
+          },
+          select: {
+            time: true,
+            durationMinutes: true,
+            changeRoomId: true,
+          },
+        })
+      : Promise.resolve([]),
     prisma.appointmentBooking.findMany({
-      where: { shop, date, time, durationMinutes },
-      select: { changeRoomId: true },
+      where: { shop, date },
+      select: {
+        time: true,
+        durationMinutes: true,
+        changeRoomId: true,
+      },
     }),
   ]);
 
-  for (const roomId of roomIds) {
-    const slotBooked =
-      slots.find((entry) => entry.changeRoomId === roomId)?.bookedCount ?? 0;
-    const holdCount = holds.filter((entry) => entry.changeRoomId === roomId).length;
-    const bookingCount = bookings.filter((entry) => entry.changeRoomId === roomId).length;
-    const total = Math.max(slotBooked, bookingCount) + holdCount;
+  const occupancies = [...bookings, ...holds];
 
-    if (total >= roomCapacity) {
+  for (const roomId of roomIds) {
+    const roomBusy = occupancies.filter(
+      (entry) =>
+        entry.changeRoomId === roomId &&
+        appointmentOccupiesSlot(
+          entry.time,
+          entry.durationMinutes,
+          time,
+          durationMinutes,
+        ),
+    ).length;
+
+    if (roomBusy >= roomCapacity) {
       occupied.add(roomId);
     }
   }

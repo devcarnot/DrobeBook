@@ -20,6 +20,8 @@
       this.resultsUrl = root.dataset.resultsUrl || "/pages/search-by-date";
       this.products = [];
       this.filteredProducts = [];
+      this.availableSizes = [];
+      this.preferredSize = "";
       this.searchConfig = {};
 
       this.cacheElements();
@@ -41,11 +43,50 @@
 
         if (configResponse.ok) {
           this.searchConfig = await configResponse.json();
+          this.applyThemeFonts();
           this.applySearchConfig();
           this.applySearchColors();
+        } else {
+          this.applyThemeFonts();
         }
       } catch {
-        // Theme defaults apply from CSS.
+        // Theme defaults apply from CSS / storefront fonts.
+        this.applyThemeFonts();
+      }
+    }
+
+    applyThemeFonts() {
+      const section =
+        this.root.closest(".gk-drobe-search-section") || this.root.parentElement;
+      const rootStyles = getComputedStyle(document.documentElement);
+      const bodyStyles = getComputedStyle(document.body);
+      const themeBodyFont =
+        rootStyles.getPropertyValue("--font-body-family").trim() ||
+        rootStyles.getPropertyValue("--font-body").trim() ||
+        bodyStyles.fontFamily;
+      const themeHeadingFont =
+        rootStyles.getPropertyValue("--font-heading-family").trim() ||
+        rootStyles.getPropertyValue("--font-heading").trim() ||
+        themeBodyFont;
+
+      const targets = [this.root];
+      if (section) {
+        targets.push(section);
+      }
+
+      targets.forEach((element) => {
+        if (themeBodyFont) {
+          element.style.setProperty("--gk-font-family", themeBodyFont);
+          element.style.fontFamily = themeBodyFont;
+        }
+        if (themeHeadingFont) {
+          element.style.setProperty("--gk-font-heading-family", themeHeadingFont);
+        }
+      });
+
+      const title = this.root.querySelector(".gk-drobe-search__title");
+      if (title && themeHeadingFont) {
+        title.style.fontFamily = themeHeadingFont;
       }
     }
 
@@ -317,7 +358,6 @@
       this.deliverySelect = this.root.querySelector("[data-gk-filter-delivery]");
       this.deliveryDateInput = this.root.querySelector("[data-gk-filter-delivery-date]");
       this.returnDateInput = this.root.querySelector("[data-gk-filter-return-date]");
-      this.sizeFilterInput = this.root.querySelector("[data-gk-filter-size]");
       this.refineButton = this.root.querySelector("[data-gk-refine-search]");
       this.resultsCount = this.root.querySelector("[data-gk-results-count]");
       this.resultsGrid = this.root.querySelector("[data-gk-results-grid]");
@@ -404,6 +444,10 @@
 
         this.products = data.products || [];
         this.filteredProducts = [...this.products];
+        this.availableSizes = Array.isArray(data.availableSizes)
+          ? data.availableSizes
+          : [];
+        this.preferredSize = data.size || params.size || "";
 
         if (this.deliveryDateInput) {
           this.deliveryDateInput.value = formatDisplayDate(data.deliveryDate);
@@ -411,11 +455,8 @@
         if (this.returnDateInput) {
           this.returnDateInput.value = formatDisplayDate(data.returnDate);
         }
-        if (this.sizeFilterInput) {
-          this.sizeFilterInput.value = data.size;
-        }
 
-        this.renderSidebar();
+        this.renderSidebar({ resetSizeSelection: true });
         this.renderResults();
       } catch (error) {
         this.showError(error.message);
@@ -426,50 +467,205 @@
       }
     }
 
-    renderSidebar() {
+    renderSidebar(options = {}) {
       if (!this.sidebarSizes || !this.sidebarDesigners || !this.sidebarColours) {
         return;
       }
 
-      const sizes = [...new Set(this.products.map((product) => product.availableSize))];
-      const designers = [...new Set(this.products.map((product) => product.vendor))].sort();
+      const resetSizeSelection = Boolean(options.resetSizeSelection);
+      const previousSizes = resetSizeSelection
+        ? []
+        : this.getCheckedFilterValues("filter-size");
+      const previousColours = this.getCheckedFilterValues("filter-colour");
+      const previousDesigners = this.getCheckedFilterValues("filter-designer");
+
+      const sizesFromProducts = this.products.flatMap(
+        (product) =>
+          product.availableSizes ||
+          (product.availableSize ? [product.availableSize] : []),
+      );
+      const sizes = [
+        ...new Set(
+          (this.availableSizes?.length ? this.availableSizes : sizesFromProducts).map(
+            String,
+          ),
+        ),
+      ]
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+      const colours = [
+        ...new Set(
+          this.products
+            .map((product) => product.colour)
+            .filter((colour) => Boolean(colour && String(colour).trim())),
+        ),
+      ].sort((a, b) => String(a).localeCompare(String(b)));
+      const designers = [...new Set(this.products.map((product) => product.vendor))]
+        .filter(Boolean)
+        .sort((a, b) => String(a).localeCompare(String(b)));
 
       this.sidebarSizes.innerHTML = "";
-      sizes.forEach((size) => {
-        const label = document.createElement("label");
-        label.innerHTML = `<input type="checkbox" checked data-filter-size="${size}"> ${size}`;
-        label.querySelector("input").addEventListener("change", () => this.applySidebarFilters());
-        this.sidebarSizes.appendChild(label);
-      });
+      if (sizes.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "gk-drobe-search__filter-empty";
+        empty.textContent = "No sizes available";
+        this.sidebarSizes.appendChild(empty);
+      } else {
+        const preferred = String(this.preferredSize || "").trim();
+        const preferredNorm = preferred.toLowerCase();
+        const hasPreferred = sizes.some(
+          (size) => String(size).toLowerCase() === preferredNorm,
+        );
+        const preserveSizes = sizes.some((size) =>
+          previousSizes.includes(String(size)),
+        );
 
-      this.sidebarDesigners.innerHTML = "";
-      designers.forEach((designer) => {
-        const label = document.createElement("label");
-        label.innerHTML = `<input type="checkbox" checked data-filter-designer="${designer}"> ${designer}`;
-        label.querySelector("input").addEventListener("change", () => this.applySidebarFilters());
-        this.sidebarDesigners.appendChild(label);
-      });
+        sizes.forEach((size) => {
+          let checked = true;
+          if (preserveSizes) {
+            checked = previousSizes.includes(String(size));
+          } else if (hasPreferred) {
+            // Reference behaviour: start with the searched size selected.
+            checked = String(size).toLowerCase() === preferredNorm;
+          }
+
+          this.sidebarSizes.appendChild(
+            this.createSidebarCheckbox({
+              label: String(size),
+              datasetKey: "filterSize",
+              datasetValue: String(size),
+              checked,
+            }),
+          );
+        });
+      }
 
       this.sidebarColours.innerHTML = "";
-      ["Black", "Blue", "Gold", "Green", "Pink"].forEach((colour) => {
-        const label = document.createElement("label");
-        label.innerHTML = `<input type="checkbox" checked disabled> ${colour}`;
-        this.sidebarColours.appendChild(label);
+      if (colours.length === 0) {
+        const empty = document.createElement("p");
+        empty.className = "gk-drobe-search__filter-empty";
+        empty.textContent = "No colours on these products";
+        this.sidebarColours.appendChild(empty);
+      } else {
+        const preserveColours = colours.some((colour) =>
+          previousColours.includes(String(colour)),
+        );
+        colours.forEach((colour) => {
+          const checked =
+            !preserveColours || previousColours.length === 0
+              ? true
+              : previousColours.includes(String(colour));
+          this.sidebarColours.appendChild(
+            this.createSidebarCheckbox({
+              label: String(colour),
+              datasetKey: "filterColour",
+              datasetValue: String(colour),
+              checked,
+            }),
+          );
+        });
+      }
+
+      this.sidebarDesigners.innerHTML = "";
+      const preserveDesigners = designers.some((designer) =>
+        previousDesigners.includes(String(designer)),
+      );
+      designers.forEach((designer) => {
+        const checked =
+          !preserveDesigners || previousDesigners.length === 0
+            ? true
+            : previousDesigners.includes(String(designer));
+        this.sidebarDesigners.appendChild(
+          this.createSidebarCheckbox({
+            label: String(designer),
+            datasetKey: "filterDesigner",
+            datasetValue: String(designer),
+            checked,
+          }),
+        );
+      });
+
+      this.applySidebarFilters();
+    }
+
+    createSidebarCheckbox({ label, datasetKey, datasetValue, checked }) {
+      const wrap = document.createElement("label");
+      wrap.className = "gk-drobe-search__check";
+
+      const input = document.createElement("input");
+      input.type = "checkbox";
+      input.className = "gk-drobe-search__check-input";
+      input.checked = checked;
+      input.dataset[datasetKey] = datasetValue;
+      input.addEventListener("change", () => this.applySidebarFilters());
+
+      const text = document.createElement("span");
+      text.className = "gk-drobe-search__check-label";
+      text.textContent = label;
+
+      wrap.appendChild(input);
+      wrap.appendChild(text);
+      return wrap;
+    }
+
+    getCheckedFilterValues(dataAttr) {
+      const selector =
+        dataAttr === "filter-size"
+          ? "[data-filter-size]:checked"
+          : dataAttr === "filter-colour"
+            ? "[data-filter-colour]:checked"
+            : "[data-filter-designer]:checked";
+      const root =
+        dataAttr === "filter-size"
+          ? this.sidebarSizes
+          : dataAttr === "filter-colour"
+            ? this.sidebarColours
+            : this.sidebarDesigners;
+      if (!root) {
+        return [];
+      }
+      return [...root.querySelectorAll(selector)].map((input) => {
+        if (dataAttr === "filter-size") return input.dataset.filterSize;
+        if (dataAttr === "filter-colour") return input.dataset.filterColour;
+        return input.dataset.filterDesigner;
       });
     }
 
     applySidebarFilters() {
-      if (!this.sidebarDesigners) {
-        return;
-      }
+      const activeSizes = this.getCheckedFilterValues("filter-size");
+      const activeColours = this.getCheckedFilterValues("filter-colour");
+      const activeDesigners = this.getCheckedFilterValues("filter-designer");
+      const hasColourFilters =
+        (this.sidebarColours?.querySelectorAll("[data-filter-colour]")?.length ||
+          0) > 0;
+      const hasSizeFilters =
+        (this.sidebarSizes?.querySelectorAll("[data-filter-size]")?.length || 0) >
+        0;
 
-      const activeDesigners = [...this.sidebarDesigners.querySelectorAll("input:checked")].map(
-        (input) => input.dataset.filterDesigner,
-      );
+      this.filteredProducts = this.products.filter((product) => {
+        const productSizes = (
+          product.availableSizes ||
+          (product.availableSize ? [product.availableSize] : [])
+        ).map(String);
 
-      this.filteredProducts = this.products.filter((product) =>
-        activeDesigners.includes(product.vendor),
-      );
+        const sizeOk = !hasSizeFilters
+          ? true
+          : activeSizes.length === 0
+            ? false
+            : productSizes.some((size) => activeSizes.includes(size));
+        const designerOk =
+          activeDesigners.length === 0 ||
+          activeDesigners.includes(String(product.vendor));
+        const colourOk = !hasColourFilters
+          ? true
+          : product.colour
+            ? activeColours.includes(String(product.colour))
+            : true;
+
+        return sizeOk && designerOk && colourOk;
+      });
+
       this.renderResults();
     }
 

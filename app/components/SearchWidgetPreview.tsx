@@ -101,7 +101,7 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
         <h1
           style={{
             margin: 0,
-            fontFamily: 'Georgia, "Times New Roman", serif',
+            fontFamily: "inherit",
             fontSize: titleSize,
             fontWeight: 400,
             lineHeight: 1.15,

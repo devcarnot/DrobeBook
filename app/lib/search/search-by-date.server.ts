@@ -16,7 +16,8 @@ import type { SearchConfig } from "../shop-config";
 export type SearchByDateParams = {
   shop: string;
   eventDate: string;
-  size: string;
+  /** Preferred size from the landing form — used to pre-select the sidebar filter. */
+  size?: string | null;
   durationDays: HireDurationDays;
   deliveryMethod?: "post" | "pickup";
   collectionHandle: string;
@@ -31,7 +32,11 @@ export type SearchProductResult = {
   imageUrl: string | null;
   priceFrom: string;
   availableVariantId: string;
+  /** Primary size (preferred match, else first available). */
   availableSize: string;
+  /** All sizes available for this event date. */
+  availableSizes: string[];
+  colour: string | null;
 };
 
 export type SearchByDateResult = {
@@ -40,6 +45,8 @@ export type SearchByDateResult = {
   returnDate: string;
   durationDays: number;
   size: string;
+  /** Unique sizes across all matching products (for sidebar). */
+  availableSizes: string[];
   products: SearchProductResult[];
   total: number;
 };
@@ -72,17 +79,47 @@ function normalizeSize(value: string): string {
   return value.trim().toLowerCase();
 }
 
-function variantMatchesSize(
+function extractVariantSize(
   variant: ShopifyProductNode["variants"]["nodes"][number],
-  size: string,
-): boolean {
-  const target = normalizeSize(size);
-  return variant.selectedOptions.some((option) => {
-    if (!/size/i.test(option.name)) {
-      return false;
-    }
-    return normalizeSize(option.value) === target;
-  });
+): string | null {
+  const option = variant.selectedOptions.find((entry) => /size/i.test(entry.name));
+  const value = option?.value?.trim();
+  return value || null;
+}
+
+function sortSizes(sizes: string[]): string[] {
+  return [...sizes].sort((a, b) =>
+    a.localeCompare(b, undefined, { numeric: true, sensitivity: "base" }),
+  );
+}
+
+function isColourOptionName(name: string): boolean {
+  return /^colou?rs?$/i.test(name.trim());
+}
+
+/** Prefer the matched variant's Color/Colour option; fall back to product option values. */
+export function extractProductColour(
+  product: Pick<ShopifyProductNode, "options">,
+  variant: Pick<ShopifyVariantNode, "selectedOptions">,
+): string | null {
+  const fromVariant = variant.selectedOptions.find((option) =>
+    isColourOptionName(option.name),
+  );
+  if (fromVariant?.value?.trim()) {
+    return fromVariant.value.trim();
+  }
+
+  const colourOption = product.options.find((option) =>
+    isColourOptionName(option.name),
+  );
+  const values = (colourOption?.values ?? [])
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (values.length === 1) {
+    return values[0];
+  }
+
+  return null;
 }
 
 function formatMoney(amount: string): string {
@@ -117,7 +154,8 @@ export async function searchProductsByDate(
       deliveryDate: formatDateIso(deliveryDate),
       returnDate: formatDateIso(returnDate),
       durationDays: params.durationDays,
-      size: params.size,
+      size: params.size?.trim() || "",
+      availableSizes: [],
       products: [],
       total: 0,
     };
@@ -204,15 +242,25 @@ export async function searchProductsByDate(
 
   const availabilityData = await loadShopAvailabilityData(params.shop);
   const results: SearchProductResult[] = [];
+  const preferredSize = params.size?.trim() || "";
 
   for (const product of products) {
-    const matchingVariants = product.variants.nodes.filter(
-      (variant: ShopifyVariantNode) =>
-        variant.availableForSale && variantMatchesSize(variant, params.size),
-    );
+    const productId = extractNumericId(product.id);
+    const availableBySize = new Map<
+      string,
+      { variant: ShopifyVariantNode; variantId: string }
+    >();
 
-    for (const variant of matchingVariants) {
-      const productId = extractNumericId(product.id);
+    for (const variant of product.variants.nodes) {
+      if (!variant.availableForSale) {
+        continue;
+      }
+
+      const sizeValue = extractVariantSize(variant);
+      if (!sizeValue) {
+        continue;
+      }
+
       const variantId = extractNumericId(variant.id);
       const availability = evaluateProductAvailability(
         {
@@ -238,26 +286,66 @@ export async function searchProductsByDate(
         continue;
       }
 
-      results.push({
-        id: extractNumericId(product.id),
-        title: product.title,
-        handle: product.handle,
-        vendor: product.vendor,
-        imageUrl: product.featuredImage?.url ?? null,
-        priceFrom: formatMoney(variant.price),
-        availableVariantId: extractNumericId(variant.id),
-        availableSize: params.size,
-      });
-      break;
+      if (!availableBySize.has(sizeValue)) {
+        availableBySize.set(sizeValue, { variant, variantId });
+      }
     }
+
+    if (availableBySize.size === 0) {
+      continue;
+    }
+
+    const availableSizes = sortSizes([...availableBySize.keys()]);
+
+    // Prefer the landing-form size when available; otherwise lowest priced available size.
+    let chosen: { variant: ShopifyVariantNode; variantId: string } | undefined;
+    if (preferredSize) {
+      for (const [size, entry] of availableBySize) {
+        if (normalizeSize(size) === normalizeSize(preferredSize)) {
+          chosen = entry;
+          break;
+        }
+      }
+    }
+    if (!chosen) {
+      chosen = [...availableBySize.values()].sort(
+        (a, b) =>
+          Number.parseFloat(a.variant.price) - Number.parseFloat(b.variant.price),
+      )[0];
+    }
+
+    if (!chosen) {
+      continue;
+    }
+
+    const chosenSize =
+      extractVariantSize(chosen.variant) ?? availableSizes[0] ?? preferredSize;
+
+    results.push({
+      id: productId,
+      title: product.title,
+      handle: product.handle,
+      vendor: product.vendor,
+      imageUrl: product.featuredImage?.url ?? null,
+      priceFrom: formatMoney(chosen.variant.price),
+      availableVariantId: chosen.variantId,
+      availableSize: chosenSize,
+      availableSizes,
+      colour: extractProductColour(product, chosen.variant),
+    });
   }
+
+  const availableSizes = sortSizes([
+    ...new Set(results.flatMap((product) => product.availableSizes)),
+  ]);
 
   return {
     eventDate: formatDateIso(eventDate),
     deliveryDate: formatDateIso(deliveryDate),
     returnDate: formatDateIso(returnDate),
     durationDays: params.durationDays,
-    size: params.size,
+    size: preferredSize,
+    availableSizes,
     products: results,
     total: results.length,
   };
