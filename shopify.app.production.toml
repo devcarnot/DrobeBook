@@ -1,0 +1,50 @@
+# DrobeBook — production config template for Railway.
+# After Railway gives you a public URL:
+#   1. Replace REPLACE_WITH_RAILWAY_URL below (no trailing slash)
+#   2. Run: npm run deploy -- --config shopify.app.production.toml
+#   3. Set SHOPIFY_APP_URL on Railway to the same origin
+
+client_id = "27d4e102059dee2122a57d3f1cc57057"
+name = "DrobeBook"
+application_url = "https://REPLACE_WITH_RAILWAY_URL/app"
+embedded = true
+
+[build]
+automatically_update_urls_on_dev = false
+
+[webhooks]
+api_version = "2025-10"
+
+  [[webhooks.subscriptions]]
+  uri = "/webhooks/app/uninstalled"
+  topics = ["app/uninstalled"]
+
+  [[webhooks.subscriptions]]
+  topics = ["app/scopes_update"]
+  uri = "/webhooks/app/scopes_update"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/create"]
+  uri = "/webhooks/orders/create"
+
+  [[webhooks.subscriptions]]
+  topics = ["orders/cancelled"]
+  uri = "/webhooks/orders/cancelled"
+
+  [[webhooks.subscriptions]]
+  topics = ["refunds/create"]
+  uri = "/webhooks/refunds/create"
+
+[access_scopes]
+scopes = "write_app_proxy,read_products,read_orders,write_orders,write_draft_orders,read_customers,write_customers,read_inventory,write_discounts"
+
+[auth]
+redirect_urls = [
+  "https://REPLACE_WITH_RAILWAY_URL/auth/callback",
+  "https://REPLACE_WITH_RAILWAY_URL/auth/shopify/callback",
+]
+
+[app_proxy]
+url = "/apps/gk-drobe"
+prefix = "apps"
+subpath = "gk-drobe"
