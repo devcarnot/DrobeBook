@@ -1,12 +1,7 @@
-# DrobeBook — production config template for Railway.
-# After Railway gives you a public URL:
-#   1. Replace REPLACE_WITH_RAILWAY_URL below (no trailing slash)
-#   2. Run: npm run deploy -- --config shopify.app.production.toml
-#   3. Set SHOPIFY_APP_URL on Railway to the same origin
-
+# DrobeBook — production config for Railway
 client_id = "27d4e102059dee2122a57d3f1cc57057"
 name = "DrobeBook"
-application_url = "https://REPLACE_WITH_RAILWAY_URL/app"
+application_url = "https://drobebook-production.up.railway.app/app"
 embedded = true
 
 [build]
@@ -40,8 +35,8 @@ scopes = "write_app_proxy,read_products,read_orders,write_orders,write_draft_ord
 
 [auth]
 redirect_urls = [
-  "https://REPLACE_WITH_RAILWAY_URL/auth/callback",
-  "https://REPLACE_WITH_RAILWAY_URL/auth/shopify/callback",
+  "https://drobebook-production.up.railway.app/auth/callback",
+  "https://drobebook-production.up.railway.app/auth/shopify/callback",
 ]
 
 [app_proxy]
