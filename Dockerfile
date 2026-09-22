@@ -1,12 +1,8 @@
 FROM node:22-alpine AS deps
 RUN apk add --no-cache openssl
 WORKDIR /app
-
-# Workspaces (extensions/*) must exist before `npm ci`
 COPY package.json package-lock.json* .npmrc* ./
-COPY extensions ./extensions
-
-RUN npm ci
+RUN npm install --no-audit --no-fund
 
 FROM node:22-alpine AS build
 RUN apk add --no-cache openssl
