@@ -1,10 +1,14 @@
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 RUN apk add --no-cache openssl
 WORKDIR /app
-COPY package.json package-lock.json* ./
+
+# Workspaces (extensions/*) must exist before `npm ci`
+COPY package.json package-lock.json* .npmrc* ./
+COPY extensions ./extensions
+
 RUN npm ci
 
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 RUN apk add --no-cache openssl
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
@@ -13,7 +17,7 @@ RUN npx prisma generate
 RUN npm run build
 RUN npm prune --omit=dev
 
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 RUN apk add --no-cache openssl
 WORKDIR /app
 ENV NODE_ENV=production
