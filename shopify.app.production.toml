@@ -1,5 +1,5 @@
 # DrobeBook — production config for Railway
-client_id = "27d4e102059dee2122a57d3f1cc57057"
+client_id = "5304540515ef529204bacd597f500688"
 name = "DrobeBook"
 application_url = "https://drobebook-production.up.railway.app/app"
 embedded = true

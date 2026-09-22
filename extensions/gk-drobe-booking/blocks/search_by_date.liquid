@@ -158,12 +158,14 @@
 </div>
 </div>
 
+<link rel="stylesheet" href="{{ 'search-by-date.css' | asset_url }}">
+<script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
+<script src="{{ 'search-by-date.js' | asset_url }}" defer></script>
+
 {% schema %}
 {
   "name": "GK.Drobe Search By Date",
   "target": "section",
-  "stylesheet": "search-by-date.css",
-  "javascript": "search-by-date.js",
   "settings": [
     {
       "type": "select",

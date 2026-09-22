@@ -111,15 +111,15 @@
     </div>
   </div>
 
+  <link rel="stylesheet" href="{{ 'try-on-widget.css' | asset_url }}">
   <script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
+  <script src="{{ 'try-on-widget.js' | asset_url }}" defer></script>
 {% endif %}
 
 {% schema %}
 {
   "name": "GK.Drobe Try-On",
   "target": "section",
-  "stylesheet": "try-on-widget.css",
-  "javascript": "try-on-widget.js",
   "settings": [
     {
       "type": "text",

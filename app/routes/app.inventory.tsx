@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -14,6 +15,8 @@ import {
 import { syncRecentOrderBookings } from "../lib/order-booking.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+
+const INVENTORY_PAGE_SIZE = 10;
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -55,13 +58,33 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const summary = await getInventorySummary(session.shop, garments);
 
+  const total = garments.length;
+  const totalPages = Math.max(1, Math.ceil(total / INVENTORY_PAGE_SIZE));
+  const requestedPage = Math.max(
+    1,
+    Number.parseInt(url.searchParams.get("page") ?? "1", 10) || 1,
+  );
+  const page = Math.min(requestedPage, totalPages);
+  const pageStart = total === 0 ? 0 : (page - 1) * INVENTORY_PAGE_SIZE + 1;
+  const pageEnd = Math.min(page * INVENTORY_PAGE_SIZE, total);
+  const paginatedGarments = garments.slice(
+    (page - 1) * INVENTORY_PAGE_SIZE,
+    page * INVENTORY_PAGE_SIZE,
+  );
+
   return {
-    garments,
+    garments: paginatedGarments,
     summary,
     syncSummary,
     search: search ?? "",
     sort,
     filter: filter ?? "",
+    total,
+    page,
+    pageSize: INVENTORY_PAGE_SIZE,
+    totalPages,
+    pageStart,
+    pageEnd,
   };
 };
 
@@ -133,12 +156,35 @@ export default function InventoryRoute() {
 }
 
 function InventoryListPage() {
-  const { garments, summary, syncSummary, search, sort, filter } =
-    useLoaderData<typeof loader>();
+  const {
+    garments,
+    summary,
+    syncSummary,
+    search,
+    sort,
+    filter,
+    total,
+    page,
+    totalPages,
+    pageStart,
+    pageEnd,
+  } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const isSyncing = navigation.state === "submitting";
+
+  const pageLinks = useMemo(() => {
+    const makeUrl = (nextPage: number) => {
+      const next = new URLSearchParams(searchParams);
+      next.set("page", String(nextPage));
+      return `/app/inventory?${next.toString()}`;
+    };
+    return {
+      prev: page > 1 ? makeUrl(page - 1) : null,
+      next: page < totalPages ? makeUrl(page + 1) : null,
+    };
+  }, [page, totalPages, searchParams]);
 
   return (
     <s-page heading="Inventory & Bookings" inlineSize="large">
@@ -177,7 +223,11 @@ function InventoryListPage() {
           <s-stack direction="block" gap="base">
             <div className="gk-inventory-toolbar">
               <span className="gk-inventory-toolbar__count">
-                {garments.length} garment{garments.length === 1 ? "" : "s"} in this view
+                {total === 0
+                  ? "No garments in this view"
+                  : totalPages > 1
+                    ? `Showing ${pageStart}–${pageEnd} of ${total} garments`
+                    : `${total} garment${total === 1 ? "" : "s"} in this view`}
               </span>
               <Form method="post">
                 <s-button
@@ -220,83 +270,107 @@ function InventoryListPage() {
         </s-box>
 
         <s-box padding="large" border="base" borderRadius="large" background="base">
-          {garments.length === 0 ? (
+          {total === 0 ? (
             <s-box padding="large" background="subdued" borderRadius="base">
               <s-text tone="neutral" color="subdued">
                 No garments match your search or filter.
               </s-text>
             </s-box>
           ) : (
-            <s-table variant="auto">
-              <s-table-header-row>
-                <s-table-header listSlot="primary">Garment</s-table-header>
-                <s-table-header listSlot="labeled">Size</s-table-header>
-                <s-table-header listSlot="labeled">Times rented</s-table-header>
-                <s-table-header listSlot="labeled">Revenue</s-table-header>
-                <s-table-header listSlot="labeled">Profit</s-table-header>
-                <s-table-header listSlot="labeled">Status</s-table-header>
-                <s-table-header listSlot="secondary">Next available</s-table-header>
-              </s-table-header-row>
-              <s-table-body>
-                {garments.map((garment) => (
-                  <s-table-row key={`${garment.productId}-${garment.variantId}`}>
-                    <s-table-cell>
-                      <Link
-                        to={`/app/inventory/detail?productId=${garment.productId}&variantId=${garment.variantId}&${searchParams.toString()}`}
-                        style={{ textDecoration: "none", color: "inherit" }}
-                      >
-                        <s-stack direction="inline" gap="base" alignItems="center">
-                          {garment.imageUrl ? (
-                            <img
-                              src={garment.imageUrl}
-                              alt=""
-                              width={44}
-                              height={44}
-                              style={{
-                                objectFit: "cover",
-                                borderRadius: "4px",
-                              }}
-                            />
-                          ) : (
-                            <s-box
-                              padding="small"
-                              background="subdued"
-                              borderRadius="base"
-                            >
-                              <s-text tone="neutral">—</s-text>
-                            </s-box>
-                          )}
-                          <s-stack direction="block" gap="small">
-                            <s-text type="strong">{garment.productTitle}</s-text>
-                            <s-text tone="neutral" color="subdued">
-                              {garment.variantTitle}
-                            </s-text>
+            <s-stack direction="block" gap="base">
+              <s-table variant="auto">
+                <s-table-header-row>
+                  <s-table-header listSlot="primary">Garment</s-table-header>
+                  <s-table-header listSlot="labeled">Size</s-table-header>
+                  <s-table-header listSlot="labeled">Times rented</s-table-header>
+                  <s-table-header listSlot="labeled">Revenue</s-table-header>
+                  <s-table-header listSlot="labeled">Profit</s-table-header>
+                  <s-table-header listSlot="labeled">Status</s-table-header>
+                  <s-table-header listSlot="secondary">Next available</s-table-header>
+                </s-table-header-row>
+                <s-table-body>
+                  {garments.map((garment) => (
+                    <s-table-row key={`${garment.productId}-${garment.variantId}`}>
+                      <s-table-cell>
+                        <Link
+                          to={`/app/inventory/detail?productId=${garment.productId}&variantId=${garment.variantId}&${searchParams.toString()}`}
+                          style={{ textDecoration: "none", color: "inherit" }}
+                        >
+                          <s-stack direction="inline" gap="base" alignItems="center">
+                            {garment.imageUrl ? (
+                              <img
+                                src={garment.imageUrl}
+                                alt=""
+                                width={44}
+                                height={44}
+                                style={{
+                                  objectFit: "cover",
+                                  borderRadius: "4px",
+                                }}
+                              />
+                            ) : (
+                              <s-box
+                                padding="small"
+                                background="subdued"
+                                borderRadius="base"
+                              >
+                                <s-text tone="neutral">—</s-text>
+                              </s-box>
+                            )}
+                            <s-stack direction="block" gap="small">
+                              <s-text type="strong">{garment.productTitle}</s-text>
+                              <s-text tone="neutral" color="subdued">
+                                {garment.variantTitle}
+                              </s-text>
+                            </s-stack>
                           </s-stack>
+                        </Link>
+                      </s-table-cell>
+                      <s-table-cell>{garment.sizeLabel}</s-table-cell>
+                      <s-table-cell>{garment.timesRented}</s-table-cell>
+                      <s-table-cell>{garment.revenueLabel}</s-table-cell>
+                      <s-table-cell>{garment.profitLabel}</s-table-cell>
+                      <s-table-cell>
+                        <s-stack direction="inline" gap="small">
+                          {garment.activeHold ? (
+                            <s-badge tone="warning">Try-on hold</s-badge>
+                          ) : (
+                            <s-text tone="neutral" color="subdued">
+                              —
+                            </s-text>
+                          )}
                         </s-stack>
-                      </Link>
-                    </s-table-cell>
-                    <s-table-cell>{garment.sizeLabel}</s-table-cell>
-                    <s-table-cell>{garment.timesRented}</s-table-cell>
-                    <s-table-cell>{garment.revenueLabel}</s-table-cell>
-                    <s-table-cell>{garment.profitLabel}</s-table-cell>
-                    <s-table-cell>
-                      <s-stack direction="inline" gap="small">
-                        {garment.activeHold ? (
-                          <s-badge tone="warning">Try-on hold</s-badge>
-                        ) : (
-                          <s-text tone="neutral" color="subdued">
-                            —
-                          </s-text>
-                        )}
-                      </s-stack>
-                    </s-table-cell>
-                    <s-table-cell>
-                      {formatDisplayDate(garment.nextAvailableDate)}
-                    </s-table-cell>
-                  </s-table-row>
-                ))}
-              </s-table-body>
-            </s-table>
+                      </s-table-cell>
+                      <s-table-cell>
+                        {formatDisplayDate(garment.nextAvailableDate)}
+                      </s-table-cell>
+                    </s-table-row>
+                  ))}
+                </s-table-body>
+              </s-table>
+
+              {totalPages > 1 ? (
+                <s-stack direction="inline" gap="base" alignItems="center">
+                  {pageLinks.prev ? (
+                    <Link to={pageLinks.prev}>
+                      <s-button>Previous</s-button>
+                    </Link>
+                  ) : (
+                    <s-button disabled>Previous</s-button>
+                  )}
+                  <s-text tone="neutral" color="subdued">
+                    Page {page} of {totalPages}
+                  </s-text>
+                  {pageLinks.next ? (
+                    <Link to={pageLinks.next}>
+                      <s-button>Next</s-button>
+                    </Link>
+                  ) : (
+                    <s-button disabled>Next</s-button>
+                  )}
+                </s-stack>
+              ) : null}
+            </s-stack>
           )}
         </s-box>
       </s-stack>
