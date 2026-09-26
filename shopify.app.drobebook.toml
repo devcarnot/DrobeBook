@@ -40,18 +40,6 @@ api_version = "2025-10"
   topics = ["refunds/create"]
   uri = "/webhooks/refunds/create"
 
-  [[webhooks.subscriptions]]
-  topics = ["customers/data_request"]
-  uri = "/webhooks/customers/data_request"
-
-  [[webhooks.subscriptions]]
-  topics = ["customers/redact"]
-  uri = "/webhooks/customers/redact"
-
-  [[webhooks.subscriptions]]
-  topics = ["shop/redact"]
-  uri = "/webhooks/shop/redact"
-
 [app_proxy]
 url = "https://drobebook-production.up.railway.app/apps/gk-drobe"
 subpath = "gk-drobe"
