@@ -139,6 +139,31 @@ Kind regards,
     active: true,
   }),
   template({
+    id: "try-on-confirmed",
+    name: "Try-on appointment confirmed",
+    category: "try_on_confirmed",
+    deliveryMethods: ["post", "pickup", "local"],
+    channel: "email",
+    subject: "Your try-on appointment with {{shopName}}",
+    body: `Hello {{customerFirstName}},
+
+Your try-on appointment is confirmed.
+
+Date: {{appointmentDate}}
+Time: {{appointmentTime}}
+Duration: {{appointmentDuration}} minutes
+{{products}}
+
+We look forward to seeing you.
+
+Kind regards,
+{{shopName}}`,
+    automated: true,
+    trigger: "on_appointment_confirm",
+    offsetDays: 0,
+    active: true,
+  }),
+  template({
     id: "waitlist-available",
     name: "Waitlist availability",
     category: "waitlist_available",

@@ -10,9 +10,9 @@ type RefundWebhookPayload = {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
-  const payload = (await request.json()) as RefundWebhookPayload;
-  const orderId = payload.order_id ? String(payload.order_id) : null;
+  const { shop, topic, payload } = await authenticate.webhook(request);
+  const refundPayload = payload as RefundWebhookPayload;
+  const orderId = refundPayload.order_id ? String(refundPayload.order_id) : null;
 
   if (!orderId) {
     return new Response();

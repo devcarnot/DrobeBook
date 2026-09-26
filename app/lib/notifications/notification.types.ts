@@ -19,6 +19,7 @@ export type NotificationTrigger =
   | "on_end_date"
   | "days_after_end"
   | "on_waitlist_notify"
+  | "on_appointment_confirm"
   | "manual";
 
 export type NotificationTemplate = {
@@ -70,6 +71,16 @@ export type WaitlistNotificationContext = {
   claimUrl?: string | null;
 };
 
+export type AppointmentNotificationContext = {
+  appointmentId: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  appointmentDate: string;
+  appointmentTime: string;
+  durationMinutes: number;
+  itemsToTryOn: string | null;
+};
+
 export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> = {
   rental_created: "Rental created / confirmation",
   rental_start: "Rental start information",
@@ -90,6 +101,7 @@ export const NOTIFICATION_TRIGGER_LABELS: Record<NotificationTrigger, string> = 
   on_end_date: "On rental end date",
   days_after_end: "Days after rental end",
   on_waitlist_notify: "When waitlist customer is notified",
+  on_appointment_confirm: "When try-on appointment is confirmed",
   manual: "Manual send only",
 };
 
@@ -109,4 +121,7 @@ export const NOTIFICATION_TOKENS = [
   { token: "{{returnTrackingLink}}", description: "Return tracking link" },
   { token: "{{shopName}}", description: "Your store name" },
   { token: "{{claimUrl}}", description: "Waitlist claim link (waitlist only)" },
+  { token: "{{appointmentDate}}", description: "Try-on appointment date" },
+  { token: "{{appointmentTime}}", description: "Try-on appointment time" },
+  { token: "{{appointmentDuration}}", description: "Try-on duration in minutes" },
 ] as const;

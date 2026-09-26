@@ -16,11 +16,13 @@ function wasSkipped(result: TemplateSendResult) {
   return "skipped" in result && result.skipped;
 }
 import {
+  buildAppointmentTokenMap,
   buildRentalTokenMap,
   buildWaitlistTokenMap,
   renderNotificationEmail,
 } from "./notification-render";
 import type {
+  AppointmentNotificationContext,
   NotificationDeliveryMethod,
   NotificationTemplate,
   NotificationTrigger,
@@ -363,6 +365,59 @@ export async function sendWaitlistNotification(
   }
 
   return { sent, skipped: templates.length - sent };
+}
+
+export async function sendAppointmentNotification(
+  shop: string,
+  context: AppointmentNotificationContext,
+) {
+  const config = await getNotificationsConfig(shop);
+  const email = context.customerEmail?.trim().toLowerCase();
+  if (!email) {
+    return { sent: 0, skipped: 1 };
+  }
+
+  const tokens = buildAppointmentTokenMap(
+    context,
+    config.fromName || shopDisplayName(shop),
+  );
+  const templates = config.templates.filter(
+    (template) =>
+      template.trigger === "on_appointment_confirm" && template.active,
+  );
+
+  let sent = 0;
+  for (const template of templates) {
+    const result = await sendTemplateEmail(shop, config, template, email, tokens, {
+      bookingId: context.appointmentId,
+      anchorDate: context.appointmentDate,
+    });
+    if (result.ok && !wasSkipped(result)) {
+      sent += 1;
+    }
+  }
+
+  return { sent, skipped: templates.length - sent };
+}
+
+export function appointmentBookingToNotificationContext(booking: {
+  id: string;
+  customerName: string | null;
+  customerEmail: string | null;
+  date: Date;
+  time: string;
+  durationMinutes: number;
+  itemsToTryOn: string | null;
+}): AppointmentNotificationContext {
+  return {
+    appointmentId: booking.id,
+    customerName: booking.customerName,
+    customerEmail: booking.customerEmail,
+    appointmentDate: formatIsoDate(booking.date),
+    appointmentTime: booking.time,
+    durationMinutes: booking.durationMinutes,
+    itemsToTryOn: booking.itemsToTryOn,
+  };
 }
 
 function anchorDateForTemplate(

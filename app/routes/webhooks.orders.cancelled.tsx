@@ -7,9 +7,9 @@ import type { OrderWebhookPayload } from "../lib/order-booking.server";
 import { authenticate, unauthenticated } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
-  const payload = (await request.json()) as OrderWebhookPayload;
-  const orderId = payload.id ? String(payload.id) : null;
+  const { shop, topic, payload } = await authenticate.webhook(request);
+  const orderPayload = payload as OrderWebhookPayload;
+  const orderId = orderPayload.id ? String(orderPayload.id) : null;
 
   if (!orderId) {
     return new Response();

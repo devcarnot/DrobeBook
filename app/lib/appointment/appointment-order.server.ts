@@ -10,6 +10,10 @@ import {
   getChangeRoomIds,
 } from "./change-rooms";
 import { appointmentOccupiesSlot } from "./slots";
+import {
+  appointmentBookingToNotificationContext,
+  sendAppointmentNotification,
+} from "../notifications/notification.server";
 
 function getLineProperty(
   properties: OrderLineItem["properties"],
@@ -130,6 +134,7 @@ export async function confirmAppointmentFromOrder(
   shop: string,
   orderId: string,
   lineItem: OrderLineItem,
+  customer?: { email?: string | null; name?: string | null },
 ): Promise<{ created: boolean; appointmentId: string } | null> {
   const parsed = parseAppointmentLineItem(lineItem);
   if (!parsed) {
@@ -171,6 +176,8 @@ export async function confirmAppointmentFromOrder(
         time: parsed.time,
         durationMinutes: parsed.durationMinutes,
         changeRoomId,
+        customerEmail: customer?.email?.trim() || null,
+        customerName: customer?.name?.trim() || null,
       },
     });
 
@@ -209,6 +216,15 @@ export async function confirmAppointmentFromOrder(
     });
   });
 
+  const booking = await prisma.appointmentBooking.findUniqueOrThrow({
+    where: { id: parsed.appointmentId },
+  });
+
+  void sendAppointmentNotification(
+    shop,
+    appointmentBookingToNotificationContext(booking),
+  ).catch(() => undefined);
+
   return { created: true, appointmentId: parsed.appointmentId };
 }
 
@@ -216,6 +232,7 @@ export async function processOrderAppointments(
   shop: string,
   orderId: string,
   lineItems: OrderLineItem[],
+  customer?: { email?: string | null; name?: string | null },
 ): Promise<{ confirmed: number; skipped: number }> {
   let confirmed = 0;
   let skipped = 0;
@@ -225,7 +242,12 @@ export async function processOrderAppointments(
       continue;
     }
 
-    const result = await confirmAppointmentFromOrder(shop, orderId, lineItem);
+    const result = await confirmAppointmentFromOrder(
+      shop,
+      orderId,
+      lineItem,
+      customer,
+    );
     if (result) {
       confirmed += result.created ? 1 : 0;
       skipped += result.created ? 0 : 1;

@@ -9,24 +9,26 @@ import {
 import { authenticate, unauthenticated } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { shop, topic } = await authenticate.webhook(request);
+  const { shop, topic, payload } = await authenticate.webhook(request);
 
-  const payload = (await request.json()) as OrderWebhookPayload;
-  const orderId = payload.id ? String(payload.id) : null;
+  const orderPayload = payload as OrderWebhookPayload;
+  const orderId = orderPayload.id ? String(orderPayload.id) : null;
 
   if (!orderId) {
     console.warn(`Received ${topic} webhook for ${shop} without order id`);
     return new Response();
   }
 
-  const lineItems = payload.line_items ?? [];
+  const lineItems = orderPayload.line_items ?? [];
   const bookings = await processOrderBookings(
     shop,
     orderId,
     lineItems,
-    payload.email,
+    orderPayload.email,
   );
-  const appointments = await processOrderAppointments(shop, orderId, lineItems);
+  const appointments = await processOrderAppointments(shop, orderId, lineItems, {
+    email: orderPayload.email,
+  });
 
   let creditsIssued = 0;
   try {
@@ -35,8 +37,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       admin,
       shop,
       orderId,
-      payload.email,
-      payload.financial_status,
+      orderPayload.email,
+      orderPayload.financial_status,
       lineItems,
     );
     creditsIssued = credits.issued;

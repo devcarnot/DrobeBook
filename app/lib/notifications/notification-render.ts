@@ -1,4 +1,5 @@
 import type {
+  AppointmentNotificationContext,
   RentalNotificationContext,
   WaitlistNotificationContext,
 } from "./notification.types";
@@ -80,6 +81,35 @@ export function buildRentalTokenMap(
     returnTrackingLink: context.returnTrackingLink ?? "",
     shopName,
     claimUrl: "",
+  };
+}
+
+export function buildAppointmentTokenMap(
+  context: AppointmentNotificationContext,
+  shopName: string,
+) {
+  const { firstName, lastName } = splitCustomerName(context.customerName);
+  const products = context.itemsToTryOn?.trim() || "Try-on appointment";
+
+  return {
+    customerFirstName: firstName,
+    customerLastName: lastName,
+    customerName: context.customerName?.trim() || firstName,
+    customerEmail: context.customerEmail ?? "",
+    rentalStartDate: "",
+    rentalEndDate: "",
+    eventDate: "",
+    products,
+    rentalStatus: "",
+    shopifyOrderNumber: "",
+    rentalCreatedAt: "",
+    trackingLink: "",
+    returnTrackingLink: "",
+    shopName,
+    claimUrl: "",
+    appointmentDate: formatDisplayDate(context.appointmentDate),
+    appointmentTime: context.appointmentTime,
+    appointmentDuration: String(context.durationMinutes),
   };
 }
 

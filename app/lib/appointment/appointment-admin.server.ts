@@ -7,6 +7,10 @@ import {
 } from "./change-rooms";
 import { parseDisplayDate } from "../order-booking.server";
 import { appointmentOccupiesSlot } from "./slots";
+import {
+  appointmentBookingToNotificationContext,
+  sendAppointmentNotification,
+} from "../notifications/notification.server";
 
 export type AdminAppointmentBookingInput = {
   shop: string;
@@ -156,6 +160,15 @@ export async function createAdminAppointmentBooking(
       },
     });
   });
+
+  const booking = await prisma.appointmentBooking.findUniqueOrThrow({
+    where: { id: appointmentId },
+  });
+
+  void sendAppointmentNotification(
+    input.shop,
+    appointmentBookingToNotificationContext(booking),
+  ).catch(() => undefined);
 
   return { appointmentId };
 }

@@ -13,5 +13,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await db.session.deleteMany({ where: { shop } });
   }
 
+  // Shop data is removed when Shopify sends shop/redact (mandatory compliance webhook).
+
   return new Response();
 };
