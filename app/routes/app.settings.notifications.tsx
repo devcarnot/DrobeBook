@@ -52,7 +52,16 @@ import { authenticate } from "../shopify.server";
 
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
-
+function readFieldValue(event: {
+  currentTarget: { value?: string } | null;
+  target?: EventTarget | null;
+}) {
+  return (
+    event.currentTarget?.value ??
+    (event.target as HTMLInputElement | null)?.value ??
+    ""
+  );
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
 
@@ -321,15 +330,10 @@ export default function NotificationSettingsPage() {
                     value={draft.fromName}
 
                     onChange={(event) =>
-
                       setDraft((current) => ({
-
                         ...current,
-
-                        fromName: event.currentTarget.value,
-
+                        fromName: readFieldValue(event),
                       }))
-
                     }
 
                   />
@@ -340,20 +344,15 @@ export default function NotificationSettingsPage() {
 
                     name="fromEmail"
 
-                    value={draft.fromEmail}
+                    value={draft.fromEmail ?? ""}
 
                     placeholder={defaultFromEmail || "notifications@yourdomain.com"}
 
                     onChange={(event) =>
-
                       setDraft((current) => ({
-
                         ...current,
-
-                        fromEmail: event.currentTarget.value,
-
+                        fromEmail: readFieldValue(event),
                       }))
-
                     }
 
                   />
@@ -371,15 +370,10 @@ export default function NotificationSettingsPage() {
                   value={draft.replyToEmail}
 
                   onChange={(event) =>
-
                     setDraft((current) => ({
-
                       ...current,
-
-                      replyToEmail: event.currentTarget.value,
-
+                      replyToEmail: readFieldValue(event),
                     }))
-
                   }
 
                 />

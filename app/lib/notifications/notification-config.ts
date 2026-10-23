@@ -31,10 +31,17 @@ function mergeTemplates(templates: NotificationTemplate[] | undefined) {
 export function normalizeNotificationsConfig(
   config: Partial<NotificationsConfig> | undefined,
 ): NotificationsConfig {
-  return {
+  const merged = {
     ...DEFAULT_NOTIFICATIONS_CONFIG,
     ...(config ?? {}),
     templates: mergeTemplates(config?.templates),
+  };
+
+  return {
+    ...merged,
+    fromName: String(merged.fromName ?? DEFAULT_NOTIFICATIONS_CONFIG.fromName),
+    fromEmail: String(merged.fromEmail ?? ""),
+    replyToEmail: String(merged.replyToEmail ?? ""),
   };
 }
 
