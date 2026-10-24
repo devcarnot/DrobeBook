@@ -143,6 +143,13 @@ function buildTriggerKey(input: {
   ].join(":");
 }
 
+function manualResendAnchorDate() {
+  if (typeof crypto !== "undefined" && crypto.randomUUID) {
+    return `manual:${crypto.randomUUID()}`;
+  }
+  return `manual:${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 async function recordNotificationSend(input: {
   shop: string;
   templateId: string;
@@ -177,7 +184,13 @@ async function sendTemplateEmail(
   template: NotificationTemplate,
   recipientEmail: string,
   tokens: Record<string, string>,
-  meta: { bookingId?: string; anchorDate?: string; ignoreGlobalDisabled?: boolean },
+  meta: {
+    bookingId?: string;
+    anchorDate?: string;
+    ignoreGlobalDisabled?: boolean;
+    /** Admin picked a template — always deliver, do not dedupe against automated sends. */
+    allowResend?: boolean;
+  },
 ): Promise<TemplateSendResult> {
   if (!template.active) {
     return { ok: false, skipped: true };
@@ -187,19 +200,25 @@ async function sendTemplateEmail(
     return { ok: false, skipped: true };
   }
 
+  const anchorDate = meta.allowResend
+    ? manualResendAnchorDate()
+    : meta.anchorDate;
+
   const triggerKey = buildTriggerKey({
     shop,
     templateId: template.id,
     bookingId: meta.bookingId,
     email: recipientEmail,
-    anchorDate: meta.anchorDate,
+    anchorDate,
   });
 
-  const existing = await prisma.notificationSend.findUnique({
-    where: { triggerKey },
-  });
-  if (existing) {
-    return { ok: true, skipped: true };
+  if (!meta.allowResend) {
+    const existing = await prisma.notificationSend.findUnique({
+      where: { triggerKey },
+    });
+    if (existing && existing.status !== "failed") {
+      return { ok: true, skipped: true };
+    }
   }
 
   const { subject, bodyHtml, bodyText } = renderNotificationEmail(
@@ -304,6 +323,7 @@ export async function sendRentalNotification(
       bookingId: context.bookingId,
       anchorDate: options.anchorDate,
       ignoreGlobalDisabled: Boolean(options.templateId),
+      allowResend: Boolean(options.templateId),
     });
 
     if (wasSkipped(result)) {
@@ -327,7 +347,9 @@ export async function sendRentalNotification(
       skipped: templatesToSend.length,
       error:
         lastError ??
-        "Email was not sent. Check that the template is active and notification settings are enabled.",
+        (options.templateId
+          ? "Email was not sent. Check Resend logs or notification settings."
+          : "Email was not sent. Check that the template is active and notification settings are enabled."),
     };
   }
 

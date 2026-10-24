@@ -875,6 +875,13 @@
   font-weight: 550;
 }
 
+.gk-detail-email-history__error {
+  flex-basis: 100%;
+  color: #b42318;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 @media (max-width: 768px) {
   .gk-detail-timeline,
   .gk-detail-row {

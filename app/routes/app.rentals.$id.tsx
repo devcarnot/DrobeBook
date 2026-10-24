@@ -371,13 +371,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 
   const result = await sendRentalNotification(session.shop, context, {
-
     trigger: "manual",
-
     templateId,
-
-    anchorDate: `manual-${Date.now()}`,
-
   });
 
 
@@ -835,6 +830,9 @@ export default function RentalDetailPage() {
                   <span>{formatSentAt(send.createdAt)}</span>
 
                   <span>{send.status}</span>
+                  {send.status === "failed" && send.error ? (
+                    <span className="gk-detail-email-history__error">{send.error}</span>
+                  ) : null}
 
                 </div>
 

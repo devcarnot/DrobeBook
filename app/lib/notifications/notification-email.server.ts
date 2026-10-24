@@ -16,6 +16,14 @@ export type SendEmailResult = {
   warning?: string;
 };
 
+function isValidEmailAddress(value: string | undefined) {
+  const email = value?.trim();
+  if (!email) {
+    return false;
+  }
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
 export function isUsableResendKey(apiKey: string | undefined) {
   if (!apiKey) {
     return false;
@@ -111,7 +119,7 @@ export async function sendNotificationEmail(
         subject: input.subject,
         html: input.bodyHtml,
         text: input.bodyText,
-        reply_to: input.replyTo?.trim() || undefined,
+        reply_to: isValidEmailAddress(input.replyTo) ? input.replyTo!.trim() : undefined,
       }),
     });
 
