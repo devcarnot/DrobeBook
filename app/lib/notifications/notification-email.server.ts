@@ -24,6 +24,42 @@ function isValidEmailAddress(value: string | undefined) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/** Resend requires a verified custom domain — not Gmail/Yahoo/etc. */
+const BLOCKED_FROM_DOMAINS = new Set([
+  "gmail.com",
+  "googlemail.com",
+  "yahoo.com",
+  "yahoo.com.au",
+  "hotmail.com",
+  "outlook.com",
+  "live.com",
+  "icloud.com",
+  "me.com",
+  "aol.com",
+  "proton.me",
+  "protonmail.com",
+]);
+
+function emailDomain(address: string) {
+  return address.split("@")[1]?.trim().toLowerCase() ?? "";
+}
+
+/** Pick a From address Resend can send from (admin custom domain or Railway env). */
+export function resolveDeliverableFromEmail(adminFromEmail: string | undefined) {
+  const envFrom = process.env.NOTIFICATION_FROM_EMAIL?.trim() ?? "";
+  const admin = adminFromEmail?.trim() ?? "";
+
+  if (admin && isValidEmailAddress(admin) && !BLOCKED_FROM_DOMAINS.has(emailDomain(admin))) {
+    return admin;
+  }
+
+  if (envFrom && isValidEmailAddress(envFrom)) {
+    return envFrom;
+  }
+
+  return admin || envFrom;
+}
+
 export function isUsableResendKey(apiKey: string | undefined) {
   if (!apiKey) {
     return false;
@@ -68,7 +104,7 @@ function logEmailPreview(
 }
 
 function resolveFromAddress(fromName: string, fromEmail: string, shop: string) {
-  const email = fromEmail.trim() || process.env.NOTIFICATION_FROM_EMAIL?.trim() || "";
+  const email = resolveDeliverableFromEmail(fromEmail);
   if (!email) {
     return {
       from: `"${fromName || "GK.Drobe"}" <notifications@${shop.replace(/\.myshopify\.com$/i, "")}.gk-drobe.local>`,
@@ -104,7 +140,15 @@ export async function sendNotificationEmail(
     );
   }
 
-  const fromEmail = input.fromEmail.trim() || process.env.NOTIFICATION_FROM_EMAIL!.trim();
+  const fromEmail = resolveDeliverableFromEmail(input.fromEmail);
+  if (!isValidEmailAddress(fromEmail)) {
+    return {
+      ok: false,
+      provider: "resend",
+      error:
+        "Missing a valid From email. Use notifications@your-verified-domain.com in Notifications or NOTIFICATION_FROM_EMAIL on the server.",
+    };
+  }
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
