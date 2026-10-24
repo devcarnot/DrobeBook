@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import prisma from "../../db.server";
 import type { OrderLineItem } from "../order-booking.server";
 import { sendNotificationEmail } from "../notifications/notification-email.server";
+import { renderBrandedEmailFromText } from "../notifications/notification-render";
 import { getShopConfig } from "../shop-settings.server";
 import {
   isAppointmentLineItem,
@@ -186,10 +187,10 @@ function buildCreditEmail(input: {
     timeZone: "UTC",
   });
 
-  const subject = `Your ${input.amount} gown hire credit from ${input.shopName}`;
+  const subject = `Your $${input.amount} gown hire credit from ${input.shopName}`;
   const bodyText = `Thanks for your try-on appointment with ${input.shopName}.
 
-Your single-use hire credit code is: ${input.discountCode}
+Credit code: ${input.discountCode}
 Value: $${input.amount} off your next gown hire
 Expires: ${expiryLabel}
 
@@ -198,12 +199,14 @@ Enter this code at checkout when booking a gown hire. The code is tied to your c
 Kind regards,
 ${input.shopName}`;
 
-  const bodyHtml = bodyText
-    .split("\n\n")
-    .map((paragraph) => `<p>${paragraph.replace(/\n/g, "<br />")}</p>`)
-    .join("");
-
-  return { subject, bodyText, bodyHtml };
+  return {
+    subject,
+    ...renderBrandedEmailFromText({
+      shopName: input.shopName,
+      subject,
+      bodyText,
+    }),
+  };
 }
 
 async function sendTryOnCreditEmail(
@@ -214,7 +217,9 @@ async function sendTryOnCreditEmail(
   expiresAt: Date,
 ) {
   const shopConfig = await getShopConfig(shop);
-  const shopName = shop.replace(/\.myshopify\.com$/i, "");
+  const shopName =
+    shopConfig.notifications.fromName?.trim() ||
+    shop.replace(/\.myshopify\.com$/i, "").replace(/[-_]/g, " ");
   const emailContent = buildCreditEmail({
     discountCode,
     amount: amount.toFixed(2),

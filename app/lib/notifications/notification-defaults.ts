@@ -79,7 +79,9 @@ Kind regards,
     subject: "Your rental is confirmed",
     body: `Hello {{customerFirstName}},
 
-Your rental is confirmed for {{products}}.
+Your rental is confirmed — we can't wait for you to wear your gown.
+
+{{products}}
 
 Delivery date: {{rentalStartDate}}
 Return date: {{rentalEndDate}}
@@ -103,7 +105,7 @@ Kind regards,
     subject: "Your rental is on its way",
     body: `Hi {{customerFirstName}},
 
-Your rental has been dispatched.
+Your rental is on its way.
 
 {{products}}
 

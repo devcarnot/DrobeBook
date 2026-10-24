@@ -47,6 +47,32 @@ describe("renderNotificationEmail", () => {
 
     expect(rendered.subject).toBe("Hello Alex");
     expect(rendered.bodyText).toContain("Silk Gown · Size 10");
-    expect(rendered.bodyHtml).toContain("<br>");
+    expect(rendered.bodyHtml).toContain("<!DOCTYPE html>");
+    expect(rendered.bodyHtml).toContain("GK Drobe");
+    expect(rendered.bodyHtml).toContain("Silk Gown · Size 10");
+  });
+
+  it("uses a friendly first name when only an email address is stored", () => {
+    const tokens = buildRentalTokenMap(
+      {
+        bookingId: "b1",
+        customerName: "dev.carnot@gmail.com",
+        customerEmail: "dev.carnot@gmail.com",
+        productTitle: "Gown",
+        size: "10",
+        rentalStart: "2026-09-15",
+        rentalEnd: "2026-09-20",
+        eventDate: "2026-09-18",
+        rentalStatus: "confirmed",
+        deliveryMethod: "post",
+        shopifyOrderNumber: "1001",
+        rentalCreatedAt: "2026-09-01T10:00:00.000Z",
+        fulfillmentTrackingLink: null,
+        returnTrackingLink: null,
+      },
+      "GK Drobe",
+    );
+
+    expect(tokens.customerFirstName).toBe("Dev Carnot");
   });
 });

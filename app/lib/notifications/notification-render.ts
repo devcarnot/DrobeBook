@@ -3,6 +3,10 @@ import type {
   RentalNotificationContext,
   WaitlistNotificationContext,
 } from "./notification.types";
+import {
+  bodyTextToStructuredHtml,
+  wrapNotificationEmailHtml,
+} from "./notification-email-layout";
 
 function splitCustomerName(name: string | null | undefined) {
   const parts = String(name ?? "")
@@ -14,6 +18,28 @@ function splitCustomerName(name: string | null | undefined) {
     firstName: parts[0] ?? "there",
     lastName: parts.slice(1).join(" "),
   };
+}
+
+function deriveCustomerFirstName(
+  name: string | null | undefined,
+  email: string | null | undefined,
+) {
+  const trimmed = name?.trim();
+  if (trimmed && !trimmed.includes("@")) {
+    return splitCustomerName(trimmed).firstName;
+  }
+
+  const local = email?.split("@")[0]?.trim();
+  if (local) {
+    const words = local.split(/[._-]+/).filter(Boolean);
+    if (words.length) {
+      return words
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+        .join(" ");
+    }
+  }
+
+  return "there";
 }
 
 function formatDisplayDate(iso: string | null | undefined) {
@@ -60,7 +86,11 @@ export function buildRentalTokenMap(
   context: RentalNotificationContext,
   shopName: string,
 ) {
-  const { firstName, lastName } = splitCustomerName(context.customerName);
+  const firstName = deriveCustomerFirstName(
+    context.customerName,
+    context.customerEmail,
+  );
+  const { lastName } = splitCustomerName(context.customerName);
   const products = [context.productTitle, context.size ? `Size ${context.size}` : ""]
     .filter(Boolean)
     .join(" · ");
@@ -88,7 +118,11 @@ export function buildAppointmentTokenMap(
   context: AppointmentNotificationContext,
   shopName: string,
 ) {
-  const { firstName, lastName } = splitCustomerName(context.customerName);
+  const firstName = deriveCustomerFirstName(
+    context.customerName,
+    context.customerEmail,
+  );
+  const { lastName } = splitCustomerName(context.customerName);
   const products = context.itemsToTryOn?.trim() || "Try-on appointment";
 
   return {
@@ -152,7 +186,32 @@ export function renderNotificationEmail(
 ) {
   const subject = renderNotificationTemplate(subjectTemplate, tokens).trim();
   const bodyText = renderNotificationTemplate(bodyTemplate, tokens).trim();
-  const bodyHtml = `<div style="font-family:Arial,sans-serif;line-height:1.5;color:#111">${textToHtml(bodyText)}</div>`;
+  const shopName = tokens.shopName?.trim() || "GK Drobe";
+  const bodyInnerHtml = bodyTextToStructuredHtml(bodyText);
+  const bodyHtml = wrapNotificationEmailHtml({
+    shopName,
+    subject,
+    bodyInnerHtml,
+    preheader: bodyText.split("\n").find((line) => line.trim()) ?? subject,
+  });
 
   return { subject, bodyText, bodyHtml };
+}
+
+/** Branded HTML wrapper for non-template emails (e.g. try-on credit). */
+export function renderBrandedEmailFromText(input: {
+  shopName: string;
+  subject: string;
+  bodyText: string;
+}) {
+  const bodyInnerHtml = bodyTextToStructuredHtml(input.bodyText.trim());
+  return {
+    bodyText: input.bodyText.trim(),
+    bodyHtml: wrapNotificationEmailHtml({
+      shopName: input.shopName,
+      subject: input.subject,
+      bodyInnerHtml,
+      preheader: input.bodyText.split("\n").find((line) => line.trim()) ?? input.subject,
+    }),
+  };
 }
