@@ -1,5 +1,4 @@
-# DrobeBook — GK.Drobe booking app
-# Client store app (same as shopify.app.drobebook.toml)
+# DrobeBook — GK.Drobe booking app (dev / CLI default config)
 client_id = "5304540515ef529204bacd597f500688"
 name = "DrobeBook"
 application_url = "https://drobebook-production.up.railway.app/app"

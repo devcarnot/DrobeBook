@@ -24,8 +24,8 @@ app/
 extensions/
   gk-drobe-booking/ Theme app extension (storefront widgets)
 prisma/             Schema + migrations (PostgreSQL)
-shopify.app.toml    Dev Shopify config (CLI updates URLs)
-shopify.app.production.toml  Production URLs (Railway)
+shopify.app.toml              Dev Shopify config (CLI updates URLs)
+shopify.app.production.toml   Production URLs (Railway)
 railway.toml        Railway deploy config
 Dockerfile          Multi-stage production build
 ```
@@ -176,7 +176,7 @@ Add in theme editor (Online Store → Customize):
 ## Git / deploy
 
 - **GitHub:** `devcarnot/DrobeBook`
-- **Shopify app:** DrobeBook (`27d4e102059dee2122a57d3f1cc57057`)
+- **Shopify app:** DrobeBook (`5304540515ef529204bacd597f500688`)
 - **Latest production release:** `drobebook-5` (theme extension + Railway URLs)
 
 ## Scripts

@@ -193,15 +193,3 @@ export async function resetOnboardingGuide(shop: string): Promise<OnboardingConf
   return onboarding;
 }
 
-/** @deprecated Use getDashboardPageData */
-export async function getDashboardStats(shop: string): Promise<DashboardStats> {
-  const data = await getDashboardPageData(shop);
-  return {
-    bookingCount: data.bookingCount,
-    upcomingBookingCount: data.upcomingBookingCount,
-    blockedDateCount: data.blockedDateCount,
-    hasSavedSettings: data.hasSavedSettings,
-    damageProtectionConfigured: data.damageProtectionConfigured,
-    widgetTextsCustomized: data.widgetTextsCustomized,
-  };
-}
