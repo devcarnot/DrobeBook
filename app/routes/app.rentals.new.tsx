@@ -101,6 +101,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   const shopifyCustomerId = String(formData.get("shopifyCustomerId") ?? "").trim();
   const customerEmail = String(formData.get("customerEmail") ?? "").trim();
+  const customerFirstName = String(formData.get("customerFirstName") ?? "").trim();
+  const customerLastName = String(formData.get("customerLastName") ?? "").trim();
+  const customerName =
+    [customerFirstName, customerLastName].filter(Boolean).join(" ") ||
+    String(formData.get("customerName") ?? "").trim();
+
   if (!shopifyCustomerId || !customerEmail) {
     return { ok: false, message: "Select a Shopify customer before creating the rental." };
   }
@@ -125,7 +131,9 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       {
       shopifyOrderMode: String(formData.get("shopifyOrderMode") ?? "none") as ShopifyOrderMode,
       shopifyCustomerId: String(formData.get("shopifyCustomerId") ?? "") || null,
-      customerName: String(formData.get("customerName") ?? ""),
+      customerFirstName,
+      customerLastName,
+      customerName,
       customerEmail: String(formData.get("customerEmail") ?? ""),
       productId,
       variantId,
@@ -190,6 +198,8 @@ export default function NewRentalPage() {
 
   const [customer, setCustomer] = useState<SelectedRentalCustomer>({
     shopifyCustomerId: null,
+    firstName: "",
+    lastName: "",
     name: "",
     email: "",
     source: "manual",

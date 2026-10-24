@@ -317,6 +317,8 @@ export async function getRentalFilterOptions(shop: string) {
 export type CreateRentalInput = {
   shopifyOrderMode: ShopifyOrderMode;
   shopifyCustomerId?: string | null;
+  customerFirstName: string;
+  customerLastName: string;
   customerName: string;
   customerEmail: string;
   productId: string;
@@ -392,6 +394,8 @@ export async function createRental(
       shopifyCustomerId: input.shopifyCustomerId,
       email: input.customerEmail,
       name: input.customerName,
+      firstName: input.customerFirstName,
+      lastName: input.customerLastName,
     });
 
     if (input.shopifyOrderMode !== "none") {

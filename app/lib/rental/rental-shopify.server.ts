@@ -41,6 +41,24 @@ const CUSTOMERS_BY_EMAIL_QUERY = `#graphql
   }
 `;
 
+const CUSTOMER_UPDATE_MUTATION = `#graphql
+  mutation RentalCustomerUpdate($input: CustomerInput!) {
+    customerUpdate(input: $input) {
+      customer {
+        id
+        legacyResourceId
+        displayName
+        firstName
+        lastName
+      }
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const CUSTOMER_CREATE_MUTATION = `#graphql
   mutation RentalCustomerCreate($input: CustomerInput!) {
     customerCreate(input: $input) {
@@ -111,6 +129,18 @@ const ORDER_CREATE_MUTATION = `#graphql
   }
 `;
 
+export function resolveOrderCustomerNames(input: CreateRentalInput) {
+  const first = input.customerFirstName?.trim();
+  const last = input.customerLastName?.trim();
+  if (first || last) {
+    return {
+      firstName: first || "Customer",
+      lastName: last || "",
+    };
+  }
+  return splitCustomerName(input.customerName);
+}
+
 function splitCustomerName(name: string | null | undefined) {
   const trimmed = name?.trim() ?? "";
   if (!trimmed) {
@@ -169,18 +199,30 @@ function buildLineItemAttributes(input: CreateRentalInput, bookingId: string) {
   ];
 }
 
-function buildShippingAddress(address: DeliveryAddress) {
-  if (!address.address1?.trim()) {
+function buildMailingAddress(
+  input: CreateRentalInput,
+  address: DeliveryAddress,
+) {
+  const { firstName, lastName } = resolveOrderCustomerNames(input);
+  const hasStreet = Boolean(address.address1?.trim());
+
+  if (!hasStreet && !firstName && !lastName) {
     return undefined;
   }
 
   return {
-    address1: address.address1,
-    address2: address.address2 || undefined,
-    city: address.city || undefined,
-    province: address.province || undefined,
-    zip: address.zip || undefined,
-    country: address.country || undefined,
+    firstName,
+    lastName: lastName || undefined,
+    ...(hasStreet
+      ? {
+          address1: address.address1,
+          address2: address.address2 || undefined,
+          city: address.city || undefined,
+          province: address.province || undefined,
+          zip: address.zip || undefined,
+          country: address.country || undefined,
+        }
+      : {}),
   };
 }
 
@@ -201,6 +243,39 @@ async function fetchVariantPrice(
   }
 
   return json.data?.productVariant?.price ?? null;
+}
+
+async function syncShopifyCustomerNames(
+  admin: AdminGraphqlClient,
+  customerId: string,
+  firstName: string,
+  lastName: string,
+) {
+  const trimmedFirst = firstName.trim();
+  const trimmedLast = lastName.trim();
+  if (!trimmedFirst && !trimmedLast) {
+    return;
+  }
+
+  const response = await admin.graphql(CUSTOMER_UPDATE_MUTATION, {
+    variables: {
+      input: {
+        id: customerId,
+        firstName: trimmedFirst || undefined,
+        lastName: trimmedLast || undefined,
+      },
+    },
+  });
+  const json = (await response.json()) as {
+    data?: { customerUpdate?: { userErrors?: Array<{ message?: string }> } };
+    errors?: Array<{ message?: string }>;
+  };
+
+  parseGraphqlErrors(
+    "Customer update failed",
+    json.errors,
+    json.data?.customerUpdate?.userErrors,
+  );
 }
 
 async function resolvePricePaid(
@@ -243,19 +318,30 @@ export async function resolveShopifyCustomer(
     shopifyCustomerId?: string | null;
     email?: string | null;
     name?: string | null;
+    firstName?: string | null;
+    lastName?: string | null;
   },
 ): Promise<ResolvedShopifyCustomer | null> {
   const email = input.email?.trim().toLowerCase();
   const shopifyCustomerId = input.shopifyCustomerId?.trim();
+  const firstName = input.firstName?.trim() ?? "";
+  const lastName = input.lastName?.trim() ?? "";
+  const displayFromParts = [firstName, lastName].filter(Boolean).join(" ");
 
   if (shopifyCustomerId) {
+    const customerId = shopifyCustomerId.startsWith("gid://")
+      ? shopifyCustomerId
+      : `gid://shopify/Customer/${extractNumericId(shopifyCustomerId)}`;
+
+    if (firstName || lastName) {
+      await syncShopifyCustomerNames(admin, customerId, firstName, lastName);
+    }
+
     return {
-      customerId: shopifyCustomerId.startsWith("gid://")
-        ? shopifyCustomerId
-        : `gid://shopify/Customer/${extractNumericId(shopifyCustomerId)}`,
+      customerId,
       legacyCustomerId: extractNumericId(shopifyCustomerId),
       email: email ?? null,
-      displayName: input.name?.trim() || null,
+      displayName: displayFromParts || input.name?.trim() || null,
     };
   }
 
@@ -294,13 +380,16 @@ export async function resolveShopifyCustomer(
     };
   }
 
-  const { firstName, lastName } = splitCustomerName(input.name);
+  const fromParts =
+    firstName || lastName
+      ? { firstName: firstName || "Customer", lastName }
+      : splitCustomerName(input.name);
   const createResponse = await admin.graphql(CUSTOMER_CREATE_MUTATION, {
     variables: {
       input: {
         email,
-        firstName,
-        lastName: lastName || undefined,
+        firstName: fromParts.firstName,
+        lastName: fromParts.lastName || undefined,
       },
     },
   });
@@ -350,7 +439,7 @@ export async function createShopifyOrderForRental(
 ): Promise<ShopifyRentalOrderResult> {
   const pricePaid = await resolvePricePaid(admin, input);
   const lineItemAttributes = buildLineItemAttributes(input, bookingId);
-  const shippingAddress = buildShippingAddress(input.deliveryAddress);
+  const shippingAddress = buildMailingAddress(input, input.deliveryAddress);
   const note = [
     input.rentalNotes?.trim(),
     `Manual rental ${bookingId}`,
@@ -511,6 +600,13 @@ export function validateShopifyOrderRequirements(input: CreateRentalInput) {
   if (!input.customerEmail?.trim() && !input.shopifyCustomerId?.trim()) {
     throw new Error(
       "Choose a Shopify customer or enter an email before creating a Shopify order.",
+    );
+  }
+
+  const { firstName } = resolveOrderCustomerNames(input);
+  if (!firstName.trim() || firstName === "Customer") {
+    throw new Error(
+      "Enter the customer's first name (and last name) so the Shopify order shows their name, not only email.",
     );
   }
 }

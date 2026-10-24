@@ -11,6 +11,8 @@ export type RentalCustomerOption = {
   id: string;
   legacyId: string;
   name: string;
+  firstName: string;
+  lastName: string;
   email: string;
 };
 
@@ -76,10 +78,14 @@ function mapCustomerNode(customer: {
   }
 
   const legacyId = customer.legacyResourceId ?? customer.id.split("/").pop()!;
+  const firstName = customer.firstName?.trim() ?? "";
+  const lastName = customer.lastName?.trim() ?? "";
   return {
     id: customer.id,
     legacyId,
     name: formatCustomerName(customer) || "Customer",
+    firstName,
+    lastName,
     email: extractCustomerEmail(customer),
   };
 }

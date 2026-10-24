@@ -26,11 +26,15 @@ export type CheckAvailabilityParams = {
   now?: Date;
 };
 
-export type AvailabilityData = {
+export type AvailabilityEvaluateData = {
   bufferConfig: Awaited<ReturnType<typeof getShopBufferConfig>>;
   holidays: ReadonlySet<string>;
   bookings: BookingRecord[];
   blockedDates: BlockedDateRecord[];
+  inventoryQuantity?: number;
+};
+
+export type AvailabilityData = AvailabilityEvaluateData & {
   inventoryQuantity: number;
 };
 
@@ -38,7 +42,7 @@ export function normalizeShopifyResourceId(value: string): string {
   return extractNumericId(String(value ?? "").trim());
 }
 
-export type ShopAvailabilityData = AvailabilityData & {
+export type ShopAvailabilityData = AvailabilityEvaluateData & {
   bookingsByVariant: Map<string, BookingRecord[]>;
 };
 
@@ -110,7 +114,7 @@ function blockedDatesForVariant(
 
 export function evaluateProductAvailability(
   params: CheckAvailabilityParams,
-  data: AvailabilityData,
+  data: AvailabilityEvaluateData,
 ): AvailabilityResult {
   const deliveryMethod = params.deliveryMethod ?? "post";
 

@@ -3,13 +3,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 
 import type { RentalCustomerOption } from "../lib/rental/rental-customers.server";
+import { ResponsiveGrid } from "./ResponsiveGrid";
 
 export type SelectedRentalCustomer = {
   shopifyCustomerId: string | null;
+  firstName: string;
+  lastName: string;
   name: string;
   email: string;
   source: "shopify" | "manual";
 };
+
+function fullNameFromParts(firstName: string, lastName: string) {
+  return [firstName.trim(), lastName.trim()].filter(Boolean).join(" ");
+}
 
 type CustomerSearchResponse = {
   customers?: RentalCustomerOption[];
@@ -51,9 +58,17 @@ function applyCustomer(
     throw new Error("That Shopify customer does not have an email address.");
   }
 
+  const firstName = customer.firstName || customer.name.split(/\s+/)[0] || "";
+  const lastName =
+    customer.lastName ||
+    customer.name.split(/\s+/).slice(1).join(" ") ||
+    "";
+
   onChange({
     shopifyCustomerId: customer.legacyId,
-    name: customer.name,
+    firstName,
+    lastName,
+    name: fullNameFromParts(firstName, lastName) || customer.name,
     email: customer.email,
     source: "shopify",
   });
@@ -175,9 +190,22 @@ export function RentalCustomerPicker({
     submitCustomerSearch(searchQuery);
   }
 
+  function updateNameField(field: "firstName" | "lastName", value: string) {
+    const firstName = field === "firstName" ? value : selection.firstName;
+    const lastName = field === "lastName" ? value : selection.lastName;
+    onChange({
+      ...selection,
+      firstName,
+      lastName,
+      name: fullNameFromParts(firstName, lastName),
+    });
+  }
+
   function clearCustomer() {
     onChange({
       shopifyCustomerId: null,
+      firstName: "",
+      lastName: "",
       name: "",
       email: "",
       source: "manual",
@@ -196,30 +224,49 @@ export function RentalCustomerPicker({
       ) : null}
 
       {hasCustomer ? (
-        <s-box padding="base" background="subdued" border="base" borderRadius="base">
-          <s-stack direction="block" gap="small-100">
-            <s-text type="strong">{selection.name || "Customer"}</s-text>
-            <s-text tone="neutral" color="subdued">
-              {selection.email || "No email"}
-              {selection.source === "shopify" && selection.shopifyCustomerId
-                ? ` · Shopify customer ${selection.shopifyCustomerId}`
-                : ""}
-            </s-text>
-            <s-stack direction="inline" gap="small">
-              <s-button
-                type="button"
-                variant="secondary"
-                onClick={openCustomerPicker}
-                {...(isLoading ? { loading: true } : {})}
-              >
-                Change customer
-              </s-button>
-              <s-button type="button" variant="tertiary" tone="critical" onClick={clearCustomer}>
-                Clear
-              </s-button>
+        <s-stack direction="block" gap="base">
+          <s-box padding="base" background="subdued" border="base" borderRadius="base">
+            <s-stack direction="block" gap="small-100">
+              <s-text tone="neutral" color="subdued">
+                {selection.email || "No email"}
+                {selection.source === "shopify" && selection.shopifyCustomerId
+                  ? ` · Shopify customer ${selection.shopifyCustomerId}`
+                  : ""}
+              </s-text>
+              <s-stack direction="inline" gap="small">
+                <s-button
+                  type="button"
+                  variant="secondary"
+                  onClick={openCustomerPicker}
+                  {...(isLoading ? { loading: true } : {})}
+                >
+                  Change customer
+                </s-button>
+                <s-button type="button" variant="tertiary" tone="critical" onClick={clearCustomer}>
+                  Clear
+                </s-button>
+              </s-stack>
             </s-stack>
-          </s-stack>
-        </s-box>
+          </s-box>
+          <div className="gk-rental-form__group">
+            <span className="gk-rental-form__group-label">Name on Shopify order</span>
+            <ResponsiveGrid layout="2" gap="base" alignItems="start">
+              <s-text-field
+                label="First name"
+                name="customerFirstName"
+                value={selection.firstName}
+                required
+                onChange={(event) => updateNameField("firstName", readFieldValue(event))}
+              />
+              <s-text-field
+                label="Last name"
+                name="customerLastName"
+                value={selection.lastName}
+                onChange={(event) => updateNameField("lastName", readFieldValue(event))}
+              />
+            </ResponsiveGrid>
+          </div>
+        </s-stack>
       ) : (
         <s-stack direction="inline" gap="small" alignItems="end">
           <div style={{ flex: 1, minWidth: 0 }}>
