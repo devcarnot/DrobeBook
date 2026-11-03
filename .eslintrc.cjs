@@ -50,6 +50,8 @@ module.exports = {
       },
       rules: {
         "react/no-unknown-property": ["error", { ignore: ["variant"] }],
+        // Valid for React Router: sync local draft state when loader data changes.
+        "react-hooks/set-state-in-effect": "off",
       },
     },
 

@@ -5,7 +5,7 @@ import {
   parseCalendarMonth,
   parseDeliveryMethod,
   parseHireDuration,
-} from "../lib/booking/availability-calendar.server";
+} from "../lib/booking";
 import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {

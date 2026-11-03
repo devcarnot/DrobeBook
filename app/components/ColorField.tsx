@@ -1,5 +1,3 @@
-import type { CSSProperties } from "react";
-
 import type { WidgetColorScheme } from "../lib/widget-colors";
 
 export function ColorField({

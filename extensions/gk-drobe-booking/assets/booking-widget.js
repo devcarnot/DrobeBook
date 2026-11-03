@@ -909,15 +909,14 @@
         this.showError(error.message);
         this.state.unavailableDates = new Set();
       } finally {
-        if (requestId !== this.calendarRequestId) {
-          return;
+        if (requestId === this.calendarRequestId) {
+          this.state.loadingCalendar = false;
+          if (this.loadingEl) {
+            this.loadingEl.hidden = true;
+          }
+          this.updateWaitlistVisibility();
+          this.renderCalendar();
         }
-        this.state.loadingCalendar = false;
-        if (this.loadingEl) {
-          this.loadingEl.hidden = true;
-        }
-        this.updateWaitlistVisibility();
-        this.renderCalendar();
       }
     }
 

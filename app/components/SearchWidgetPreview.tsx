@@ -1,10 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import {
-  SEARCH_LAYOUT_FIELDS,
-  searchLayoutToCssVariables,
-  type SearchLayoutSettings,
-} from "../lib/search-layout";
+import { searchLayoutToCssVariables } from "../lib/search-layout";
 import type { SearchConfig } from "../lib/shop-config";
 import { searchColorsToCssVariables } from "../lib/search-colors";
 

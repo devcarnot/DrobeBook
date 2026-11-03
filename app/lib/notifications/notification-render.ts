@@ -70,18 +70,6 @@ function formatCreatedAt(iso: string | null | undefined) {
   });
 }
 
-function escapeHtml(value: string) {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
-}
-
-function textToHtml(value: string) {
-  return escapeHtml(value).replace(/\n/g, "<br>\n");
-}
-
 export function buildRentalTokenMap(
   context: RentalNotificationContext,
   shopName: string,

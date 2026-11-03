@@ -103,6 +103,7 @@ export type GarmentWaitlistEntry = {
   status: string;
   notifiedAt: string | null;
   claimExpiresAt: string | null;
+  claimIsActive: boolean;
   createdAt: string;
 };
 
@@ -716,6 +717,9 @@ export async function getGarmentDetail(
       status: entry.status,
       notifiedAt: entry.notifiedAt?.toISOString() ?? null,
       claimExpiresAt: entry.claimExpiresAt?.toISOString() ?? null,
+      claimIsActive: Boolean(
+        entry.claimExpiresAt && entry.claimExpiresAt.getTime() > Date.now(),
+      ),
       createdAt: entry.createdAt.toISOString(),
     })),
     bookings: bookings.map((booking) => ({

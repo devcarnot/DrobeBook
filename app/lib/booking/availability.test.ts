@@ -160,7 +160,6 @@ describe("booking availability rules", () => {
   });
 
   it("greys out storefront delivery dates when a try-on hold overlaps the hire window", () => {
-    const deliveryDate = d("2026-04-10");
     const durationDays = 4 as const;
     const blockedDates = [
       {

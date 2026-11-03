@@ -221,8 +221,7 @@ export default function WaitlistPage() {
                       ) : null}
                       <s-text tone="neutral" color="subdued">
                         Submitted {formatDateTime(entry.createdAt)}
-                        {entry.claimExpiresAt &&
-                        entry.claimExpiresAt.getTime() > Date.now()
+                        {entry.claimIsActive && entry.claimExpiresAt
                           ? ` · Priority access until ${formatDateTime(entry.claimExpiresAt)}`
                           : entry.notifiedAt
                             ? ` · Notified ${formatDateTime(entry.notifiedAt)}`

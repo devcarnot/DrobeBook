@@ -313,6 +313,7 @@ export default function NotificationEditPage() {
                       type="checkbox"
                       name="automated"
                       value="true"
+                      aria-label="Activate automated schedule"
                       checked={draft.automated}
                       onChange={(event) =>
                         setDraft((current) => ({
@@ -336,6 +337,7 @@ export default function NotificationEditPage() {
                       type="checkbox"
                       name="active"
                       value="true"
+                      aria-label="Template active"
                       checked={draft.active}
                       onChange={(event) =>
                         setDraft((current) => ({

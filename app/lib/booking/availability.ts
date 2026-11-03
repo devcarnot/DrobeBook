@@ -1,5 +1,4 @@
-import type { BufferDayUnit } from "./buffer-config";
-import type { BufferConfig, DeliveryMethod } from "./buffer-config";
+import type { BufferConfig, BufferDayUnit, DeliveryMethod } from "./buffer-config";
 import {
   effectiveRangeForBooking,
   effectiveRangeForRequest,

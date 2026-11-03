@@ -293,6 +293,8 @@ export default function NotificationSettingsPage() {
 
                     value="true"
 
+                    aria-label="Enable automated notifications"
+
                     checked={draft.enabled}
 
                     onChange={(event) =>

@@ -570,8 +570,7 @@ export default function InventoryDetailPage() {
                           : "—"}
                       </s-table-cell>
                       <s-table-cell>
-                        {entry.claimExpiresAt &&
-                        new Date(entry.claimExpiresAt).getTime() > Date.now()
+                        {entry.claimIsActive && entry.claimExpiresAt
                           ? `Until ${formatDisplayDate(entry.claimExpiresAt.slice(0, 10))}`
                           : entry.notifiedAt
                             ? "Notified"

@@ -54,6 +54,8 @@ export type WaitlistEntryView = {
   status: WaitlistStatus;
   notifiedAt: Date | null;
   claimExpiresAt: Date | null;
+  /** Server-evaluated at load time — use instead of Date.now() in React render. */
+  claimIsActive: boolean;
   claimStorefrontUrl: string | null;
   createdAt: Date;
   adminProductUrl: string;
@@ -320,6 +322,9 @@ export async function getWaitlistPageData(
       status: entry.status as WaitlistStatus,
       notifiedAt: entry.notifiedAt,
       claimExpiresAt: entry.claimExpiresAt,
+      claimIsActive: Boolean(
+        entry.claimExpiresAt && entry.claimExpiresAt.getTime() > Date.now(),
+      ),
       claimStorefrontUrl,
       createdAt: entry.createdAt,
       adminProductUrl: shopifyAdminProductUrl(shop, productId),

@@ -65,23 +65,6 @@ function parseEnumField<T extends string>(
   return allowed.includes(normalized) ? normalized : fallback;
 }
 
-function parseBooleanField(
-  value: FormDataEntryValue | null,
-  fallback: boolean,
-): boolean {
-  if (value == null) {
-    return fallback;
-  }
-  const normalized = String(value).trim().toLowerCase();
-  if (normalized === "true" || normalized === "1" || normalized === "on") {
-    return true;
-  }
-  if (normalized === "false" || normalized === "0" || normalized === "off") {
-    return false;
-  }
-  return fallback;
-}
-
 export function parseSearchLayout(
   raw: Partial<SearchLayoutSettings> | null | undefined,
 ): SearchLayoutSettings {

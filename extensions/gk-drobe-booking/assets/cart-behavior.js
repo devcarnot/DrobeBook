@@ -406,16 +406,6 @@
     return false;
   }
 
-  async function refreshCartCountFromServer() {
-    const cart = await fetchCart();
-    try {
-      await refreshCartSections();
-    } catch {
-      updateCartCount(cart.item_count);
-    }
-    return cart;
-  }
-
   function removeRowsForKeys(keys) {
     keys.forEach((key) => {
       const marker = document.querySelector(

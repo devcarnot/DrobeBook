@@ -9,7 +9,6 @@ import {
   Link,
   useLoaderData,
   useNavigate,
-  useNavigation,
   useOutlet,
   useSearchParams,
 } from "react-router";
@@ -36,7 +35,6 @@ import {
   type RentalDatePreset,
   type RentalListItem,
   type RentalListSort,
-  type RentalListView,
   type RentalWorkflowStatus,
 } from "../lib/rental/rental.types";
 import { authenticate } from "../shopify.server";
@@ -308,7 +306,6 @@ export default function RentalsRoute() {
 
 function RentalsListPage() {
   const data = useLoaderData<typeof loader>();
-  const navigation = useNavigation();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [searchInput, setSearchInput] = useState(data.filters.search);

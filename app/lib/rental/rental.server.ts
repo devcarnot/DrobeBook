@@ -257,7 +257,6 @@ export async function listRentals(shop: string, filters: RentalListFilters = {})
     }),
   ]);
 
-  const dateField = filters.dateField ?? "dateCreated";
   const preset = filters.datePreset ?? "last3Months";
   const dateRange = resolveDatePresetRange(
     preset,

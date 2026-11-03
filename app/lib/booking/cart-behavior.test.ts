@@ -5,8 +5,6 @@ import {
   LINKED_BOOKING_ID_KEY,
   buildMainDescriptor,
   findOrphanedProtectionKeys,
-  getBookingDuration,
-  getBookingSize,
   looksLikeVariantSummary,
 } from "./cart-behavior";
 

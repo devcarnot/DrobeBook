@@ -1,19 +1,10 @@
-import {
-  formatDateIso,
-  isProductVariantAvailable,
-  type HireDurationDays,
-} from "./availability";
+import { formatDateIso, type HireDurationDays } from "./availability";
 import { getEarliestDeliveryDate, meetsDeliveryLeadTime } from "./buffer";
-import {
-  getBufferDefaultsForMethod,
-  parseDeliveryMethod,
-  type DeliveryMethod,
-} from "./buffer-config";
+import { getBufferDefaultsForMethod, type DeliveryMethod } from "./buffer-config";
 import {
   evaluateProductAvailability,
   loadVariantAvailabilityData,
   normalizeShopifyResourceId,
-  parseHireDuration,
 } from "./availability.server";
 
 export type CalendarAvailabilityParams = {
@@ -128,8 +119,3 @@ export function parseCalendarMonth(
   return { year, month };
 }
 
-export {
-  parseHireDuration,
-  parseDeliveryMethod,
-  isProductVariantAvailable,
-};
