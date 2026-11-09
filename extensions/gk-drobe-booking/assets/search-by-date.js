@@ -1,4 +1,21 @@
 (() => {
+  const FILTER_MOBILE_MQ = window.matchMedia("(max-width: 900px)");
+
+  async function readJsonResponse(response) {
+    const text = await response.text();
+    const trimmed = text.trim();
+    if (trimmed.startsWith("<")) {
+      throw new Error(
+        "Search could not reach DrobeBook (store returned a web page instead of data). Check that the app is installed and the GK.Drobe app proxy is enabled.",
+      );
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error("Search returned an invalid response. Try again in a moment.");
+    }
+  }
+
   function formatDisplayDate(iso) {
     if (!iso) return "";
     const date = new Date(`${iso}T12:00:00.000Z`);
@@ -42,7 +59,7 @@
         const configResponse = await fetch(`${this.proxyBase}/api/search-config`);
 
         if (configResponse.ok) {
-          this.searchConfig = await configResponse.json();
+          this.searchConfig = await readJsonResponse(configResponse);
           this.applyThemeFonts();
           this.applySearchConfig();
           this.applySearchColors();
@@ -186,6 +203,7 @@
       if (this.facetBar) {
         this.facetBar.hidden = false;
       }
+      this.syncFilterDrawerForViewport();
     }
 
     applySearchColors() {
@@ -363,10 +381,14 @@
       this.returnDateInput = this.root.querySelector("[data-gk-filter-return-date]");
       this.refineButton = this.root.querySelector("[data-gk-refine-search]");
       this.resultsCount = this.root.querySelector("[data-gk-results-count]");
+      this.resultsCountMobile = this.root.querySelector(
+        "[data-gk-results-count-mobile]",
+      );
       this.resultsGrid = this.root.querySelector("[data-gk-results-grid]");
       this.resultsLoading = this.root.querySelector("[data-gk-results-loading]");
       this.resultsEmpty = this.root.querySelector("[data-gk-results-empty]");
       this.sortSelect = this.root.querySelector("[data-gk-sort]");
+      this.sortSelectMobile = this.root.querySelector("[data-gk-sort-mobile]");
       this.sidebarSizes = this.root.querySelector("[data-gk-sidebar-sizes]");
       this.sidebarColours = this.root.querySelector("[data-gk-sidebar-colours]");
       this.sidebarDesigners = this.root.querySelector("[data-gk-sidebar-designers]");
@@ -374,7 +396,7 @@
       this.filterDrawer = this.root.querySelector("[data-gk-filter-drawer]");
       this.filterPanel = this.root.querySelector(".gk-drobe-search__filter-panel");
       this.filterBackdrop = this.root.querySelector("[data-gk-filter-backdrop]");
-      this.filtersOpenButton = this.root.querySelector("[data-gk-filters-open]");
+      this.filtersOpenButtons = this.root.querySelectorAll("[data-gk-filters-open]");
       this.filtersCloseButtons = this.root.querySelectorAll("[data-gk-filters-close]");
       this.drawerCount = this.root.querySelector("[data-gk-drawer-count]");
       this.errorEl = this.root.querySelector("[data-gk-error]");
@@ -401,9 +423,20 @@
         this.updateBrowserUrl();
         this.runSearch();
       });
-      this.sortSelect?.addEventListener("change", () => this.renderResults());
+      const syncSortFrom = (source, target) => {
+        source?.addEventListener("change", () => {
+          if (target && target !== source) {
+            target.value = source.value;
+          }
+          this.renderResults();
+        });
+      };
+      syncSortFrom(this.sortSelect, this.sortSelectMobile);
+      syncSortFrom(this.sortSelectMobile, this.sortSelect);
 
-      this.filtersOpenButton?.addEventListener("click", () => this.openFilterDrawer());
+      this.filtersOpenButtons?.forEach((button) => {
+        button.addEventListener("click", () => this.openFilterDrawer());
+      });
       this.filterBackdrop?.addEventListener("click", () => this.closeFilterDrawer());
       this.filtersCloseButtons?.forEach((button) => {
         button.addEventListener("click", () => this.closeFilterDrawer());
@@ -413,33 +446,83 @@
           this.closeFilterDrawer();
         }
       });
+
+      const onViewportChange = () => this.syncFilterDrawerForViewport();
+      if (typeof FILTER_MOBILE_MQ.addEventListener === "function") {
+        FILTER_MOBILE_MQ.addEventListener("change", onViewportChange);
+      } else {
+        FILTER_MOBILE_MQ.addListener(onViewportChange);
+      }
+      window.addEventListener("resize", onViewportChange);
+      this.syncFilterDrawerForViewport();
+    }
+
+    isMobileFilters() {
+      return FILTER_MOBILE_MQ.matches;
     }
 
     isFilterDrawerOpen() {
-      return Boolean(this.filterDrawer && !this.filterDrawer.hidden);
+      return Boolean(
+        this.filterDrawer && !this.filterDrawer.hidden && this.isMobileFilters(),
+      );
+    }
+
+    syncFilterDrawerForViewport() {
+      if (!this.filterDrawer || !this.filterPanel) {
+        return;
+      }
+      if (this.isMobileFilters()) {
+        if (!this.isFilterDrawerOpen()) {
+          this.filterDrawer.hidden = true;
+          this.filterPanel.setAttribute("aria-hidden", "true");
+        }
+        this.filterPanel.setAttribute("role", "dialog");
+        this.filterPanel.setAttribute("aria-modal", "true");
+      } else {
+        this.filterDrawer.hidden = false;
+        this.filterPanel.setAttribute("aria-hidden", "false");
+        this.filterPanel.removeAttribute("role");
+        this.filterPanel.removeAttribute("aria-modal");
+        document.documentElement.classList.remove("gk-search-drawer-open");
+        this.filtersOpenButtons?.forEach((button) => {
+          button.setAttribute("aria-expanded", "false");
+        });
+      }
     }
 
     openFilterDrawer() {
-      if (!this.filterDrawer || !this.filterPanel) {
+      if (!this.isMobileFilters() || !this.filterDrawer || !this.filterPanel) {
         return;
       }
       this.filterDrawer.hidden = false;
       this.filterPanel.setAttribute("aria-hidden", "false");
-      this.filtersOpenButton?.setAttribute("aria-expanded", "true");
+      this.filtersOpenButtons?.forEach((button) => {
+        button.setAttribute("aria-expanded", "true");
+      });
       document.documentElement.classList.add("gk-search-drawer-open");
       const closeBtn = this.filterPanel.querySelector("[data-gk-filters-close]");
       closeBtn?.focus();
     }
 
     closeFilterDrawer() {
-      if (!this.filterDrawer || !this.filterPanel) {
+      if (!this.isMobileFilters() || !this.filterDrawer || !this.filterPanel) {
         return;
       }
       this.filterDrawer.hidden = true;
       this.filterPanel.setAttribute("aria-hidden", "true");
-      this.filtersOpenButton?.setAttribute("aria-expanded", "false");
+      this.filtersOpenButtons?.forEach((button) => {
+        button.setAttribute("aria-expanded", "false");
+      });
       document.documentElement.classList.remove("gk-search-drawer-open");
-      this.filtersOpenButton?.focus();
+      this.filtersOpenButtons?.[0]?.focus();
+    }
+
+    getActiveSortValue() {
+      return (
+        this.sortSelect?.value ||
+        this.sortSelectMobile?.value ||
+        "newest"
+      );
     }
 
     getSearchParams() {
@@ -485,7 +568,7 @@
         const response = await fetch(
           `${this.proxyBase}/api/search-by-date?${query.toString()}`,
         );
-        const data = await response.json();
+        const data = await readJsonResponse(response);
         if (!response.ok) {
           throw new Error(data.error || "Search failed");
         }
@@ -718,18 +801,22 @@
     }
 
     renderResults() {
-      if (!this.resultsGrid || !this.resultsCount) {
+      if (
+        !this.resultsGrid ||
+        (!this.resultsCount && !this.resultsCountMobile)
+      ) {
         return;
       }
 
       const sorted = [...this.filteredProducts];
-      if (this.sortSelect?.value === "price-asc") {
+      const sortValue = this.getActiveSortValue();
+      if (sortValue === "price-asc") {
         sorted.sort(
           (a, b) =>
             Number(a.priceFrom.replace(/[^\d.]/g, "")) -
             Number(b.priceFrom.replace(/[^\d.]/g, "")),
         );
-      } else if (this.sortSelect?.value === "price-desc") {
+      } else if (sortValue === "price-desc") {
         sorted.sort(
           (a, b) =>
             Number(b.priceFrom.replace(/[^\d.]/g, "")) -
@@ -738,7 +825,12 @@
       }
 
       const countText = `${sorted.length} product${sorted.length === 1 ? "" : "s"} found`;
-      this.resultsCount.textContent = countText;
+      if (this.resultsCount) {
+        this.resultsCount.textContent = countText;
+      }
+      if (this.resultsCountMobile) {
+        this.resultsCountMobile.textContent = countText;
+      }
       if (this.drawerCount) {
         this.drawerCount.textContent = countText;
       }
