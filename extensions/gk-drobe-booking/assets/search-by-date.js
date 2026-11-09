@@ -183,6 +183,9 @@
       if (this.resultsSection) {
         this.resultsSection.hidden = false;
       }
+      if (this.facetBar) {
+        this.facetBar.hidden = false;
+      }
     }
 
     applySearchColors() {
@@ -367,6 +370,13 @@
       this.sidebarSizes = this.root.querySelector("[data-gk-sidebar-sizes]");
       this.sidebarColours = this.root.querySelector("[data-gk-sidebar-colours]");
       this.sidebarDesigners = this.root.querySelector("[data-gk-sidebar-designers]");
+      this.facetBar = this.root.querySelector("[data-gk-facet-bar]");
+      this.filterDrawer = this.root.querySelector("[data-gk-filter-drawer]");
+      this.filterPanel = this.root.querySelector(".gk-drobe-search__filter-panel");
+      this.filterBackdrop = this.root.querySelector("[data-gk-filter-backdrop]");
+      this.filtersOpenButton = this.root.querySelector("[data-gk-filters-open]");
+      this.filtersCloseButtons = this.root.querySelectorAll("[data-gk-filters-close]");
+      this.drawerCount = this.root.querySelector("[data-gk-drawer-count]");
       this.errorEl = this.root.querySelector("[data-gk-error]");
     }
 
@@ -392,6 +402,44 @@
         this.runSearch();
       });
       this.sortSelect?.addEventListener("change", () => this.renderResults());
+
+      this.filtersOpenButton?.addEventListener("click", () => this.openFilterDrawer());
+      this.filterBackdrop?.addEventListener("click", () => this.closeFilterDrawer());
+      this.filtersCloseButtons?.forEach((button) => {
+        button.addEventListener("click", () => this.closeFilterDrawer());
+      });
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && this.isFilterDrawerOpen()) {
+          this.closeFilterDrawer();
+        }
+      });
+    }
+
+    isFilterDrawerOpen() {
+      return Boolean(this.filterDrawer && !this.filterDrawer.hidden);
+    }
+
+    openFilterDrawer() {
+      if (!this.filterDrawer || !this.filterPanel) {
+        return;
+      }
+      this.filterDrawer.hidden = false;
+      this.filterPanel.setAttribute("aria-hidden", "false");
+      this.filtersOpenButton?.setAttribute("aria-expanded", "true");
+      document.documentElement.classList.add("gk-search-drawer-open");
+      const closeBtn = this.filterPanel.querySelector("[data-gk-filters-close]");
+      closeBtn?.focus();
+    }
+
+    closeFilterDrawer() {
+      if (!this.filterDrawer || !this.filterPanel) {
+        return;
+      }
+      this.filterDrawer.hidden = true;
+      this.filterPanel.setAttribute("aria-hidden", "true");
+      this.filtersOpenButton?.setAttribute("aria-expanded", "false");
+      document.documentElement.classList.remove("gk-search-drawer-open");
+      this.filtersOpenButton?.focus();
     }
 
     getSearchParams() {
@@ -689,7 +737,11 @@
         );
       }
 
-      this.resultsCount.textContent = `${sorted.length} products found`;
+      const countText = `${sorted.length} product${sorted.length === 1 ? "" : "s"} found`;
+      this.resultsCount.textContent = countText;
+      if (this.drawerCount) {
+        this.drawerCount.textContent = countText;
+      }
       this.resultsGrid.innerHTML = "";
       if (this.resultsEmpty) {
         this.resultsEmpty.hidden = sorted.length > 0;
