@@ -57,7 +57,7 @@
       </div>
     {% else %}
       <div class="gk-drobe-search__toolbar-wrap" data-gk-search-filters>
-        <form class="gk-drobe-search__toolbar gk-drobe-search__toolbar--refine" data-gk-search-form>
+        <form class="gk-drobe-search__toolbar" data-gk-search-form>
           <div class="gk-drobe-search__field">
             <label class="gk-drobe-search__label" for="gk-search-event-date">{{ 'search.event_date' | t }}</label>
             <input
@@ -119,103 +119,36 @@
       </div>
 
       <div class="gk-drobe-search__results" data-gk-results hidden>
-        <div class="gk-drobe-search__layout" data-gk-search-layout>
-        <div class="gk-drobe-search__filter-drawer" data-gk-filter-drawer hidden>
-          <div
-            class="gk-drobe-search__filter-backdrop"
-            data-gk-filter-backdrop
-            tabindex="-1"
-            aria-hidden="true"
-          ></div>
-          <aside
-            id="gk-search-filter-panel-{{ block.id }}"
-            class="gk-drobe-search__sidebar gk-drobe-search__filter-panel"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="gk-filter-drawer-title-{{ block.id }}"
-            aria-hidden="true"
-          >
-            <div class="gk-drobe-search__filter-panel-header">
-              <h2 class="gk-drobe-search__filter-panel-title" id="gk-filter-drawer-title-{{ block.id }}">
-                {{ 'search.refine' | t }}
-              </h2>
-              <button
-                type="button"
-                class="gk-drobe-search__filter-close"
-                data-gk-filters-close
-                aria-label="{{ 'search.filters_close' | t }}"
-              >
-                <span aria-hidden="true">&times;</span>
-              </button>
+        <div class="gk-drobe-search__layout">
+          <aside class="gk-drobe-search__sidebar">
+            <div class="gk-drobe-search__sidebar-group">
+              <h3>{{ 'search.refine' | t }}</h3>
+              <strong>{{ 'search.sidebar_size' | t }}</strong>
+              <div class="gk-drobe-search__checks" data-gk-sidebar-sizes></div>
             </div>
-            <div class="gk-drobe-search__filter-panel-body">
-              <div class="gk-drobe-search__sidebar-group">
-                <strong>{{ 'search.sidebar_size' | t }}</strong>
-                <div class="gk-drobe-search__checks" data-gk-sidebar-sizes></div>
-              </div>
-              <div class="gk-drobe-search__sidebar-group">
-                <strong>{{ 'search.sidebar_colour' | t }}</strong>
-                <div class="gk-drobe-search__checks" data-gk-sidebar-colours></div>
-              </div>
-              <div class="gk-drobe-search__sidebar-group">
-                <strong>{{ 'search.sidebar_designer' | t }}</strong>
-                <div class="gk-drobe-search__checks" data-gk-sidebar-designers></div>
-              </div>
+            <div class="gk-drobe-search__sidebar-group">
+              <strong>{{ 'search.sidebar_colour' | t }}</strong>
+              <div class="gk-drobe-search__checks" data-gk-sidebar-colours></div>
             </div>
-            <div class="gk-drobe-search__filter-panel-footer">
-              <p class="gk-drobe-search__filter-panel-count" data-gk-drawer-count></p>
-              <button type="button" class="gk-drobe-search__button" data-gk-filters-close>
-                {{ 'search.filters_done' | t }}
-              </button>
+            <div class="gk-drobe-search__sidebar-group">
+              <strong>{{ 'search.sidebar_designer' | t }}</strong>
+              <div class="gk-drobe-search__checks" data-gk-sidebar-designers></div>
             </div>
           </aside>
-        </div>
 
-        <section class="gk-drobe-search__main">
-        <div class="gk-drobe-search__facet-bar gk-drobe-search__facet-bar--mobile" data-gk-facet-bar hidden>
-          <div class="gk-drobe-search__facet-bar-start">
-            <p class="gk-drobe-search__facet-count" data-gk-results-count-mobile></p>
-            <button
-              type="button"
-              class="gk-drobe-search__filters-trigger"
-              data-gk-filters-open
-              aria-expanded="false"
-              aria-controls="gk-search-filter-panel-{{ block.id }}"
-            >
-              {{ 'search.filters_button' | t }}
-            </button>
-          </div>
-          <div class="gk-drobe-search__facet-bar-end">
-            <label class="gk-drobe-search__visually-hidden" for="gk-search-sort-mobile-{{ block.id }}">{{ 'search.sort_label' | t }}</label>
-            <select
-              id="gk-search-sort-mobile-{{ block.id }}"
-              class="gk-drobe-search__select gk-drobe-search__sort gk-drobe-search__sort--mobile"
-              data-gk-sort-mobile
-            >
-              <option value="newest">{{ 'search.sort_newest' | t }}</option>
-              <option value="price-asc">{{ 'search.sort_price_low' | t }}</option>
-              <option value="price-desc">{{ 'search.sort_price_high' | t }}</option>
-            </select>
-          </div>
-        </div>
-
-          <div class="gk-drobe-search__results-head gk-drobe-search__results-head--desktop">
-            <p class="gk-drobe-search__facet-count" data-gk-results-count></p>
-            <label class="gk-drobe-search__visually-hidden" for="gk-search-sort-{{ block.id }}">{{ 'search.sort_label' | t }}</label>
-            <select
-              id="gk-search-sort-{{ block.id }}"
-              class="gk-drobe-search__select gk-drobe-search__sort gk-drobe-search__sort--desktop"
-              data-gk-sort
-            >
-              <option value="newest">{{ 'search.sort_newest' | t }}</option>
-              <option value="price-asc">{{ 'search.sort_price_low' | t }}</option>
-              <option value="price-desc">{{ 'search.sort_price_high' | t }}</option>
-            </select>
-          </div>
-          <div class="gk-drobe-search__loading" data-gk-results-loading hidden>{{ 'search.loading' | t }}</div>
-          <div class="gk-drobe-search__grid" data-gk-results-grid></div>
-          <p class="gk-drobe-search__empty" data-gk-results-empty hidden>{{ 'search.no_results' | t }}</p>
-        </section>
+          <section class="gk-drobe-search__main">
+            <div class="gk-drobe-search__results-head">
+              <p data-gk-results-count></p>
+              <select class="gk-drobe-search__select" data-gk-sort>
+                <option value="newest">{{ 'search.sort_newest' | t }}</option>
+                <option value="price-asc">{{ 'search.sort_price_low' | t }}</option>
+                <option value="price-desc">{{ 'search.sort_price_high' | t }}</option>
+              </select>
+            </div>
+            <div class="gk-drobe-search__loading" data-gk-results-loading hidden>{{ 'search.loading' | t }}</div>
+            <div class="gk-drobe-search__grid" data-gk-results-grid></div>
+            <p class="gk-drobe-search__empty" data-gk-results-empty hidden>{{ 'search.no_results' | t }}</p>
+          </section>
         </div>
       </div>
     {% endif %}
