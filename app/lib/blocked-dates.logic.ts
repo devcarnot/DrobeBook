@@ -1,4 +1,9 @@
-import { addDays, formatDateIso, toDateOnly } from "./booking/availability";
+import {
+  addDays,
+  dateRangesOverlap,
+  formatDateIso,
+  toDateOnly,
+} from "./booking/availability";
 
 export type BlockKind = "range" | "weekly";
 export type BlockScope = "hire" | "try_on";
@@ -98,6 +103,7 @@ export function isDateBlockedByRule(
   return d >= start && d <= end;
 }
 
+/** @deprecated Use hireWindowBlockedByRule for hire availability */
 export function dateRangeOverlapsBlockedRule(
   rangeStart: Date,
   rangeEnd: Date,
@@ -121,6 +127,48 @@ export function dateRangeOverlapsBlockedRule(
   return false;
 }
 
+/**
+ * Hire calendar: weekly rules block delivery/return/buffer edges on closed weekdays
+ * (not every day the dress is at home during the hire).
+ * Date ranges block delivery/return on closed days and any overlapping hire window.
+ */
+export function hireWindowBlockedByRule(
+  deliveryDate: Date,
+  returnDate: Date,
+  effectiveStart: Date,
+  effectiveEnd: Date,
+  rule: BlockedDateRule,
+): boolean {
+  if (!ruleAppliesToScope(rule, "hire")) {
+    return false;
+  }
+
+  const delivery = toDateOnly(deliveryDate);
+  const returns = toDateOnly(returnDate);
+  const effStart = toDateOnly(effectiveStart);
+  const effEnd = toDateOnly(effectiveEnd);
+
+  if (rule.blockKind === "weekly") {
+    const checkpoints = [delivery, returns, effStart, effEnd];
+    return checkpoints.some((d) => isDateBlockedByRule(d, rule, "hire"));
+  }
+
+  if (
+    isDateBlockedByRule(delivery, rule, "hire") ||
+    isDateBlockedByRule(returns, rule, "hire")
+  ) {
+    return true;
+  }
+
+  const closedStart = toDateOnly(rule.startDate);
+  const closedEnd = toDateOnly(rule.endDate);
+
+  return dateRangesOverlap(
+    { start: effStart, end: effEnd },
+    { start: closedStart, end: closedEnd },
+  );
+}
+
 export function expandRangeToIsoDates(start: Date, end: Date): string[] {
   const dates: string[] = [];
   let current = toDateOnly(start);
@@ -132,31 +180,6 @@ export function expandRangeToIsoDates(start: Date, end: Date): string[] {
   }
 
   return dates;
-}
-
-/** Expand shop-wide weekly hire blocks into ISO dates for buffer holiday sets. */
-export function expandWeeklyHireHolidays(
-  rules: BlockedDateRule[],
-  from: Date,
-  through: Date,
-): string[] {
-  const holidays: string[] = [];
-  let cursor = toDateOnly(from);
-  const last = toDateOnly(through);
-
-  while (cursor.getTime() <= last.getTime()) {
-    for (const rule of rules) {
-      if (rule.blockKind !== "weekly") continue;
-      if (rule.productId != null || rule.variantId != null) continue;
-      if (isDateBlockedByRule(cursor, rule, "hire")) {
-        holidays.push(formatDateIso(cursor));
-        break;
-      }
-    }
-    cursor = addDays(cursor, 1);
-  }
-
-  return holidays;
 }
 
 export const WEEKLY_BLOCK_VALID_FROM = "1970-01-01";

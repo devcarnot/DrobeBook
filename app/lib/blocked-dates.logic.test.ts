@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  dateRangeOverlapsBlockedRule,
   formatWeekdayMask,
+  hireWindowBlockedByRule,
   isDateBlockedByRule,
   weekdayBit,
 } from "./blocked-dates.logic";
@@ -61,7 +61,7 @@ describe("blocked-dates.logic", () => {
     expect(isDateBlockedByRule(monday, rule, "try_on")).toBe(false);
   });
 
-  it("detects hire range overlapping a blocked weekly day", () => {
+  it("hireWindowBlockedByRule blocks Saturday delivery but not mid-week span", () => {
     const rule = {
       blockKind: "weekly" as const,
       startDate: new Date("1970-01-01T12:00:00.000Z"),
@@ -74,13 +74,24 @@ describe("blocked-dates.logic", () => {
     };
 
     expect(
-      dateRangeOverlapsBlockedRule(
-        new Date("2026-11-20T12:00:00.000Z"),
-        new Date("2026-11-22T12:00:00.000Z"),
+      hireWindowBlockedByRule(
+        new Date("2026-11-21T12:00:00.000Z"),
+        new Date("2026-11-24T12:00:00.000Z"),
+        new Date("2026-11-21T12:00:00.000Z"),
+        new Date("2026-11-24T12:00:00.000Z"),
         rule,
-        "hire",
       ),
     ).toBe(true);
+
+    expect(
+      hireWindowBlockedByRule(
+        new Date("2026-11-23T12:00:00.000Z"),
+        new Date("2026-11-26T12:00:00.000Z"),
+        new Date("2026-11-23T12:00:00.000Z"),
+        new Date("2026-11-26T12:00:00.000Z"),
+        rule,
+      ),
+    ).toBe(false);
   });
 
   it("formats weekday mask for admin display", () => {

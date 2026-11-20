@@ -1,9 +1,5 @@
 import prisma from "../../db.server";
-import {
-  expandRangeToIsoDates,
-  expandWeeklyHireHolidays,
-} from "../blocked-dates.logic";
-import { addDays, toDateOnly } from "./availability";
+import { expandRangeToIsoDates } from "../blocked-dates.logic";
 import {
   DEFAULT_BUFFER_CONFIG,
   parseBufferConfig,
@@ -47,29 +43,11 @@ export async function getHolidayDates(shop: string): Promise<Set<string>> {
   });
 
   const holidays = new Set<string>();
-  const weeklyRules = rows
-    .filter((row) => row.blockKind === "weekly")
-    .map((row) => ({
-      blockKind: "weekly" as const,
-      startDate: row.startDate,
-      endDate: row.endDate,
-      weekdayMask: row.weekdayMask,
-      appliesToHire: row.appliesToHire,
-      appliesToTryOn: row.appliesToTryOn,
-      productId: row.productId,
-      variantId: row.variantId,
-      reason: row.reason,
-    }));
-
-  const today = toDateOnly(new Date());
-  const through = addDays(today, 365 * 3);
-
-  for (const iso of expandWeeklyHireHolidays(weeklyRules, today, through)) {
-    holidays.add(iso);
-  }
 
   for (const row of rows) {
-    if (row.blockKind === "weekly") continue;
+    if (row.blockKind === "weekly") {
+      continue;
+    }
     for (const iso of expandRangeToIsoDates(row.startDate, row.endDate)) {
       holidays.add(iso);
     }

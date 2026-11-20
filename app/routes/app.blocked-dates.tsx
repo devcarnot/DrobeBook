@@ -167,10 +167,11 @@ export default function BlockedDatesPage() {
             <s-stack direction="block" gap="small">
               <s-text type="strong">Shop-wide blackouts</s-text>
               <s-paragraph tone="neutral" color="subdued">
-                Block specific dates or recurring weekdays. Rules apply to the
-                hire booking calendar and/or try-on appointments. Shop-wide date
-                ranges also count as bank holidays when buffer settings use
-                business days.
+                Block specific dates or recurring weekdays. Hire rules close
+                delivery/return on those days (the dress may still be out on a
+                blocked weekday in between). Try-on rules close appointment days.
+                Date ranges also count as bank holidays when buffers use business
+                days.
               </s-paragraph>
               <s-link href="/app/inventory">Garment-specific hire holds</s-link>
             </s-stack>

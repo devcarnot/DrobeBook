@@ -1,6 +1,6 @@
 import type { BufferConfig, BufferDayUnit, DeliveryMethod } from "./buffer-config";
 import {
-  dateRangeOverlapsBlockedRule,
+  hireWindowBlockedByRule,
   type BlockedDateRule,
 } from "../blocked-dates.logic";
 import {
@@ -272,11 +272,12 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
     };
 
     if (
-      dateRangeOverlapsBlockedRule(
+      hireWindowBlockedByRule(
+        deliveryDate,
+        returnDate,
         requestedRange.start,
         requestedRange.end,
         rule,
-        "hire",
       )
     ) {
       return {
