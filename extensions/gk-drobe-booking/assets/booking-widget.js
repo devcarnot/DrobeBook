@@ -28,6 +28,13 @@
     }
   }
 
+  const CALENDAR_WEEKDAY_HEADERS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+  const CALENDAR_WEEKDAY_NAMES = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+
+  function monthStartWeekdayUtc(year, month) {
+    return new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)).getUTCDay();
+  }
+
   function formatIso(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -170,6 +177,8 @@
       this.damageCheckbox = this.root.querySelector("[data-gk-damage-protection]");
       this.damageInfoLink = this.root.querySelector("[data-gk-damage-info]");
       this.calendarGrid = this.root.querySelector("[data-gk-calendar-grid]");
+      this.calendarWeekdaysRow = this.root.querySelector("[data-gk-calendar-weekdays]");
+      this.calendarShell = this.root.querySelector(".gk-drobe-booking__calendar");
       this.calendarTooltip = this.root.querySelector("[data-gk-day-tooltip]");
       this.calendarLabel = this.root.querySelector("[data-gk-calendar-label]");
       this.prevMonthButton = this.root.querySelector("[data-gk-prev-month]");
@@ -260,7 +269,7 @@
         this.shiftMonth(1);
       });
 
-      this.calendarGrid?.addEventListener("mouseleave", () => {
+      this.calendarShell?.addEventListener("mouseleave", () => {
         this.hideDayTooltip();
         this.state.previewStartDate = "";
         this.updateCalendarHighlights();
@@ -998,18 +1007,23 @@
       const daysInMonth = new Date(
         Date.UTC(this.state.calendarYear, this.state.calendarMonth, 0),
       ).getUTCDate();
-      const monthStartWeekday = monthDate.getUTCDay();
-      const leadingPadding = (monthStartWeekday + 6) % 7;
+      const leadingPadding = monthStartWeekdayUtc(
+        this.state.calendarYear,
+        this.state.calendarMonth,
+      );
 
-      this.calendarGrid.innerHTML = "";
       this.hideDayTooltip();
 
-      ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].forEach((weekday) => {
+      const weekdayRow = this.calendarWeekdaysRow || this.calendarGrid;
+      weekdayRow.innerHTML = "";
+      CALENDAR_WEEKDAY_HEADERS.forEach((weekday) => {
         const label = document.createElement("div");
         label.className = "gk-drobe-booking__weekday";
         label.textContent = weekday;
-        this.calendarGrid.appendChild(label);
+        weekdayRow.appendChild(label);
       });
+
+      this.calendarGrid.innerHTML = "";
 
       for (let i = 0; i < leadingPadding; i += 1) {
         const empty = document.createElement("div");
@@ -1022,15 +1036,14 @@
           Date.UTC(this.state.calendarYear, this.state.calendarMonth - 1, day),
         );
         const iso = formatIso(cellDate);
-        const weekdayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
         const button = document.createElement("button");
         button.type = "button";
         button.className = "gk-drobe-booking__day";
         button.dataset.gkDate = iso;
-        button.dataset.gkWeekday = weekdayNames[cellDate.getUTCDay()];
+        button.dataset.gkWeekday = CALENDAR_WEEKDAY_NAMES[cellDate.getUTCDay()];
         button.setAttribute(
           "aria-label",
-          `${weekdayNames[cellDate.getUTCDay()]} ${day}`,
+          `${CALENDAR_WEEKDAY_NAMES[cellDate.getUTCDay()]} ${day}`,
         );
         button.textContent = String(day);
 

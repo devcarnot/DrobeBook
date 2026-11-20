@@ -185,10 +185,15 @@
   background: rgba(0, 0, 0, 0.08);
 }
 
+.gk-drobe-booking__calendar-weekdays,
 .gk-drobe-booking__calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
+}
+
+.gk-drobe-booking__calendar-weekdays {
+  margin-bottom: 0.15rem;
 }
 
 .gk-drobe-booking__weekday,

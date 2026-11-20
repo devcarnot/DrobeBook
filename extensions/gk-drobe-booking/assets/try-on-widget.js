@@ -20,6 +20,12 @@
     }
   }
 
+  const CALENDAR_WEEKDAY_HEADERS = ["SU", "MO", "TU", "WE", "TH", "FR", "SA"];
+
+  function monthStartWeekdayUtc(year, month) {
+    return new Date(Date.UTC(year, month - 1, 1, 12, 0, 0)).getUTCDay();
+  }
+
   function formatIso(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -85,6 +91,7 @@
       this.dayButtonsEl = this.root.querySelector("[data-gk-day-buttons]");
       this.durationButtonsEl = this.root.querySelector("[data-gk-duration-buttons]");
       this.calendarGrid = this.root.querySelector("[data-gk-calendar-grid]");
+      this.calendarWeekdaysRow = this.root.querySelector("[data-gk-calendar-weekdays]");
       this.calendarLabel = this.root.querySelector("[data-gk-calendar-label]");
       this.loadingEl = this.root.querySelector("[data-gk-loading]");
       this.slotGroup = this.root.querySelector("[data-gk-slot-group]");
@@ -464,19 +471,24 @@
         timeZone: "UTC",
       });
 
-      this.calendarGrid.innerHTML = "";
-      ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].forEach((day) => {
-        const label = document.createElement("div");
-        label.className = "gk-drobe-tryon__weekday";
-        label.textContent = day;
-        this.calendarGrid.appendChild(label);
-      });
-
-      const monthStartWeekday = monthDate.getUTCDay();
-      const leadingPadding = (monthStartWeekday + 6) % 7;
       const daysInMonth = new Date(
         Date.UTC(this.state.calendarYear, this.state.calendarMonth, 0),
       ).getUTCDate();
+      const leadingPadding = monthStartWeekdayUtc(
+        this.state.calendarYear,
+        this.state.calendarMonth,
+      );
+
+      const weekdayRow = this.calendarWeekdaysRow || this.calendarGrid;
+      weekdayRow.innerHTML = "";
+      CALENDAR_WEEKDAY_HEADERS.forEach((day) => {
+        const label = document.createElement("div");
+        label.className = "gk-drobe-tryon__weekday";
+        label.textContent = day;
+        weekdayRow.appendChild(label);
+      });
+
+      this.calendarGrid.innerHTML = "";
 
       for (let i = 0; i < leadingPadding; i += 1) {
         const empty = document.createElement("div");
