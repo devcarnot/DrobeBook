@@ -1,2 +1,5 @@
 AssetSizeAppBlockJavaScript:
   enabled: false
+# Theme app extension block schemas use `target` (content/body); storefront theme checker false-positives.
+ValidSchema:
+  enabled: false
