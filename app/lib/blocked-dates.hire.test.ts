@@ -9,6 +9,7 @@ import {
   isProductVariantAvailable,
   type HireDurationDays,
 } from "./booking/availability";
+import { DEFAULT_BUFFER_CONFIG } from "./booking/buffer-config";
 
 function d(iso: string) {
   return new Date(`${iso}T12:00:00.000Z`);
@@ -175,4 +176,54 @@ describe("hire blocked dates — calendar behaviour", () => {
 
     expect(postSaturday.available).toBe(false);
   });
+
+  it("December post + buffers: only weekend delivery starts are blocked", () => {
+    const weekendRule = {
+      startDate: d("1970-01-01"),
+      endDate: d("2099-12-31"),
+      blockKind: "weekly" as const,
+      weekdayMask: weekdayBit(0) | weekdayBit(6),
+      appliesToHire: true,
+      appliesToPost: true,
+      appliesToPickup: false,
+    };
+
+    const now = d("2026-11-20");
+    const unavailable: string[] = [];
+
+    for (let day = 1; day <= 31; day += 1) {
+      const deliveryDate = new Date(Date.UTC(2026, 11, day));
+      const result = isProductVariantAvailable({
+        productId: "p1",
+        variantId: "v1",
+        deliveryDate,
+        durationDays: 4,
+        deliveryMethod: "post",
+        now,
+        today: now,
+        bufferConfig: DEFAULT_BUFFER_CONFIG,
+        holidays: new Set(),
+        bookings: [],
+        blockedDates: [weekendRule],
+      });
+      if (!result.available) {
+        unavailable.push(formatDateIso(deliveryDate));
+      }
+    }
+
+    for (const iso of [
+      "2026-12-03",
+      "2026-12-04",
+      "2026-12-05",
+      "2026-12-06",
+    ]) {
+      expect(
+        unavailable.includes(iso),
+        `unexpected availability for ${iso}`,
+      ).toBe(iso === "2026-12-05" || iso === "2026-12-06");
+    }
+    expect(unavailable).not.toContain("2026-12-03");
+    expect(unavailable).not.toContain("2026-12-04");
+  });
+
 });

@@ -38,10 +38,6 @@ export function defaultBlockedDayMessage(
   rule: BlockedDateRule,
   deliveryMethod: HireDeliveryMethod,
 ): string {
-  if (rule.reason?.trim()) {
-    return rule.reason.trim();
-  }
-
   if (rule.blockKind === "weekly" && deliveryMethod === "post") {
     const mask = rule.weekdayMask ?? 0;
     const hasWeekend =
@@ -53,7 +49,14 @@ export function defaultBlockedDayMessage(
   }
 
   if (rule.blockKind === "weekly" && deliveryMethod === "pickup") {
+    if (rule.reason?.trim()) {
+      return rule.reason.trim();
+    }
     return "Studio pickup is not available on this day.";
+  }
+
+  if (rule.reason?.trim()) {
+    return rule.reason.trim();
   }
 
   return "Delivery cannot start on this date.";

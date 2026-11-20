@@ -55,8 +55,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     checks.apiSecretLooksValid &&
     checks.appUrlSet;
 
+  const deployCommit =
+    process.env.RAILWAY_GIT_COMMIT_SHA ??
+    process.env.GIT_COMMIT_SHA ??
+    null;
+
   return Response.json(
-    { ok, service: "drobebook", checks },
+    { ok, service: "drobebook", deployCommit, checks },
     {
       status: ok ? 200 : 503,
       headers: { "Cache-Control": "no-store" },
