@@ -347,10 +347,15 @@
   background: rgba(0, 0, 0, 0.08);
 }
 
+.gk-drobe-tryon__calendar-weekdays,
 .gk-drobe-tryon__calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 0.25rem;
+}
+
+.gk-drobe-tryon__calendar-weekdays {
+  margin-bottom: 0.15rem;
 }
 
 .gk-drobe-tryon__weekday,

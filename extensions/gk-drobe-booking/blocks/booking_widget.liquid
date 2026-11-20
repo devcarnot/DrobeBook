@@ -92,11 +92,15 @@
 
       </div>
 
-      <div
-        class="gk-drobe-booking__calendar-weekdays"
-        data-gk-calendar-weekdays
-        aria-hidden="true"
-      ></div>
+      <div class="gk-drobe-booking__calendar-weekdays" data-gk-calendar-weekdays>
+        <div class="gk-drobe-booking__weekday">SU</div>
+        <div class="gk-drobe-booking__weekday">MO</div>
+        <div class="gk-drobe-booking__weekday">TU</div>
+        <div class="gk-drobe-booking__weekday">WE</div>
+        <div class="gk-drobe-booking__weekday">TH</div>
+        <div class="gk-drobe-booking__weekday">FR</div>
+        <div class="gk-drobe-booking__weekday">SA</div>
+      </div>
 
       <div class="gk-drobe-booking__calendar-grid" data-gk-calendar-grid></div>
 
@@ -246,6 +250,7 @@
 
   <link rel="stylesheet" href="{{ 'booking-widget.css' | asset_url }}">
   <script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
+  <script src="{{ 'gk-calendar-month.js' | asset_url }}" defer></script>
   <script src="{{ 'booking-widget.js' | asset_url }}" defer></script>
   <script src="{{ 'cart-behavior.js' | asset_url }}" defer></script>
 

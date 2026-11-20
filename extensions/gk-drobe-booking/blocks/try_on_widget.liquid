@@ -36,11 +36,15 @@
             <button type="button" class="gk-drobe-tryon__nav" data-gk-next-month aria-label="Next month">&rsaquo;</button>
           </div>
           <div class="gk-drobe-tryon__loading" data-gk-loading hidden>{{ 'try_on.loading' | t }}</div>
-          <div
-            class="gk-drobe-tryon__calendar-weekdays"
-            data-gk-calendar-weekdays
-            aria-hidden="true"
-          ></div>
+          <div class="gk-drobe-tryon__calendar-weekdays" data-gk-calendar-weekdays>
+            <div class="gk-drobe-tryon__weekday">SU</div>
+            <div class="gk-drobe-tryon__weekday">MO</div>
+            <div class="gk-drobe-tryon__weekday">TU</div>
+            <div class="gk-drobe-tryon__weekday">WE</div>
+            <div class="gk-drobe-tryon__weekday">TH</div>
+            <div class="gk-drobe-tryon__weekday">FR</div>
+            <div class="gk-drobe-tryon__weekday">SA</div>
+          </div>
           <div class="gk-drobe-tryon__calendar-grid" data-gk-calendar-grid></div>
         </div>
 
@@ -156,6 +160,7 @@
 
   <link rel="stylesheet" href="{{ 'try-on-widget.css' | asset_url }}">
   <script src="{{ 'gk-theme.js' | asset_url }}" defer></script>
+  <script src="{{ 'gk-calendar-month.js' | asset_url }}" defer></script>
   <script src="{{ 'try-on-widget.js' | asset_url }}" defer></script>
 {% endif %}
 
