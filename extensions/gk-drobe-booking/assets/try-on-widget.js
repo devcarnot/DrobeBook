@@ -465,19 +465,20 @@
       });
 
       this.calendarGrid.innerHTML = "";
-      ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach((day) => {
+      ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].forEach((day) => {
         const label = document.createElement("div");
         label.className = "gk-drobe-tryon__weekday";
         label.textContent = day;
         this.calendarGrid.appendChild(label);
       });
 
-      const firstWeekday = monthDate.getUTCDay();
+      const monthStartWeekday = monthDate.getUTCDay();
+      const leadingPadding = (monthStartWeekday + 6) % 7;
       const daysInMonth = new Date(
         Date.UTC(this.state.calendarYear, this.state.calendarMonth, 0),
       ).getUTCDate();
 
-      for (let i = 0; i < firstWeekday; i += 1) {
+      for (let i = 0; i < leadingPadding; i += 1) {
         const empty = document.createElement("div");
         empty.className = "gk-drobe-tryon__day gk-drobe-tryon__day--empty";
         this.calendarGrid.appendChild(empty);

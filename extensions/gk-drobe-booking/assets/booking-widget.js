@@ -995,35 +995,43 @@
       });
       this.calendarLabel.textContent = monthName;
 
-      const firstWeekday = monthDate.getUTCDay();
       const daysInMonth = new Date(
         Date.UTC(this.state.calendarYear, this.state.calendarMonth, 0),
       ).getUTCDate();
+      const monthStartWeekday = monthDate.getUTCDay();
+      const leadingPadding = (monthStartWeekday + 6) % 7;
 
       this.calendarGrid.innerHTML = "";
       this.hideDayTooltip();
 
-      ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach((weekday) => {
+      ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"].forEach((weekday) => {
         const label = document.createElement("div");
         label.className = "gk-drobe-booking__weekday";
         label.textContent = weekday;
         this.calendarGrid.appendChild(label);
       });
 
-      for (let i = 0; i < firstWeekday; i += 1) {
+      for (let i = 0; i < leadingPadding; i += 1) {
         const empty = document.createElement("div");
         empty.className = "gk-drobe-booking__day gk-drobe-booking__day--empty";
         this.calendarGrid.appendChild(empty);
       }
 
       for (let day = 1; day <= daysInMonth; day += 1) {
-        const iso = formatIso(
-          new Date(Date.UTC(this.state.calendarYear, this.state.calendarMonth - 1, day)),
+        const cellDate = new Date(
+          Date.UTC(this.state.calendarYear, this.state.calendarMonth - 1, day),
         );
+        const iso = formatIso(cellDate);
+        const weekdayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
         const button = document.createElement("button");
         button.type = "button";
         button.className = "gk-drobe-booking__day";
         button.dataset.gkDate = iso;
+        button.dataset.gkWeekday = weekdayNames[cellDate.getUTCDay()];
+        button.setAttribute(
+          "aria-label",
+          `${weekdayNames[cellDate.getUTCDay()]} ${day}`,
+        );
         button.textContent = String(day);
 
         const unavailable = this.state.unavailableDates.has(iso);
