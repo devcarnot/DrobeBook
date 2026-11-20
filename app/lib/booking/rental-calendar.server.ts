@@ -1,7 +1,13 @@
 import prisma from "../../db.server";
 import {
+  formatWeekdayMask,
+  isDateBlockedByRule,
+  type BlockedDateRule,
+} from "../blocked-dates.logic";
+import {
   effectiveRangeForBooking,
 } from "./buffer";
+import { addDays, formatDateIso, toDateOnly } from "./availability";
 import {
   getHolidayDates,
   getShopBufferConfig,
@@ -280,6 +286,85 @@ async function fetchProductMeta(
   return map;
 }
 
+function formatBlockedRuleLabel(
+  block: {
+    appliesToHire: boolean;
+    appliesToTryOn: boolean;
+    appliesToPost: boolean;
+    appliesToPickup: boolean;
+    productId: string | null;
+    variantId: string | null;
+  },
+  productTitle: string | null,
+): string {
+  const isGarmentSpecific = Boolean(block.productId?.trim() && block.variantId?.trim());
+
+  if (isGarmentSpecific) {
+    return productTitle ? `${productTitle} — blocked` : "Garment blocked";
+  }
+
+  if (block.appliesToHire && block.appliesToPost && !block.appliesToPickup) {
+    return "No express post delivery start";
+  }
+
+  if (block.appliesToHire && block.appliesToPickup && !block.appliesToPost) {
+    return "No studio pickup delivery start";
+  }
+
+  if (block.appliesToTryOn && !block.appliesToHire) {
+    return "Try-on closed";
+  }
+
+  return "Delivery start blocked";
+}
+
+function formatBlockedRuleScope(block: {
+  appliesToHire: boolean;
+  appliesToTryOn: boolean;
+  appliesToPost: boolean;
+  appliesToPickup: boolean;
+}): string {
+  const parts: string[] = [];
+  if (block.appliesToHire) {
+    const methods: string[] = [];
+    if (block.appliesToPost) methods.push("express post");
+    if (block.appliesToPickup) methods.push("studio pickup");
+    parts.push(methods.length ? `Hire: ${methods.join(", ")}` : "Hire");
+  }
+  if (block.appliesToTryOn) {
+    parts.push("Try-on");
+  }
+  return parts.join(" · ");
+}
+
+function toBlockedDateRule(block: {
+  blockKind: string;
+  startDate: Date;
+  endDate: Date;
+  weekdayMask: number | null;
+  appliesToHire: boolean;
+  appliesToTryOn: boolean;
+  appliesToPost: boolean;
+  appliesToPickup: boolean;
+  productId: string | null;
+  variantId: string | null;
+  reason: string | null;
+}): BlockedDateRule {
+  return {
+    blockKind: block.blockKind === "weekly" ? "weekly" : "range",
+    startDate: block.startDate,
+    endDate: block.endDate,
+    weekdayMask: block.weekdayMask,
+    appliesToHire: block.appliesToHire,
+    appliesToTryOn: block.appliesToTryOn,
+    appliesToPost: block.appliesToPost,
+    appliesToPickup: block.appliesToPickup,
+    productId: block.productId,
+    variantId: block.variantId,
+    reason: block.reason,
+  };
+}
+
 function matchesSearch(
   event: RentalCalendarEvent,
   search: string | null,
@@ -529,20 +614,91 @@ export async function getRentalCalendar(
     });
   }
 
+  const monthStartDay = toDateOnly(monthStart);
+  const monthEndDay = toDateOnly(monthEnd);
+
   for (const block of blockedDates) {
-    const startDate = block.startDate.toISOString().slice(0, 10);
-    const endDate = block.endDate.toISOString().slice(0, 10);
-    const isGarmentSpecific = Boolean(block.productId && block.variantId);
     const meta =
       block.productId != null ? productMeta.get(block.productId) : null;
+    const rule = toBlockedDateRule(block);
+    const label = formatBlockedRuleLabel(block, meta?.title ?? null);
+    const scopeLabel = formatBlockedRuleScope(block);
+    const defaultReason = block.blockKind === "weekly"
+      ? "Customers cannot start delivery on this weekday (mid-hire weekends are still allowed)."
+      : "Customers cannot start delivery on this date.";
+
+    if (block.blockKind === "weekly") {
+      const mask = block.weekdayMask ?? 0;
+      if (mask === 0) {
+        continue;
+      }
+
+      let cursor = monthStartDay;
+      while (cursor.getTime() <= monthEndDay.getTime()) {
+        const appliesHire =
+          block.appliesToHire &&
+          isDateBlockedByRule(cursor, rule, "hire");
+        const appliesTryOn =
+          block.appliesToTryOn &&
+          isDateBlockedByRule(cursor, rule, "try_on");
+
+        if (appliesHire || appliesTryOn) {
+          const iso = formatDateIso(cursor);
+          events.push({
+            id: `${block.id}-${iso}`,
+            type: "block",
+            label,
+            sublabel: `Every ${formatWeekdayMask(mask)} · ${scopeLabel}`,
+            startDate: iso,
+            endDate: iso,
+            displayStartDate: iso,
+            displayEndDate: iso,
+            status: "blocked",
+            deliveryMethod: null,
+            orderId: null,
+            reason: block.reason?.trim() || defaultReason,
+            productId: block.productId,
+            variantId: block.variantId,
+            size: null,
+            imageUrl: meta?.imageUrl ?? null,
+            color: statusColor("blocked", "block"),
+            bufferBeforeDays: 0,
+            bufferAfterDays: 0,
+            appointmentTime: null,
+            durationMinutes: null,
+            changeRoomId: null,
+            itemsToTryOn: null,
+            customerName: null,
+          });
+        }
+
+        cursor = addDays(cursor, 1);
+      }
+      continue;
+    }
+
+    const blockStart = toDateOnly(block.startDate);
+    const blockEnd = toDateOnly(block.endDate);
+    const visibleStart =
+      blockStart.getTime() > monthStartDay.getTime() ? blockStart : monthStartDay;
+    const visibleEnd =
+      blockEnd.getTime() < monthEndDay.getTime() ? blockEnd : monthEndDay;
+
+    if (visibleStart.getTime() > visibleEnd.getTime()) {
+      continue;
+    }
+
+    const startDate = formatDateIso(visibleStart);
+    const endDate = formatDateIso(visibleEnd);
+    const sameDay = startDate === endDate;
 
     events.push({
       id: block.id,
       type: "block",
-      label: isGarmentSpecific
-        ? meta?.title ?? "Garment blocked"
-        : "Shop-wide blackout",
-      sublabel: block.reason ?? "Blocked dates",
+      label,
+      sublabel: sameDay
+        ? scopeLabel
+        : `${startDate} – ${endDate} · ${scopeLabel}`,
       startDate,
       endDate,
       displayStartDate: startDate,
@@ -550,7 +706,7 @@ export async function getRentalCalendar(
       status: "blocked",
       deliveryMethod: null,
       orderId: null,
-      reason: block.reason,
+      reason: block.reason?.trim() || defaultReason,
       productId: block.productId,
       variantId: block.variantId,
       size: null,

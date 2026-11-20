@@ -110,8 +110,8 @@ function statusLabel(event: RentalCalendarEvent) {
 function statusDescription(event: RentalCalendarEvent) {
   if (event.type === "block") {
     return event.productId
-      ? "This garment is blocked — customers cannot book it online for these dates."
-      : "Shop-wide closure — no gown hires can be booked for these dates.";
+      ? "This garment is blocked for overlapping rental dates."
+      : "Customers cannot start delivery on this date (hire may still run through blocked weekdays in between).";
   }
   if (event.type === "appointment") {
     return "Customer booked a try-on appointment — see time, room, and requested items below.";
@@ -509,6 +509,49 @@ function EventDetailPanel({
                     : ""}
                 </div>
               ) : null}
+            </div>
+          ) : event.type === "block" ? (
+            <div
+              style={{
+                padding: "18px",
+                borderRadius: "12px",
+                border: "1px solid #dfe3e8",
+                background: "linear-gradient(180deg, #fafbfb 0%, #fff 100%)",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "11px",
+                  fontWeight: 650,
+                  letterSpacing: "0.05em",
+                  textTransform: "uppercase",
+                  color: "#6d7175",
+                  marginBottom: "12px",
+                }}
+              >
+                Blocked delivery start
+              </div>
+              <div
+                style={{
+                  fontSize: "15px",
+                  fontWeight: 650,
+                  color: "#202223",
+                  wordBreak: "break-word",
+                }}
+              >
+                {event.startDate === event.endDate
+                  ? formatDisplayDate(event.startDate)
+                  : `${formatDisplayDate(event.startDate, "short")} – ${formatDisplayDate(event.endDate, "short")}`}
+              </div>
+              <div
+                style={{
+                  marginTop: "10px",
+                  fontSize: "13px",
+                  color: "#44474a",
+                }}
+              >
+                {event.sublabel}
+              </div>
             </div>
           ) : (
             <div
