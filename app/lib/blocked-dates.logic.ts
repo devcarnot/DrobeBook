@@ -24,6 +24,12 @@ export type BlockedDateRule = {
 
 export type HireDeliveryMethod = "post" | "pickup";
 
+export function isShopWideBlockRule(rule: BlockedDateRule): boolean {
+  const productId = rule.productId?.trim();
+  const variantId = rule.variantId?.trim();
+  return !productId && !variantId;
+}
+
 export function ruleAppliesToDeliveryMethod(
   rule: BlockedDateRule,
   deliveryMethod: HireDeliveryMethod,
@@ -170,15 +176,13 @@ export function dateRangeOverlapsBlockedRule(
 }
 
 /**
- * A blocked day means delivery cannot *start* on that date for this method.
- * Shop-wide rules never look at return dates or mid-hire weekends.
- * Garment-specific holds still block overlapping hire windows.
+ * Hire blackouts: only whether delivery can *start* on a date (per method).
+ * Independent of buffer before/after settings — mid-hire weekends are fine.
+ * Garment-specific range holds still block overlapping rental days only.
  */
-export function hireWindowBlockedByRule(
+export function hireDeliveryBlockedByRule(
   deliveryDate: Date,
-  _returnDate: Date,
-  effectiveStart: Date,
-  effectiveEnd: Date,
+  returnDate: Date,
   rule: BlockedDateRule,
   deliveryMethod: HireDeliveryMethod,
 ): boolean {
@@ -190,47 +194,49 @@ export function hireWindowBlockedByRule(
     return false;
   }
 
-  const delivery = toDateOnly(deliveryDate);
-  if (isDateBlockedByRule(delivery, rule, "hire")) {
+  if (isDateBlockedByRule(deliveryDate, rule, "hire")) {
     return true;
   }
 
-  const isGarmentSpecific =
-    rule.productId != null || rule.variantId != null;
-
-  if (!isGarmentSpecific || rule.blockKind === "weekly") {
+  if (isShopWideBlockRule(rule) || rule.blockKind === "weekly") {
     return false;
   }
 
-  const effStart = toDateOnly(effectiveStart);
-  const effEnd = toDateOnly(effectiveEnd);
+  const rentalStart = toDateOnly(deliveryDate);
+  const rentalEnd = toDateOnly(returnDate);
   const closedStart = toDateOnly(rule.startDate);
   const closedEnd = toDateOnly(rule.endDate);
 
   return dateRangesOverlap(
-    { start: effStart, end: effEnd },
+    { start: rentalStart, end: rentalEnd },
     { start: closedStart, end: closedEnd },
+  );
+}
+
+/** @deprecated Prefer hireDeliveryBlockedByRule — buffer range is ignored. */
+export function hireWindowBlockedByRule(
+  deliveryDate: Date,
+  returnDate: Date,
+  _effectiveStart: Date,
+  _effectiveEnd: Date,
+  rule: BlockedDateRule,
+  deliveryMethod: HireDeliveryMethod,
+): boolean {
+  return hireDeliveryBlockedByRule(
+    deliveryDate,
+    returnDate,
+    rule,
+    deliveryMethod,
   );
 }
 
 export function hireBlockedReasonForDeliveryDate(
   deliveryDate: Date,
   returnDate: Date,
-  effectiveStart: Date,
-  effectiveEnd: Date,
   rule: BlockedDateRule,
   deliveryMethod: HireDeliveryMethod,
 ): string | null {
-  if (
-    !hireWindowBlockedByRule(
-      deliveryDate,
-      returnDate,
-      effectiveStart,
-      effectiveEnd,
-      rule,
-      deliveryMethod,
-    )
-  ) {
+  if (!hireDeliveryBlockedByRule(deliveryDate, returnDate, rule, deliveryMethod)) {
     return null;
   }
 

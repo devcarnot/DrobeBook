@@ -226,4 +226,37 @@ describe("hire blocked dates — calendar behaviour", () => {
     expect(unavailable).not.toContain("2026-12-04");
   });
 
+  it("shop-wide date range blocks only in-range delivery starts (not buffer spillover)", () => {
+    const weekendRange = {
+      startDate: d("2026-12-05"),
+      endDate: d("2026-12-06"),
+      blockKind: "range" as const,
+      appliesToHire: true,
+      appliesToPost: true,
+      appliesToPickup: false,
+    };
+
+    const now = d("2026-11-20");
+    const check = (iso: string) =>
+      isProductVariantAvailable({
+        productId: "p1",
+        variantId: "v1",
+        deliveryDate: d(iso),
+        durationDays: 4,
+        deliveryMethod: "post",
+        now,
+        today: now,
+        bufferConfig: DEFAULT_BUFFER_CONFIG,
+        holidays: new Set(),
+        bookings: [],
+        blockedDates: [weekendRange],
+      });
+
+    expect(check("2026-12-03").available).toBe(true);
+    expect(check("2026-12-04").available).toBe(true);
+    expect(check("2026-12-05").available).toBe(false);
+    expect(check("2026-12-06").available).toBe(false);
+    expect(check("2026-12-07").available).toBe(true);
+  });
+
 });

@@ -1,7 +1,7 @@
 import type { BufferConfig, BufferDayUnit, DeliveryMethod } from "./buffer-config";
 import {
   hireBlockedReasonForDeliveryDate,
-  hireWindowBlockedByRule,
+  hireDeliveryBlockedByRule,
   type BlockedDateRule,
 } from "../blocked-dates.logic";
 import {
@@ -276,16 +276,7 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
       reason: blocked.reason,
     };
 
-    if (
-      hireWindowBlockedByRule(
-        deliveryDate,
-        returnDate,
-        requestedRange.start,
-        requestedRange.end,
-        rule,
-        deliveryMethod,
-      )
-    ) {
+    if (hireDeliveryBlockedByRule(deliveryDate, returnDate, rule, deliveryMethod)) {
       return {
         available: false,
         deliveryDate,
@@ -294,8 +285,6 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
           hireBlockedReasonForDeliveryDate(
             deliveryDate,
             returnDate,
-            requestedRange.start,
-            requestedRange.end,
             rule,
             deliveryMethod,
           ) ?? "Delivery cannot start on this date",

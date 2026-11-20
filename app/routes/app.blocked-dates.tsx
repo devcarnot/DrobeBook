@@ -187,9 +187,8 @@ export default function BlockedDatesPage() {
                 Block specific dates or recurring weekdays. Hire rules stop
                 delivery starting on those days for the methods you select
                 (the dress may still be out on a blocked weekday in between).
-                Try-on rules close appointment days.
-                Date ranges also count as bank holidays when buffers use business
-                days.
+                Try-on rules close appointment days. These rules do not change
+                buffer / lead-time settings (those are under Booking buffers).
               </s-paragraph>
               <s-link href="/app/inventory">Garment-specific hire holds</s-link>
             </s-stack>

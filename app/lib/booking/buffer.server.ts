@@ -1,5 +1,3 @@
-import prisma from "../../db.server";
-import { expandRangeToIsoDates } from "../blocked-dates.logic";
 import {
   DEFAULT_BUFFER_CONFIG,
   parseBufferConfig,
@@ -21,39 +19,12 @@ export async function saveShopBufferConfig(
   return buffers;
 }
 
-export async function getHolidayDates(shop: string): Promise<Set<string>> {
-  const rows = await prisma.blockedDate.findMany({
-    where: {
-      shop,
-      productId: null,
-      variantId: null,
-      appliesToHire: true,
-    },
-    select: {
-      startDate: true,
-      endDate: true,
-      blockKind: true,
-      weekdayMask: true,
-      appliesToHire: true,
-      appliesToTryOn: true,
-      productId: true,
-      variantId: true,
-      reason: true,
-    },
-  });
-
-  const holidays = new Set<string>();
-
-  for (const row of rows) {
-    if (row.blockKind === "weekly") {
-      continue;
-    }
-    for (const iso of expandRangeToIsoDates(row.startDate, row.endDate)) {
-      holidays.add(iso);
-    }
-  }
-
-  return holidays;
+/**
+ * Blocked dates / shop blackouts are separate from buffer lead-time maths
+ * (postage cut-off, before/after rental buffers). Do not feed them in here.
+ */
+export async function getHolidayDates(_shop: string): Promise<Set<string>> {
+  return new Set();
 }
 
 export { DEFAULT_BUFFER_CONFIG, parseBufferConfig };
