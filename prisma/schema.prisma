@@ -215,6 +215,8 @@ model BlockedDate {
   weekdayMask    Int?
   appliesToHire  Boolean  @default(true)
   appliesToTryOn Boolean  @default(true)
+  appliesToPost  Boolean  @default(true)
+  appliesToPickup Boolean @default(true)
 
   @@index([shop, productId, variantId, startDate, endDate])
 }

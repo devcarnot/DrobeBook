@@ -48,6 +48,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     const reason = String(formData.get("reason") ?? "");
     const appliesToHire = formData.get("appliesToHire") === "on";
     const appliesToTryOn = formData.get("appliesToTryOn") === "on";
+    const appliesToPost = formData.get("appliesToPost") === "on";
+    const appliesToPickup = formData.get("appliesToPickup") === "on";
     const validFrom = String(formData.get("validFrom") ?? "").trim();
     const validUntil = String(formData.get("validUntil") ?? "").trim();
 
@@ -57,6 +59,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         reason,
         appliesToHire,
         appliesToTryOn,
+        appliesToPost: appliesToHire ? appliesToPost : false,
+        appliesToPickup: appliesToHire ? appliesToPickup : false,
         validFrom: validFrom || undefined,
         validUntil: validUntil || undefined,
       });
@@ -73,6 +77,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const reason = String(formData.get("reason") ?? "");
   const appliesToHire = formData.get("appliesToHire") === "on";
   const appliesToTryOn = formData.get("appliesToTryOn") === "on";
+  const appliesToPost = formData.get("appliesToPost") === "on";
+  const appliesToPickup = formData.get("appliesToPickup") === "on";
 
   if (!startDate) {
     return { error: "Please choose a start date." };
@@ -93,6 +99,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     blockKind: "range",
     appliesToHire,
     appliesToTryOn,
+    appliesToPost: appliesToHire ? appliesToPost : true,
+    appliesToPickup: appliesToHire ? appliesToPickup : true,
   });
 
   return { created: true };
@@ -118,9 +126,18 @@ function formatRange(startDate: string, endDate: string) {
 function formatApplies(entry: {
   appliesToHire: boolean;
   appliesToTryOn: boolean;
+  appliesToPost?: boolean;
+  appliesToPickup?: boolean;
 }): string {
   const parts: string[] = [];
-  if (entry.appliesToHire) parts.push("Hire");
+  if (entry.appliesToHire) {
+    const hireParts: string[] = [];
+    if (entry.appliesToPost !== false) hireParts.push("Express post");
+    if (entry.appliesToPickup) hireParts.push("Studio pickup");
+    parts.push(
+      hireParts.length ? `Hire (${hireParts.join(", ")})` : "Hire",
+    );
+  }
   if (entry.appliesToTryOn) parts.push("Try-on");
   return parts.length ? parts.join(", ") : "—";
 }
@@ -167,9 +184,10 @@ export default function BlockedDatesPage() {
             <s-stack direction="block" gap="small">
               <s-text type="strong">Shop-wide blackouts</s-text>
               <s-paragraph tone="neutral" color="subdued">
-                Block specific dates or recurring weekdays. Hire rules close
-                delivery/return on those days (the dress may still be out on a
-                blocked weekday in between). Try-on rules close appointment days.
+                Block specific dates or recurring weekdays. Hire rules stop
+                delivery starting on those days for the methods you select
+                (the dress may still be out on a blocked weekday in between).
+                Try-on rules close appointment days.
                 Date ranges also count as bank holidays when buffers use business
                 days.
               </s-paragraph>
@@ -210,6 +228,20 @@ export default function BlockedDatesPage() {
                     Try-on appointments
                   </label>
                 </s-stack>
+                <s-stack direction="inline" gap="large">
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="appliesToPost"
+                      defaultChecked
+                    />{" "}
+                    Express postage hire
+                  </label>
+                  <label>
+                    <input type="checkbox" name="appliesToPickup" /> Studio pickup
+                    hire
+                  </label>
+                </s-stack>
                 <s-box>
                   <s-button
                     type="submit"
@@ -229,9 +261,10 @@ export default function BlockedDatesPage() {
             <s-stack direction="block" gap="small">
               <s-text type="strong">Block weekdays (recurring)</s-text>
               <s-paragraph tone="neutral" color="subdued">
-                Select days such as Saturday and Sunday — every matching day
-                is unavailable on the storefront calendars. Optional valid-from /
-                valid-until dates limit how long the rule runs.
+                Select days such as Saturday and Sunday for express postage (post
+                office closed). Studio pickup stays open unless you tick Studio
+                pickup hire below. Optional valid-from / valid-until dates limit
+                how long the rule runs.
               </s-paragraph>
             </s-stack>
 
@@ -266,6 +299,20 @@ export default function BlockedDatesPage() {
                   <label>
                     <input type="checkbox" name="appliesToTryOn" defaultChecked />{" "}
                     Try-on appointments
+                  </label>
+                </s-stack>
+                <s-stack direction="inline" gap="large">
+                  <label>
+                    <input
+                      type="checkbox"
+                      name="appliesToPost"
+                      defaultChecked
+                    />{" "}
+                    Express postage hire
+                  </label>
+                  <label>
+                    <input type="checkbox" name="appliesToPickup" /> Studio pickup
+                    hire
                   </label>
                 </s-stack>
                 <s-box>

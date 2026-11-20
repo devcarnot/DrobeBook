@@ -69,6 +69,8 @@ const BLOCKED_DATE_SELECT = {
   weekdayMask: true,
   appliesToHire: true,
   appliesToTryOn: true,
+  appliesToPost: true,
+  appliesToPickup: true,
 } as const;
 
 function parseBufferDayUnit(value: unknown): BufferDayUnit | null {

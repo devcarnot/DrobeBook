@@ -136,6 +136,17 @@
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
+.gk-drobe-booking__day-tooltip {
+  margin: 0.5rem 0 0;
+  padding: 0.65rem 0.85rem;
+  font-size: 0.8125rem;
+  line-height: 1.45;
+  color: var(--gk-date-text);
+  background: var(--gk-tooltip-bg, #f4f4f4);
+  border: 1px solid var(--gk-tooltip-border, #d9d9d9);
+  border-radius: 0.35rem;
+}
+
 .gk-drobe-booking__calendar {
   margin: 0.25rem 0 1.35rem;
   padding: 1rem;

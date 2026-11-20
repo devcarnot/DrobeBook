@@ -24,6 +24,7 @@ export type CalendarAvailabilityResult = {
   month: number;
   earliestDeliveryDate: string;
   unavailableDates: string[];
+  unavailableReasons: Record<string, string>;
 };
 
 function daysInMonth(year: number, month: number): number {
@@ -49,6 +50,7 @@ export async function getUnavailableDatesForMonth(
   const settings = getBufferDefaultsForMethod(bufferConfig, deliveryMethod);
   const earliestDelivery = getEarliestDeliveryDate(settings, now, holidays);
   const unavailableDates: string[] = [];
+  const unavailableReasons: Record<string, string> = {};
   const totalDays = daysInMonth(params.year, params.month);
 
   for (let day = 1; day <= totalDays; day += 1) {
@@ -65,7 +67,10 @@ export async function getUnavailableDatesForMonth(
         holidays,
       )
     ) {
-      unavailableDates.push(formatDateIso(deliveryDate));
+      const iso = formatDateIso(deliveryDate);
+      unavailableDates.push(iso);
+      unavailableReasons[iso] =
+        "Delivery is too soon for the selected delivery method";
       continue;
     }
 
@@ -84,7 +89,10 @@ export async function getUnavailableDatesForMonth(
     );
 
     if (!result.available) {
-      unavailableDates.push(formatDateIso(deliveryDate));
+      const iso = formatDateIso(deliveryDate);
+      unavailableDates.push(iso);
+      unavailableReasons[iso] =
+        result.reason ?? "This date is not available";
     }
   }
 
@@ -93,6 +101,7 @@ export async function getUnavailableDatesForMonth(
     month: params.month,
     earliestDeliveryDate: formatDateIso(earliestDelivery),
     unavailableDates,
+    unavailableReasons,
   };
 }
 

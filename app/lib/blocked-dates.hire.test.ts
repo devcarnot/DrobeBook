@@ -21,6 +21,8 @@ const saturdayOnlyWeekly = {
   weekdayMask: weekdayBit(6),
   appliesToHire: true,
   appliesToTryOn: true,
+  appliesToPost: true,
+  appliesToPickup: false,
   productId: null,
   variantId: null,
 };
@@ -117,7 +119,7 @@ describe("hire blocked dates — calendar behaviour", () => {
     expect(unavailable).toContain("2026-11-12");
     expect(unavailable).toContain("2026-11-13");
     expect(unavailable).toContain("2026-11-14");
-    expect(unavailable).toContain("2026-11-09");
+    expect(unavailable).not.toContain("2026-11-09");
     expect(unavailable).not.toContain("2026-11-15");
   });
 
@@ -129,7 +131,48 @@ describe("hire blocked dates — calendar behaviour", () => {
         d("2026-11-21"),
         d("2026-11-24"),
         saturdayOnlyWeekly,
+        "post",
       ),
     ).toBe(true);
+  });
+
+  it("studio pickup ignores post-only weekend blocks", () => {
+    const blockedDates = [
+      {
+        startDate: d("1970-01-01"),
+        endDate: d("2099-12-31"),
+        blockKind: "weekly" as const,
+        weekdayMask: weekdayBit(0) | weekdayBit(6),
+        appliesToHire: true,
+        appliesToPost: true,
+        appliesToPickup: false,
+      },
+    ];
+
+    const saturday = isProductVariantAvailable({
+      productId: "p1",
+      variantId: "v1",
+      deliveryDate: d("2026-11-21"),
+      durationDays: 4,
+      deliveryMethod: "pickup",
+      today: d("2026-11-01"),
+      bookings: [],
+      blockedDates,
+    });
+
+    expect(saturday.available).toBe(true);
+
+    const postSaturday = isProductVariantAvailable({
+      productId: "p1",
+      variantId: "v1",
+      deliveryDate: d("2026-11-21"),
+      durationDays: 4,
+      deliveryMethod: "post",
+      today: d("2026-11-01"),
+      bookings: [],
+      blockedDates,
+    });
+
+    expect(postSaturday.available).toBe(false);
   });
 });

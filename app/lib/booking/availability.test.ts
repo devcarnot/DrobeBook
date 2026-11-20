@@ -217,7 +217,26 @@ describe("booking availability rules", () => {
   });
 
   it("treats shop-wide blocked dates as applying to all variants", () => {
-    const result = isProductVariantAvailable({
+    const blockedStart = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "var-10",
+      deliveryDate: d("2026-04-11"),
+      durationDays: 4,
+      today: d("2026-04-01"),
+      bookings: [],
+      blockedDates: [
+        {
+          startDate: d("2026-04-11"),
+          endDate: d("2026-04-11"),
+          productId: null,
+          variantId: null,
+        },
+      ],
+    });
+
+    expect(blockedStart.available).toBe(false);
+
+    const dayBefore = isProductVariantAvailable({
       productId: "prod-1",
       variantId: "var-10",
       deliveryDate: d("2026-04-10"),
@@ -234,7 +253,7 @@ describe("booking availability rules", () => {
       ],
     });
 
-    expect(result.available).toBe(false);
+    expect(dayBefore.available).toBe(true);
   });
 
   it("addDays advances calendar dates correctly across month boundaries", () => {

@@ -1,5 +1,6 @@
 import type { BufferConfig, BufferDayUnit, DeliveryMethod } from "./buffer-config";
 import {
+  hireBlockedReasonForDeliveryDate,
   hireWindowBlockedByRule,
   type BlockedDateRule,
 } from "../blocked-dates.logic";
@@ -51,6 +52,8 @@ export type BlockedDateRecord = {
   weekdayMask?: number | null;
   appliesToHire?: boolean;
   appliesToTryOn?: boolean;
+  appliesToPost?: boolean;
+  appliesToPickup?: boolean;
 };
 
 export type AvailabilityInput = {
@@ -266,6 +269,8 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
       weekdayMask: blocked.weekdayMask ?? null,
       appliesToHire: blocked.appliesToHire ?? true,
       appliesToTryOn: blocked.appliesToTryOn ?? false,
+      appliesToPost: blocked.appliesToPost ?? true,
+      appliesToPickup: blocked.appliesToPickup ?? true,
       productId: blocked.productId,
       variantId: blocked.variantId,
       reason: blocked.reason,
@@ -278,13 +283,22 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
         requestedRange.start,
         requestedRange.end,
         rule,
+        deliveryMethod,
       )
     ) {
       return {
         available: false,
         deliveryDate,
         returnDate,
-        reason: blocked.reason ?? "This size is unavailable on blocked dates",
+        reason:
+          hireBlockedReasonForDeliveryDate(
+            deliveryDate,
+            returnDate,
+            requestedRange.start,
+            requestedRange.end,
+            rule,
+            deliveryMethod,
+          ) ?? "Delivery cannot start on this date",
       };
     }
   }

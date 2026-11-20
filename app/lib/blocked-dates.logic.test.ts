@@ -16,6 +16,8 @@ describe("blocked-dates.logic", () => {
       weekdayMask: weekdayBit(0) | weekdayBit(6),
       appliesToHire: true,
       appliesToTryOn: true,
+      appliesToPost: true,
+      appliesToPickup: true,
       productId: null,
       variantId: null,
       reason: "Weekend",
@@ -52,6 +54,8 @@ describe("blocked-dates.logic", () => {
       weekdayMask: weekdayBit(1),
       appliesToHire: true,
       appliesToTryOn: false,
+      appliesToPost: true,
+      appliesToPickup: true,
       productId: null,
       variantId: null,
     };
@@ -69,6 +73,8 @@ describe("blocked-dates.logic", () => {
       weekdayMask: weekdayBit(6),
       appliesToHire: true,
       appliesToTryOn: false,
+      appliesToPost: true,
+      appliesToPickup: false,
       productId: null,
       variantId: null,
     };
@@ -80,6 +86,7 @@ describe("blocked-dates.logic", () => {
         new Date("2026-11-21T12:00:00.000Z"),
         new Date("2026-11-24T12:00:00.000Z"),
         rule,
+        "post",
       ),
     ).toBe(true);
 
@@ -90,6 +97,18 @@ describe("blocked-dates.logic", () => {
         new Date("2026-11-23T12:00:00.000Z"),
         new Date("2026-11-26T12:00:00.000Z"),
         rule,
+        "post",
+      ),
+    ).toBe(false);
+
+    expect(
+      hireWindowBlockedByRule(
+        new Date("2026-11-21T12:00:00.000Z"),
+        new Date("2026-11-24T12:00:00.000Z"),
+        new Date("2026-11-21T12:00:00.000Z"),
+        new Date("2026-11-24T12:00:00.000Z"),
+        rule,
+        "pickup",
       ),
     ).toBe(false);
   });

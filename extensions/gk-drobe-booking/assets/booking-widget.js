@@ -126,6 +126,7 @@
         calendarYear: new Date().getFullYear(),
         calendarMonth: new Date().getMonth() + 1,
         unavailableDates: new Set(),
+        unavailableReasons: {},
         loadingCalendar: false,
         waitlistClaim: null,
       };
@@ -169,6 +170,7 @@
       this.damageCheckbox = this.root.querySelector("[data-gk-damage-protection]");
       this.damageInfoLink = this.root.querySelector("[data-gk-damage-info]");
       this.calendarGrid = this.root.querySelector("[data-gk-calendar-grid]");
+      this.calendarTooltip = this.root.querySelector("[data-gk-day-tooltip]");
       this.calendarLabel = this.root.querySelector("[data-gk-calendar-label]");
       this.prevMonthButton = this.root.querySelector("[data-gk-prev-month]");
       this.nextMonthButton = this.root.querySelector("[data-gk-next-month]");
@@ -259,6 +261,7 @@
       });
 
       this.calendarGrid?.addEventListener("mouseleave", () => {
+        this.hideDayTooltip();
         this.state.previewStartDate = "";
         this.updateCalendarHighlights();
       });
@@ -859,6 +862,7 @@
       const variant = this.getSelectedVariant();
       if (!variant) {
         this.state.unavailableDates = new Set();
+        this.state.unavailableReasons = {};
         this.state.loadingCalendar = false;
         if (this.loadingEl) {
           this.loadingEl.hidden = true;
@@ -902,12 +906,14 @@
         }
 
         this.state.unavailableDates = new Set(data.unavailableDates || []);
+        this.state.unavailableReasons = data.unavailableReasons || {};
       } catch (error) {
         if (requestId !== this.calendarRequestId) {
           return;
         }
         this.showError(error.message);
         this.state.unavailableDates = new Set();
+        this.state.unavailableReasons = {};
       } finally {
         if (requestId === this.calendarRequestId) {
           this.state.loadingCalendar = false;
@@ -918,6 +924,22 @@
           this.renderCalendar();
         }
       }
+    }
+
+    showDayTooltip(button, message) {
+      if (!this.calendarTooltip || !message) {
+        return;
+      }
+      this.calendarTooltip.textContent = message;
+      this.calendarTooltip.hidden = false;
+    }
+
+    hideDayTooltip() {
+      if (!this.calendarTooltip) {
+        return;
+      }
+      this.calendarTooltip.hidden = true;
+      this.calendarTooltip.textContent = "";
     }
 
     updateCalendarHighlights() {
@@ -979,6 +1001,7 @@
       ).getUTCDate();
 
       this.calendarGrid.innerHTML = "";
+      this.hideDayTooltip();
 
       ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"].forEach((weekday) => {
         const label = document.createElement("div");
@@ -1006,16 +1029,33 @@
         const unavailable = this.state.unavailableDates.has(iso);
         if (unavailable) {
           button.classList.add("gk-drobe-booking__day--unavailable");
-          button.disabled = true;
+          button.setAttribute("aria-disabled", "true");
+          const reason =
+            this.state.unavailableReasons[iso] ||
+            "This date is not available as your delivery start date.";
+          button.dataset.gkUnavailableReason = reason;
         }
 
         button.addEventListener("mouseenter", () => {
-          if (button.disabled) return;
+          if (unavailable) {
+            this.showDayTooltip(button, button.dataset.gkUnavailableReason);
+            return;
+          }
+          this.hideDayTooltip();
           this.state.previewStartDate = iso;
           this.updateCalendarHighlights();
         });
 
+        button.addEventListener("mouseleave", () => {
+          if (unavailable) {
+            this.hideDayTooltip();
+          }
+        });
+
         button.addEventListener("click", () => {
+          if (unavailable) {
+            return;
+          }
           this.selectDeliveryDate(iso);
         });
 

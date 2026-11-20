@@ -26,6 +26,8 @@ export type BlockedDateRecord = {
   weekdayMask: number | null;
   appliesToHire: boolean;
   appliesToTryOn: boolean;
+  appliesToPost: boolean;
+  appliesToPickup: boolean;
 };
 
 function mapRow(row: {
@@ -41,6 +43,8 @@ function mapRow(row: {
   weekdayMask: number | null;
   appliesToHire: boolean;
   appliesToTryOn: boolean;
+  appliesToPost: boolean;
+  appliesToPickup: boolean;
 }): BlockedDateRecord {
   return {
     id: row.id,
@@ -55,6 +59,8 @@ function mapRow(row: {
     weekdayMask: row.weekdayMask,
     appliesToHire: row.appliesToHire,
     appliesToTryOn: row.appliesToTryOn,
+    appliesToPost: row.appliesToPost,
+    appliesToPickup: row.appliesToPickup,
   };
 }
 
@@ -79,6 +85,8 @@ export async function listShopWideBlockRules(shop: string) {
     weekdayMask: row.weekdayMask,
     appliesToHire: row.appliesToHire,
     appliesToTryOn: row.appliesToTryOn,
+    appliesToPost: row.appliesToPost,
+    appliesToPickup: row.appliesToPickup,
     productId: row.productId,
     variantId: row.variantId,
     reason: row.reason,
@@ -98,6 +106,8 @@ export async function createBlockedDate(
     weekdayMask?: number;
     appliesToHire?: boolean;
     appliesToTryOn?: boolean;
+    appliesToPost?: boolean;
+    appliesToPickup?: boolean;
   },
 ): Promise<BlockedDateRecord> {
   const blockKind = input.blockKind ?? "range";
@@ -115,6 +125,8 @@ export async function createBlockedDate(
       weekdayMask: blockKind === "weekly" ? (input.weekdayMask ?? 0) : null,
       appliesToHire: input.appliesToHire ?? true,
       appliesToTryOn: input.appliesToTryOn ?? true,
+      appliesToPost: input.appliesToPost ?? true,
+      appliesToPickup: input.appliesToPickup ?? true,
     },
   });
 
@@ -128,6 +140,8 @@ export async function createWeeklyBlockedDays(
     reason?: string;
     appliesToHire?: boolean;
     appliesToTryOn?: boolean;
+    appliesToPost?: boolean;
+    appliesToPickup?: boolean;
     validFrom?: string;
     validUntil?: string;
     createdBy?: string;
@@ -151,6 +165,8 @@ export async function createWeeklyBlockedDays(
     weekdayMask: input.weekdayMask,
     appliesToHire,
     appliesToTryOn,
+    appliesToPost: input.appliesToPost ?? true,
+    appliesToPickup: input.appliesToPickup ?? false,
     createdBy: input.createdBy,
   });
 }
@@ -206,5 +222,7 @@ export async function createGarmentBlockedDate(
     blockKind: "range",
     appliesToHire: true,
     appliesToTryOn: false,
+    appliesToPost: true,
+    appliesToPickup: true,
   });
 }

@@ -15,10 +15,49 @@ export type BlockedDateRule = {
   weekdayMask: number | null;
   appliesToHire: boolean;
   appliesToTryOn: boolean;
+  appliesToPost: boolean;
+  appliesToPickup: boolean;
   productId?: string | null;
   variantId?: string | null;
   reason?: string | null;
 };
+
+export type HireDeliveryMethod = "post" | "pickup";
+
+export function ruleAppliesToDeliveryMethod(
+  rule: BlockedDateRule,
+  deliveryMethod: HireDeliveryMethod,
+): boolean {
+  if (deliveryMethod === "pickup") {
+    return rule.appliesToPickup !== false;
+  }
+  return rule.appliesToPost !== false;
+}
+
+export function defaultBlockedDayMessage(
+  rule: BlockedDateRule,
+  deliveryMethod: HireDeliveryMethod,
+): string {
+  if (rule.reason?.trim()) {
+    return rule.reason.trim();
+  }
+
+  if (rule.blockKind === "weekly" && deliveryMethod === "post") {
+    const mask = rule.weekdayMask ?? 0;
+    const hasWeekend =
+      (mask & weekdayBit(0)) !== 0 || (mask & weekdayBit(6)) !== 0;
+    if (hasWeekend) {
+      return "Express postage is not available on this day (post office closed). Choose Studio pickup or another date.";
+    }
+    return "Express postage is not available on this day. Choose Studio pickup or another date.";
+  }
+
+  if (rule.blockKind === "weekly" && deliveryMethod === "pickup") {
+    return "Studio pickup is not available on this day.";
+  }
+
+  return "Delivery cannot start on this date.";
+}
 
 export const WEEKDAY_LABELS = [
   "Sunday",
@@ -128,38 +167,40 @@ export function dateRangeOverlapsBlockedRule(
 }
 
 /**
- * Hire calendar: weekly rules block delivery/return/buffer edges on closed weekdays
- * (not every day the dress is at home during the hire).
- * Date ranges block delivery/return on closed days and any overlapping hire window.
+ * A blocked day means delivery cannot *start* on that date for this method.
+ * Shop-wide rules never look at return dates or mid-hire weekends.
+ * Garment-specific holds still block overlapping hire windows.
  */
 export function hireWindowBlockedByRule(
   deliveryDate: Date,
-  returnDate: Date,
+  _returnDate: Date,
   effectiveStart: Date,
   effectiveEnd: Date,
   rule: BlockedDateRule,
+  deliveryMethod: HireDeliveryMethod,
 ): boolean {
   if (!ruleAppliesToScope(rule, "hire")) {
     return false;
   }
 
-  const delivery = toDateOnly(deliveryDate);
-  const returns = toDateOnly(returnDate);
-  const effStart = toDateOnly(effectiveStart);
-  const effEnd = toDateOnly(effectiveEnd);
-
-  if (rule.blockKind === "weekly") {
-    const checkpoints = [delivery, returns, effStart, effEnd];
-    return checkpoints.some((d) => isDateBlockedByRule(d, rule, "hire"));
+  if (!ruleAppliesToDeliveryMethod(rule, deliveryMethod)) {
+    return false;
   }
 
-  if (
-    isDateBlockedByRule(delivery, rule, "hire") ||
-    isDateBlockedByRule(returns, rule, "hire")
-  ) {
+  const delivery = toDateOnly(deliveryDate);
+  if (isDateBlockedByRule(delivery, rule, "hire")) {
     return true;
   }
 
+  const isGarmentSpecific =
+    rule.productId != null || rule.variantId != null;
+
+  if (!isGarmentSpecific || rule.blockKind === "weekly") {
+    return false;
+  }
+
+  const effStart = toDateOnly(effectiveStart);
+  const effEnd = toDateOnly(effectiveEnd);
   const closedStart = toDateOnly(rule.startDate);
   const closedEnd = toDateOnly(rule.endDate);
 
@@ -167,6 +208,30 @@ export function hireWindowBlockedByRule(
     { start: effStart, end: effEnd },
     { start: closedStart, end: closedEnd },
   );
+}
+
+export function hireBlockedReasonForDeliveryDate(
+  deliveryDate: Date,
+  returnDate: Date,
+  effectiveStart: Date,
+  effectiveEnd: Date,
+  rule: BlockedDateRule,
+  deliveryMethod: HireDeliveryMethod,
+): string | null {
+  if (
+    !hireWindowBlockedByRule(
+      deliveryDate,
+      returnDate,
+      effectiveStart,
+      effectiveEnd,
+      rule,
+      deliveryMethod,
+    )
+  ) {
+    return null;
+  }
+
+  return defaultBlockedDayMessage(rule, deliveryMethod);
 }
 
 export function expandRangeToIsoDates(start: Date, end: Date): string[] {
