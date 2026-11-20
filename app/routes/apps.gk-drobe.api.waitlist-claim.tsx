@@ -23,9 +23,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     return {
       valid: true,
       email: entry.email,
+      kind: entry.kind,
       productId: entry.productId,
       variantId: entry.variantId,
       size: entry.size,
+      preferredDate: entry.preferredDate?.toISOString().slice(0, 10) ?? null,
+      preferredTime: entry.preferredTime,
+      durationMinutes: entry.durationMinutes,
       expiresAt: entry.claimExpiresAt?.toISOString() ?? null,
     };
   });

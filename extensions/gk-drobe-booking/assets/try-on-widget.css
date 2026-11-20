@@ -543,6 +543,60 @@
   padding: 0.5rem 0;
 }
 
+.gk-drobe-tryon__waitlist-claim {
+  margin-top: 1rem;
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  background: rgba(0, 128, 96, 0.08);
+  color: #004c3f;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.gk-drobe-tryon__waitlist {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.gk-drobe-tryon__waitlist-toggle {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--gk-button-bg, #0f766e);
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+}
+
+.gk-drobe-tryon__waitlist-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-top: 0.85rem;
+}
+
+.gk-drobe-tryon__waitlist-copy {
+  margin: 0;
+  font-size: 0.875rem;
+  color: rgba(0, 0, 0, 0.55);
+}
+
+.gk-drobe-tryon__waitlist-message {
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+
+.gk-drobe-tryon__submit--secondary {
+  background: transparent;
+  color: var(--gk-button-bg, #0f766e);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
 @media (max-width: 749px) {
   .gk-drobe-tryon-page {
     padding-block: 1rem 2rem;

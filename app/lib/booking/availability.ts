@@ -207,6 +207,19 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
     };
   }
 
+  if (deliveryMethod === "post") {
+    const weekKey = deliveryWeekKey(deliveryDate);
+    if (countPostBookingsInDeliveryWeek(input.bookings, weekKey) >= 1) {
+      return {
+        available: false,
+        deliveryDate,
+        returnDate,
+        reason:
+          "Only one postage booking is allowed for this garment each week",
+      };
+    }
+  }
+
   const inventoryCapacity = Math.max(1, input.inventoryQuantity ?? 1);
   const overlappingBookings = countOverlappingBookings(
     input.bookings,
@@ -262,4 +275,34 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
 
 export function formatDateIso(date: Date): string {
   return toDateOnly(date).toISOString().slice(0, 10);
+}
+
+/** Monday-start week key for postage booking limits (UTC). */
+export function startOfDeliveryWeekMonday(date: Date): Date {
+  const day = toDateOnly(date).getUTCDay();
+  const daysSinceMonday = day === 0 ? 6 : day - 1;
+  return addDays(toDateOnly(date), -daysSinceMonday);
+}
+
+export function deliveryWeekKey(date: Date): string {
+  return formatDateIso(startOfDeliveryWeekMonday(date));
+}
+
+function countPostBookingsInDeliveryWeek(
+  bookings: BookingRecord[],
+  weekKey: string,
+): number {
+  let count = 0;
+  for (const booking of bookings) {
+    if (!blocksAvailability(booking.status)) {
+      continue;
+    }
+    if (booking.deliveryMethod === "pickup") {
+      continue;
+    }
+    if (deliveryWeekKey(booking.startDate) === weekKey) {
+      count += 1;
+    }
+  }
+  return count;
 }

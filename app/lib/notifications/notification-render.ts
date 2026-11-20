@@ -83,11 +83,16 @@ export function buildRentalTokenMap(
     .filter(Boolean)
     .join(" · ");
 
+  const pickupCollectionWindow =
+    context.pickupCollectionWindow?.trim() ||
+    "We will confirm your collection time — reply if you need a specific window.";
+
   return {
     customerFirstName: firstName,
     customerLastName: lastName,
     customerName: context.customerName?.trim() || firstName,
     customerEmail: context.customerEmail ?? "",
+    pickupCollectionWindow,
     rentalStartDate: formatDisplayDate(context.rentalStart),
     rentalEndDate: formatDisplayDate(context.rentalEnd),
     eventDate: formatDisplayDate(context.eventDate),
@@ -135,11 +140,40 @@ export function buildAppointmentTokenMap(
   };
 }
 
+function formatWaitlistDetails(context: WaitlistNotificationContext) {
+  if (context.waitlistKind === "try_on") {
+    const date = context.preferredDate
+      ? formatDisplayDate(context.preferredDate)
+      : "your preferred day";
+  const time = context.preferredTime?.trim();
+  const duration = context.durationMinutes
+    ? `${context.durationMinutes}-minute try-on`
+    : "try-on appointment";
+    const parts = [
+      `A try-on slot may be available for ${duration} on ${date}.`,
+      time ? `Preferred time: ${time}.` : "",
+      context.productTitle ? `Gown: ${context.productTitle}.` : "",
+    ];
+    return parts.filter(Boolean).join("\n");
+  }
+
+  const event = context.preferredDate
+    ? `Event or hire context: ${formatDisplayDate(context.preferredDate)}.`
+    : "";
+  return [
+    `We now have hire availability that may work for ${context.productTitle ?? "your selected gown"}.`,
+    event,
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function buildWaitlistTokenMap(
   context: WaitlistNotificationContext,
   shopName: string,
 ) {
   const { firstName, lastName } = splitCustomerName(context.name);
+  const waitlistDetails = formatWaitlistDetails(context);
 
   return {
     customerFirstName: firstName,
@@ -157,6 +191,7 @@ export function buildWaitlistTokenMap(
     returnTrackingLink: "",
     shopName,
     claimUrl: context.claimUrl ?? "",
+    waitlistDetails,
   };
 }
 

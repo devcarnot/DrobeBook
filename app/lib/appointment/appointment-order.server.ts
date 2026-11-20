@@ -14,6 +14,8 @@ import {
   appointmentBookingToNotificationContext,
   sendAppointmentNotification,
 } from "../notifications/notification.server";
+import { fulfillWaitlistForTryOn } from "../waitlist/waitlist.server";
+import { notifyNextWaitlistForTryOnSlot } from "../waitlist/waitlist-notify.server";
 
 function getLineProperty(
   properties: OrderLineItem["properties"],
@@ -225,6 +227,17 @@ export async function confirmAppointmentFromOrder(
     appointmentBookingToNotificationContext(booking),
   ).catch(() => undefined);
 
+  const gownProductId = lineItem.product_id
+    ? String(lineItem.product_id)
+    : null;
+
+  void fulfillWaitlistForTryOn(
+    shop,
+    customer?.email,
+    parsed.date,
+    gownProductId,
+  ).catch(() => undefined);
+
   return { created: true, appointmentId: parsed.appointmentId };
 }
 
@@ -285,6 +298,12 @@ export async function cancelAppointmentsForOrder(shop: string, orderId: string) 
     await prisma.appointmentBooking.delete({
       where: { id: booking.id },
     });
+
+    void notifyNextWaitlistForTryOnSlot(shop, {
+      date: booking.date,
+      durationMinutes: booking.durationMinutes,
+      productId: booking.gownProductId,
+    }).catch(() => undefined);
   }
 
   return bookings.length;

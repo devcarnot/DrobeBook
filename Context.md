@@ -168,6 +168,7 @@ Add in theme editor (Online Store → Customize):
 
 ## Known issues / notes
 
+- **Duplicate GK.Drobe blocks in theme editor** — The repo has only one theme extension (`gk-drobe-booking`) with three section blocks (Booking, Search By Date, Try-On). Shopify often lists each **twice** when (a) `npm run dev` / `shopify app dev` is running **and** a released app version is active, or (b) **Development store preview** is enabled on the extension in Partner Dashboard **and** a version is released. **Fix:** Stop local `shopify app dev` while you only need the live blocks; or use only one set while dev is running (the set tied to your current tunnel). In Partners, disable Development store preview on the theme extension if you only want released blocks on the dev store.
 - **React Router 7.18.3+** breaks embedded POST actions (CSRF origin check). Pinned to **7.18.2** — see `react-router.config.ts` and `package.json` overrides.
 - **Public distribution + App Store submission** blocks install on new stores until Shopify review completes.
 - **Emails** require a verified domain on Resend (not `@resend.dev` for customers).

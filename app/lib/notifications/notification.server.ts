@@ -66,6 +66,7 @@ export function bookingToNotificationContext(booking: {
   id: string;
   customerName: string | null;
   customerEmail: string | null;
+  pickupCollectionWindow?: string | null;
   productTitle: string | null;
   size: string;
   startDate: Date;
@@ -82,6 +83,7 @@ export function bookingToNotificationContext(booking: {
     bookingId: booking.id,
     customerName: booking.customerName,
     customerEmail: booking.customerEmail,
+    pickupCollectionWindow: booking.pickupCollectionWindow ?? null,
     productTitle: booking.productTitle,
     size: booking.size,
     rentalStart: formatIsoDate(booking.startDate),
@@ -113,12 +115,7 @@ function dedupeAutomatedTemplates(
 
   const seen = new Set<string>();
   return templates.filter((template) => {
-    const key = [
-      template.trigger,
-      template.workflowStatus ?? "",
-      template.offsetDays,
-      template.category,
-    ].join(":");
+    const key = template.id;
     if (seen.has(key)) {
       return false;
     }
@@ -200,6 +197,11 @@ async function sendTemplateEmail(
     return { ok: false, skipped: true };
   }
 
+  const email = recipientEmail.trim().toLowerCase();
+  if (!email) {
+    return { ok: false, skipped: true };
+  }
+
   const anchorDate = meta.allowResend
     ? manualResendAnchorDate()
     : meta.anchorDate;
@@ -208,7 +210,7 @@ async function sendTemplateEmail(
     shop,
     templateId: template.id,
     bookingId: meta.bookingId,
-    email: recipientEmail,
+    email,
     anchorDate,
   });
 
@@ -228,7 +230,7 @@ async function sendTemplateEmail(
   );
 
   const result = await sendNotificationEmail(shop, {
-    to: recipientEmail,
+    to: email,
     subject,
     bodyHtml,
     bodyText,
@@ -241,7 +243,7 @@ async function sendTemplateEmail(
     shop,
     templateId: template.id,
     bookingId: meta.bookingId,
-    recipientEmail,
+    recipientEmail: email,
     subject,
     status: result.ok ? "sent" : "failed",
     triggerKey,
@@ -319,6 +321,19 @@ export async function sendRentalNotification(
   let lastError: string | undefined;
 
   for (const template of templatesToSend) {
+    if (
+      template.id === "pickup-collection-reminder" &&
+      !context.pickupCollectionWindow?.trim()
+    ) {
+      continue;
+    }
+    if (
+      template.id === "rental-upcoming-pickup" &&
+      context.pickupCollectionWindow?.trim()
+    ) {
+      continue;
+    }
+
     const result = await sendTemplateEmail(shop, config, template, email, tokens, {
       bookingId: context.bookingId,
       anchorDate: options.anchorDate,
@@ -389,30 +404,25 @@ export async function sendWaitlistNotification(
   return { sent, skipped: templates.length - sent };
 }
 
-export async function sendAppointmentNotification(
+export async function sendWaitlistRemovedNotification(
   shop: string,
-  context: AppointmentNotificationContext,
+  context: WaitlistNotificationContext,
 ) {
   const config = await getNotificationsConfig(shop);
-  const email = context.customerEmail?.trim().toLowerCase();
+  const email = context.email.trim().toLowerCase();
   if (!email) {
     return { sent: 0, skipped: 1 };
   }
 
-  const tokens = buildAppointmentTokenMap(
-    context,
-    config.fromName || shopDisplayName(shop),
-  );
+  const tokens = buildWaitlistTokenMap(context, config.fromName || shopDisplayName(shop));
   const templates = config.templates.filter(
-    (template) =>
-      template.trigger === "on_appointment_confirm" && template.active,
+    (template) => template.trigger === "on_waitlist_removed" && template.active,
   );
 
   let sent = 0;
   for (const template of templates) {
     const result = await sendTemplateEmail(shop, config, template, email, tokens, {
-      bookingId: context.appointmentId,
-      anchorDate: context.appointmentDate,
+      anchorDate: formatIsoDate(new Date()),
     });
     if (result.ok && !wasSkipped(result)) {
       sent += 1;
@@ -420,6 +430,58 @@ export async function sendAppointmentNotification(
   }
 
   return { sent, skipped: templates.length - sent };
+}
+
+export async function sendAppointmentNotification(
+  shop: string,
+  context: AppointmentNotificationContext,
+  options?: {
+    trigger?: NotificationTrigger;
+    templateId?: string;
+    anchorDate?: string;
+  },
+) {
+  const config = await getNotificationsConfig(shop);
+  const email = context.customerEmail?.trim().toLowerCase();
+  if (!email) {
+    return { sent: 0, skipped: 1 };
+  }
+
+  const trigger = options?.trigger ?? "on_appointment_confirm";
+  const tokens = buildAppointmentTokenMap(
+    context,
+    config.fromName || shopDisplayName(shop),
+  );
+  const templates = config.templates.filter((template) => {
+    if (options?.templateId) {
+      return template.id === options.templateId;
+    }
+    return template.trigger === trigger && template.active;
+  });
+
+  let sent = 0;
+  for (const template of templates) {
+    const result = await sendTemplateEmail(shop, config, template, email, tokens, {
+      bookingId: context.appointmentId,
+      anchorDate: options?.anchorDate ?? context.appointmentDate,
+      ignoreGlobalDisabled: Boolean(options?.templateId),
+      allowResend: Boolean(options?.templateId),
+    });
+    if (result.ok && !wasSkipped(result)) {
+      sent += 1;
+    }
+  }
+
+  return { sent, skipped: templates.length - sent };
+}
+
+export async function sendTryOnItemUnavailableNotification(
+  shop: string,
+  context: AppointmentNotificationContext,
+) {
+  return sendAppointmentNotification(shop, context, {
+    trigger: "on_appointment_item_unavailable",
+  });
 }
 
 export function appointmentBookingToNotificationContext(booking: {
@@ -516,6 +578,70 @@ export async function processScheduledRentalNotifications(shop: string) {
       const result = await sendRentalNotification(shop, context, {
         trigger: template.trigger,
         anchorDate,
+        templateId: template.id,
+      });
+      sent += result.sent;
+    }
+  }
+
+  return { processed, sent };
+}
+
+function anchorDateForAppointment(
+  context: AppointmentNotificationContext,
+  template: NotificationTemplate,
+) {
+  const date = new Date(`${context.appointmentDate}T12:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + template.offsetDays);
+  return formatIsoDate(date);
+}
+
+export async function processScheduledAppointmentNotifications(shop: string) {
+  const config = await getNotificationsConfig(shop);
+  if (!config.enabled) {
+    return { processed: 0, sent: 0 };
+  }
+
+  const templates = config.templates.filter(
+    (template) =>
+      template.automated &&
+      template.active &&
+      template.trigger === "days_before_appointment",
+  );
+
+  if (!templates.length) {
+    return { processed: 0, sent: 0 };
+  }
+
+  const today = formatIsoDate(new Date());
+  const horizon = new Date(`${today}T12:00:00.000Z`);
+  horizon.setUTCDate(horizon.getUTCDate() + 14);
+
+  const appointments = await prisma.appointmentBooking.findMany({
+    where: {
+      shop,
+      date: { gte: new Date(`${today}T00:00:00.000Z`), lte: horizon },
+    },
+    take: 500,
+  });
+
+  let processed = 0;
+  let sent = 0;
+
+  for (const appointment of appointments) {
+    const context = appointmentBookingToNotificationContext(appointment);
+
+    for (const template of templates) {
+      const anchorDate = anchorDateForAppointment(context, template);
+      if (!isDueToday(anchorDate)) {
+        continue;
+      }
+
+      processed += 1;
+      const result = await sendAppointmentNotification(shop, context, {
+        trigger: template.trigger,
+        anchorDate,
+        templateId: template.id,
       });
       sent += result.sent;
     }

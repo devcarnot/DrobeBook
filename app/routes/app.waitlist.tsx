@@ -11,6 +11,10 @@ import {
   waitlistEntriesToCsv,
   type WaitlistStatus,
 } from "../lib/waitlist/waitlist.server";
+import {
+  notifyWaitlistEntryById,
+  removeWaitlistEntry,
+} from "../lib/waitlist/waitlist-notify.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -19,10 +23,16 @@ const STATUS_FILTERS: Array<{ id: WaitlistStatus | "all"; label: string }> = [
   { id: "waiting", label: "Waiting" },
   { id: "contacted", label: "Contacted" },
   { id: "fulfilled", label: "Fulfilled" },
+  { id: "removed", label: "Removed" },
 ];
 
 function parseStatusFilter(value: string | null): WaitlistStatus | "all" {
-  if (value === "waiting" || value === "contacted" || value === "fulfilled") {
+  if (
+    value === "waiting" ||
+    value === "contacted" ||
+    value === "fulfilled" ||
+    value === "removed"
+  ) {
     return value;
   }
   return "all";
@@ -67,6 +77,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     await updateWaitlistStatus(session.shop, id, "waiting");
   }
 
+  if (intent === "notify-availability" && id) {
+    const result = await notifyWaitlistEntryById(session.shop, id);
+    return result.ok
+      ? { ok: true, notified: true }
+      : { ok: false, error: result.error };
+  }
+
+  if (intent === "remove-entry" && id) {
+    const notifyCustomer = String(formData.get("notifyCustomer") ?? "") === "true";
+    const result = await removeWaitlistEntry(session.shop, id, { notifyCustomer });
+    return result.ok
+      ? { ok: true, removed: true }
+      : { ok: false, error: result.error };
+  }
+
   return { ok: true };
 };
 
@@ -93,12 +118,15 @@ function formatDateTime(value: Date) {
   });
 }
 
-function statusTone(status: WaitlistStatus): "warning" | "info" | "success" {
+function statusTone(status: WaitlistStatus): "warning" | "info" | "success" | "neutral" {
   if (status === "fulfilled") {
     return "success";
   }
   if (status === "contacted") {
     return "info";
+  }
+  if (status === "removed") {
+    return "neutral";
   }
   return "warning";
 }
@@ -117,8 +145,8 @@ export default function WaitlistPage() {
           <s-stack direction="block" gap="small">
             <s-text type="strong">Customer waitlist requests</s-text>
             <s-paragraph tone="neutral" color="subdued">
-              Customers join from the booking widget when hire dates are unavailable.
-              Email them with one click, then update status so your team stays in sync.
+              Customers join from hire or try-on widgets when dates or slots are unavailable.
+              Send automated availability emails, remove entries with notification, and track status.
             </s-paragraph>
           </s-stack>
         </s-box>
@@ -127,6 +155,8 @@ export default function WaitlistPage() {
           <s-badge tone="warning">{summary.waiting} waiting</s-badge>
           <s-badge tone="info">{summary.contacted} contacted</s-badge>
           <s-badge tone="success">{summary.fulfilled} fulfilled</s-badge>
+          <s-badge tone="neutral">{summary.removed} removed</s-badge>
+          <s-badge>{summary.tryOn} try-on</s-badge>
           <s-badge>{summary.total} total</s-badge>
         </s-stack>
 
@@ -215,6 +245,9 @@ export default function WaitlistPage() {
                       <s-stack direction="inline" gap="small" alignItems="center">
                         <s-text type="strong">{entry.email}</s-text>
                         <s-badge tone={statusTone(entry.status)}>{entry.status}</s-badge>
+                        <s-badge tone={entry.kind === "try_on" ? "info" : "neutral"}>
+                          {entry.kind === "try_on" ? "Try-on" : "Hire"}
+                        </s-badge>
                       </s-stack>
                       {entry.name ? (
                         <s-text tone="neutral">{entry.name}</s-text>
@@ -230,9 +263,22 @@ export default function WaitlistPage() {
                     </s-stack>
 
                     <s-stack direction="inline" gap="small">
+                      {entry.status === "waiting" ? (
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="notify-availability" />
+                          <input type="hidden" name="id" value={entry.id} />
+                          <s-button
+                            type="submit"
+                            variant="primary"
+                            {...(isSubmitting ? { loading: true } : {})}
+                          >
+                            Send availability email
+                          </s-button>
+                        </Form>
+                      ) : null}
                       <s-link href={entry.mailtoUrl} target="_blank">
-                        <s-button variant="primary" icon="email">
-                          Email customer
+                        <s-button variant="secondary" icon="email">
+                          Compose
                         </s-button>
                       </s-link>
                     </s-stack>
@@ -245,6 +291,10 @@ export default function WaitlistPage() {
                         Product ID {entry.productId}
                         {entry.size ? ` · Size ${entry.size}` : ""}
                         {entry.eventDate ? ` · Event ${formatDate(entry.eventDate)}` : ""}
+                        {entry.preferredDate
+                          ? ` · Try-on ${formatDate(entry.preferredDate)}${entry.preferredTime ? ` ${entry.preferredTime}` : ""}`
+                          : ""}
+                        {entry.durationMinutes ? ` · ${entry.durationMinutes} min` : ""}
                       </s-text>
                       <s-stack direction="inline" gap="small">
                         <s-link href={entry.adminProductUrl} target="_blank">
@@ -295,7 +345,7 @@ export default function WaitlistPage() {
                         </s-button>
                       </Form>
                     ) : null}
-                    {entry.status !== "waiting" ? (
+                    {entry.status !== "waiting" && entry.status !== "removed" ? (
                       <Form method="post">
                         <input type="hidden" name="intent" value="mark-waiting" />
                         <input type="hidden" name="id" value={entry.id} />
@@ -303,6 +353,26 @@ export default function WaitlistPage() {
                           Reopen
                         </s-button>
                       </Form>
+                    ) : null}
+                    {entry.status !== "removed" ? (
+                      <>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="remove-entry" />
+                          <input type="hidden" name="id" value={entry.id} />
+                          <input type="hidden" name="notifyCustomer" value="true" />
+                          <s-button type="submit" variant="tertiary">
+                            Remove &amp; notify
+                          </s-button>
+                        </Form>
+                        <Form method="post">
+                          <input type="hidden" name="intent" value="remove-entry" />
+                          <input type="hidden" name="id" value={entry.id} />
+                          <input type="hidden" name="notifyCustomer" value="false" />
+                          <s-button type="submit" variant="tertiary">
+                            Remove silently
+                          </s-button>
+                        </Form>
+                      </>
                     ) : null}
                   </s-stack>
                 </s-stack>

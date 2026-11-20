@@ -1,4 +1,7 @@
-import { processScheduledRentalNotifications } from "../notifications/notification.server";
+import {
+  processScheduledAppointmentNotifications,
+  processScheduledRentalNotifications,
+} from "../notifications/notification.server";
 import { listShopsWithAppData } from "../shop-data.server";
 
 export async function runScheduledNotificationsForAllShops() {
@@ -8,18 +11,25 @@ export async function runScheduledNotificationsForAllShops() {
   let totalProcessed = 0;
 
   for (const shop of shops) {
-    const result = await processScheduledRentalNotifications(shop).catch((error) => {
-      console.warn(`[cron-notifications] Failed for ${shop}:`, error);
+    const rental = await processScheduledRentalNotifications(shop).catch((error) => {
+      console.warn(`[cron-notifications] Rental failed for ${shop}:`, error);
       return { processed: 0, sent: 0, error: true as const };
     });
 
-    if ("error" in result) {
+    const appointment = await processScheduledAppointmentNotifications(shop).catch(
+      (error) => {
+        console.warn(`[cron-notifications] Appointment failed for ${shop}:`, error);
+        return { processed: 0, sent: 0 };
+      },
+    );
+
+    if ("error" in rental) {
       continue;
     }
 
     shopsProcessed += 1;
-    totalSent += result.sent;
-    totalProcessed += result.processed;
+    totalSent += rental.sent + appointment.sent;
+    totalProcessed += rental.processed + appointment.processed;
   }
 
   return {

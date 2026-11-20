@@ -66,6 +66,7 @@ model Booking {
   bufferAfterUnit  String?
   customerName   String?
   customerEmail  String?
+  pickupCollectionWindow String?
   productTitle   String?
   rentalNotes    String?
   fulfillmentTrackingNumber String?
@@ -174,15 +175,19 @@ model NotificationSend {
 model WaitlistEntry {
   id             String    @id @default(cuid())
   shop           String
+  kind           String    @default("garment") // garment | try_on
   productId      String
   productTitle   String?
   variantId      String?
   size           String?
   eventDate      DateTime?
+  preferredDate  DateTime?
+  preferredTime  String?
+  durationMinutes Int?
   email          String
   name           String?
   notes          String?
-  status         String    @default("waiting")
+  status         String    @default("waiting") // waiting | contacted | fulfilled | removed
   notifiedAt     DateTime?
   claimToken     String?   @unique
   claimExpiresAt DateTime?
@@ -191,6 +196,7 @@ model WaitlistEntry {
   @@index([shop, status])
   @@index([shop, productId])
   @@index([shop, productId, variantId])
+  @@index([shop, kind, status, preferredDate])
 }
 
 model BlockedDate {

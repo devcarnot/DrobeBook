@@ -35,94 +35,14 @@ import type {
   ShopifyOrderMode,
 } from "./rental.types";
 import { parseTags, serializeTags } from "./rental.types";
+import { resolveDatePresetRange, startOfDayUtc } from "./date-range";
+
+export { resolveDatePresetRange };
 
 const PAGE_SIZE = 20;
 
 function isoDate(date: Date): string {
   return date.toISOString().slice(0, 10);
-}
-
-function startOfDayUtc(iso: string): Date {
-  return toDateOnly(new Date(`${iso}T12:00:00.000Z`));
-}
-
-function endOfDayUtc(iso: string): Date {
-  const date = startOfDayUtc(iso);
-  date.setUTCHours(23, 59, 59, 999);
-  return date;
-}
-
-export function resolveDatePresetRange(
-  preset: RentalDatePreset,
-  customFrom?: string,
-  customTo?: string,
-): { from: Date; to: Date; label: string } {
-  const now = new Date();
-  const today = toDateOnly(now);
-
-  if (preset === "custom" && customFrom && customTo) {
-    return {
-      from: startOfDayUtc(customFrom),
-      to: endOfDayUtc(customTo),
-      label: `${customFrom} – ${customTo}`,
-    };
-  }
-
-  switch (preset) {
-    case "today":
-      return { from: startOfDayUtc(isoDate(today)), to: endOfDayUtc(isoDate(today)), label: "Today" };
-    case "yesterday": {
-      const y = new Date(today);
-      y.setUTCDate(y.getUTCDate() - 1);
-      const iso = isoDate(y);
-      return { from: startOfDayUtc(iso), to: endOfDayUtc(iso), label: "Yesterday" };
-    }
-    case "last7": {
-      const from = new Date(today);
-      from.setUTCDate(from.getUTCDate() - 6);
-      return {
-        from: startOfDayUtc(isoDate(from)),
-        to: endOfDayUtc(isoDate(today)),
-        label: "Last 7 days",
-      };
-    }
-    case "thisMonth": {
-      const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
-      return {
-        from: startOfDayUtc(isoDate(from)),
-        to: endOfDayUtc(isoDate(today)),
-        label: "This month to date",
-      };
-    }
-    case "lastMonth": {
-      const from = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() - 1, 1));
-      const to = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 0));
-      return {
-        from: startOfDayUtc(isoDate(from)),
-        to: endOfDayUtc(isoDate(to)),
-        label: "Last month",
-      };
-    }
-    case "last6Months": {
-      const from = new Date(today);
-      from.setUTCMonth(from.getUTCMonth() - 6);
-      return {
-        from: startOfDayUtc(isoDate(from)),
-        to: endOfDayUtc(isoDate(today)),
-        label: "Last 6 months",
-      };
-    }
-    case "last3Months":
-    default: {
-      const from = new Date(today);
-      from.setUTCMonth(from.getUTCMonth() - 3);
-      return {
-        from: startOfDayUtc(isoDate(from)),
-        to: endOfDayUtc(isoDate(today)),
-        label: "Last 3 months",
-      };
-    }
-  }
 }
 
 function dateFieldColumn(field: RentalDateField): "createdAt" | "startDate" | "endDate" {
@@ -535,6 +455,35 @@ export async function exportRentalsCsv(shop: string, filters: RentalListFilters)
   return rentalsToCsv(bookings.map(mapBooking));
 }
 
+export async function updateRentalPickupCollectionWindow(
+  shop: string,
+  rentalId: string,
+  pickupCollectionWindow: string,
+) {
+  const existing = await prisma.booking.findFirst({
+    where: { id: rentalId, shop },
+  });
+
+  if (!existing) {
+    return { ok: false as const, error: "Rental not found" };
+  }
+
+  if (existing.deliveryMethod !== "pickup" && existing.deliveryMethod !== "local") {
+    return {
+      ok: false as const,
+      error: "Collection window applies to studio pickup hires only.",
+    };
+  }
+
+  const value = pickupCollectionWindow.trim();
+  await prisma.booking.update({
+    where: { id: rentalId },
+    data: { pickupCollectionWindow: value || null },
+  });
+
+  return { ok: true as const };
+}
+
 export async function getRentalById(shop: string, rentalId: string) {
   const booking = await prisma.booking.findFirst({
     where: { id: rentalId, shop },
@@ -557,6 +506,7 @@ export async function getRentalById(shop: string, rentalId: string) {
       : null,
     bufferBeforeUnit: booking.bufferBeforeUnit,
     bufferAfterUnit: booking.bufferAfterUnit,
+    pickupCollectionWindow: booking.pickupCollectionWindow,
   };
 }
 

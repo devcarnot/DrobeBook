@@ -4,22 +4,16 @@ import {
 } from "./notification-defaults";
 import type { NotificationTemplate, NotificationsConfig } from "./notification.types";
 
-/** Inactive sample templates removed from the product — drop from saved shop configs. */
-const LEGACY_REMOVED_TEMPLATE_IDS = new Set([
-  "rental-start-post",
-  "return-reminder-post",
-  "after-rental-all",
-]);
+function coerceEmailChannel(template: NotificationTemplate): NotificationTemplate {
+  return { ...template, channel: "email" };
+}
 
 function mergeTemplates(templates: NotificationTemplate[] | undefined) {
   const byId = new Map<string, NotificationTemplate>();
 
   for (const template of templates ?? []) {
-    if (LEGACY_REMOVED_TEMPLATE_IDS.has(template.id)) {
-      continue;
-    }
     if (!byId.has(template.id)) {
-      byId.set(template.id, template);
+      byId.set(template.id, coerceEmailChannel(template));
     }
   }
 

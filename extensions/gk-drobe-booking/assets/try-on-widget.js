@@ -68,6 +68,8 @@
         selectedDate: "",
         selectedSlot: null,
         unavailableDates: new Set(),
+        waitlistDate: "",
+        slotsAllSoldOut: false,
         loadingCalendar: false,
         loadingSlots: false,
         acceptedTerms: {},
@@ -117,6 +119,16 @@
       this.instagramInput = this.root.querySelector("[data-gk-instagram]");
       this.instagramLabelEl = this.root.querySelector("[data-gk-instagram-label]");
       this.termsEl = this.root.querySelector("[data-gk-tryon-terms]");
+      this.waitlistEl = this.root.querySelector("[data-gk-waitlist]");
+      this.waitlistToggle = this.root.querySelector("[data-gk-waitlist-toggle]");
+      this.waitlistForm = this.root.querySelector("[data-gk-waitlist-form]");
+      this.waitlistDateLabel = this.root.querySelector("[data-gk-waitlist-date-label]");
+      this.waitlistEmailInput = this.root.querySelector("[data-gk-waitlist-email]");
+      this.waitlistNameInput = this.root.querySelector("[data-gk-waitlist-name]");
+      this.waitlistNotesInput = this.root.querySelector("[data-gk-waitlist-notes]");
+      this.waitlistSubmitButton = this.root.querySelector("[data-gk-waitlist-submit]");
+      this.waitlistMessageEl = this.root.querySelector("[data-gk-waitlist-message]");
+      this.waitlistClaimEl = this.root.querySelector("[data-gk-waitlist-claim]");
     }
 
     bindEvents() {
@@ -147,6 +159,12 @@
       this.eventDateInput?.addEventListener("change", () => this.updateActions());
       this.availabilityCheckbox?.addEventListener("change", () => this.updateActions());
       this.checkoutButton?.addEventListener("click", () => this.addToCart());
+      this.waitlistToggle?.addEventListener("click", () => {
+        if (this.waitlistForm) {
+          this.waitlistForm.hidden = !this.waitlistForm.hidden;
+        }
+      });
+      this.waitlistSubmitButton?.addEventListener("click", () => this.submitWaitlist());
     }
 
     async init() {
@@ -163,6 +181,7 @@
       this.renderDurationButtons();
       this.updatePrice();
       await this.loadCalendar();
+      await this.loadWaitlistClaimFromUrl();
     }
 
     async loadConfig() {
@@ -476,13 +495,22 @@
         const unavailable = this.state.unavailableDates.has(iso);
         if (unavailable) {
           button.classList.add("gk-drobe-tryon__day--unavailable");
-          button.disabled = true;
         }
         if (iso === this.state.selectedDate) {
           button.classList.add("gk-drobe-tryon__day--selected");
         }
 
         button.addEventListener("click", () => {
+          if (unavailable) {
+            this.state.waitlistDate = iso;
+            this.state.selectedDate = "";
+            this.state.selectedSlot = null;
+            this.state.slotsAllSoldOut = false;
+            this.updateWaitlistVisibility();
+            this.renderCalendar();
+            return;
+          }
+          this.state.waitlistDate = "";
           if (iso === this.state.selectedDate) {
             this.state.selectedDate = "";
             this.state.selectedSlot = null;
@@ -490,6 +518,7 @@
             this.state.selectedDate = iso;
             this.state.selectedSlot = null;
           }
+          this.updateWaitlistVisibility();
           this.renderCalendar();
           this.loadSlots();
         });
@@ -545,7 +574,11 @@
         placeholder.textContent = this.config.slotPlaceholder || "Select a time";
         this.slotSelect.appendChild(placeholder);
 
-        (data.slots || []).forEach((slot) => {
+        const slots = data.slots || [];
+        this.state.slotsAllSoldOut =
+          slots.length > 0 && slots.every((slot) => slot.soldOut);
+
+        slots.forEach((slot) => {
           const option = document.createElement("option");
           option.value = slot.time;
           option.dataset.time = slot.time;
@@ -556,6 +589,11 @@
           option.disabled = slot.soldOut;
           this.slotSelect.appendChild(option);
         });
+
+        if (this.state.slotsAllSoldOut) {
+          this.state.waitlistDate = this.state.selectedDate;
+        }
+        this.updateWaitlistVisibility();
       } catch (error) {
         this.showError(error.message);
         this.slotSelect.innerHTML = "";
@@ -684,6 +722,133 @@
       } catch (error) {
         this.showError(error.message);
         this.checkoutButton.disabled = false;
+      }
+    }
+
+    updateWaitlistVisibility() {
+      if (!this.waitlistEl) {
+        return;
+      }
+
+      const show = Boolean(
+        this.state.waitlistDate ||
+          (this.state.selectedDate && this.state.slotsAllSoldOut),
+      );
+      this.waitlistEl.hidden = !show;
+
+      const labelDate = this.state.waitlistDate || this.state.selectedDate;
+      if (this.waitlistDateLabel && labelDate) {
+        this.waitlistDateLabel.textContent = `Waitlist for ${formatDisplayDate(labelDate)}.`;
+      }
+    }
+
+    showWaitlistMessage(message, isError) {
+      if (!this.waitlistMessageEl) {
+        return;
+      }
+      this.waitlistMessageEl.textContent = message;
+      this.waitlistMessageEl.hidden = !message;
+      this.waitlistMessageEl.style.background = isError
+        ? "rgba(176, 0, 32, 0.06)"
+        : "rgba(0, 128, 96, 0.08)";
+      this.waitlistMessageEl.style.color = isError ? "#8a0018" : "#004c3f";
+    }
+
+    async submitWaitlist() {
+      const email = this.waitlistEmailInput?.value?.trim();
+      const preferredDate = this.state.waitlistDate || this.state.selectedDate;
+
+      if (!email) {
+        this.showWaitlistMessage("Please enter your email address.", true);
+        return;
+      }
+      if (!preferredDate) {
+        this.showWaitlistMessage("Choose a day on the calendar first.", true);
+        return;
+      }
+
+      this.waitlistSubmitButton.disabled = true;
+      this.showWaitlistMessage("");
+
+      const formData = new FormData();
+      formData.set("kind", "try_on");
+      formData.set("productId", this.gownProductId || "");
+      formData.set("productTitle", this.gownTitle || this.productTitle || "");
+      formData.set("variantId", this.variantId || "");
+      formData.set("preferredDate", preferredDate);
+      formData.set("durationMinutes", String(this.state.durationMinutes));
+      formData.set("email", email);
+      formData.set("name", this.waitlistNameInput?.value || "");
+      formData.set("notes", this.waitlistNotesInput?.value || "");
+
+      try {
+        const response = await fetch(`${this.proxyBase}/api/waitlist`, {
+          method: "POST",
+          body: formData,
+        });
+        const data = await readJsonResponse(response);
+        if (!response.ok || !data.ok) {
+          throw new Error(data.error || "Could not join waitlist.");
+        }
+        this.showWaitlistMessage(data.message || "Added to waitlist.", false);
+        if (this.waitlistForm) {
+          this.waitlistForm.hidden = true;
+        }
+      } catch (error) {
+        this.showWaitlistMessage(error.message, true);
+      } finally {
+        this.waitlistSubmitButton.disabled = false;
+      }
+    }
+
+    async loadWaitlistClaimFromUrl() {
+      const params = new URLSearchParams(window.location.search);
+      const claimToken = params.get("gk_claim")?.trim();
+      const tryOnDate = params.get("gk_tryon_date")?.trim();
+      if (!claimToken || !this.waitlistClaimEl) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          `${this.proxyBase}/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`,
+        );
+        const data = await readJsonResponse(response);
+        if (!data.valid) {
+          this.waitlistClaimEl.textContent =
+            data.error || "This priority access link is no longer valid.";
+          this.waitlistClaimEl.hidden = false;
+          return;
+        }
+
+        if (this.waitlistEmailInput && data.email) {
+          this.waitlistEmailInput.value = data.email;
+        }
+
+        const targetDate = tryOnDate || data.preferredDate;
+        if (targetDate) {
+          this.state.waitlistDate = "";
+          this.state.selectedDate = targetDate;
+          this.state.calendarYear = Number(targetDate.slice(0, 4));
+          this.state.calendarMonth = Number(targetDate.slice(5, 7));
+          await this.loadCalendar();
+          await this.loadSlots();
+        }
+
+        const expires = data.expiresAt
+          ? new Date(data.expiresAt).toLocaleString("en-AU", {
+              day: "numeric",
+              month: "short",
+              year: "numeric",
+              hour: "numeric",
+              minute: "2-digit",
+            })
+          : "soon";
+
+        this.waitlistClaimEl.textContent = `You have priority try-on access until ${expires}.`;
+        this.waitlistClaimEl.hidden = false;
+      } catch {
+        // Ignore claim validation errors on storefront.
       }
     }
 

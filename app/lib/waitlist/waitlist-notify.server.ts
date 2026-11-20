@@ -1,8 +1,15 @@
+import type { WaitlistEntry } from "@prisma/client";
+
 import prisma from "../../db.server";
-import { sendWaitlistNotification } from "../notifications/notification.server";
+import {
+  sendWaitlistNotification,
+  sendWaitlistRemovedNotification,
+} from "../notifications/notification.server";
 import { getShopConfig } from "../shop-settings.server";
 
 const DEFAULT_CLAIM_WINDOW_HOURS = 48;
+
+export type WaitlistKind = "garment" | "try_on";
 
 function generateClaimToken() {
   if (typeof crypto !== "undefined" && crypto.randomUUID) {
@@ -11,20 +18,105 @@ function generateClaimToken() {
   return `claim-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
 }
 
-export async function notifyNextWaitlistForGarment(
+function formatIsoDate(date: Date) {
+  return date.toISOString().slice(0, 10);
+}
+
+function entryToNotificationContext(
+  entry: WaitlistEntry,
+  claimUrl: string | null,
+) {
+  return {
+    email: entry.email,
+    name: entry.name,
+    productTitle: entry.productTitle,
+    claimUrl,
+    waitlistKind: (entry.kind === "try_on" ? "try_on" : "garment") as WaitlistKind,
+    preferredDate: entry.preferredDate
+      ? formatIsoDate(entry.preferredDate)
+      : entry.eventDate
+        ? formatIsoDate(entry.eventDate)
+        : null,
+    preferredTime: entry.preferredTime,
+    durationMinutes: entry.durationMinutes,
+  };
+}
+
+function buildGarmentClaimProxyUrl(shop: string, claimToken: string) {
+  return `https://${shop}/apps/gk-drobe/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`;
+}
+
+export function buildStorefrontClaimUrl(
   shop: string,
-  productId: string,
-  variantId?: string | null,
+  productHandle: string,
+  claimToken: string,
+  options?: { tryOnDate?: string | null },
+) {
+  const params = new URLSearchParams();
+  params.set("gk_claim", claimToken);
+  if (options?.tryOnDate) {
+    params.set("gk_tryon_date", options.tryOnDate);
+  }
+  return `https://${shop}/products/${productHandle}?${params.toString()}`;
+}
+
+async function promoteWaitlistEntry(
+  shop: string,
+  entry: WaitlistEntry,
+  claimUrl: string | null,
 ) {
   const config = await getShopConfig(shop);
   const claimWindowHours =
     config.waitlist?.claimWindowHours ?? DEFAULT_CLAIM_WINDOW_HOURS;
   const now = new Date();
   const claimExpiresAt = new Date(now.getTime() + claimWindowHours * 60 * 60 * 1000);
+  const claimToken = generateClaimToken();
+
+  const updated = await prisma.waitlistEntry.update({
+    where: { id: entry.id },
+    data: {
+      notifiedAt: now,
+      claimToken,
+      claimExpiresAt,
+      status: "contacted",
+    },
+  });
+
+  const resolvedClaimUrl =
+    claimUrl ?? buildGarmentClaimProxyUrl(shop, claimToken);
+
+  void sendWaitlistNotification(
+    shop,
+    entryToNotificationContext(updated, resolvedClaimUrl),
+  ).catch(() => undefined);
+
+  return updated;
+}
+
+export async function notifyWaitlistEntryById(shop: string, entryId: string) {
+  const entry = await prisma.waitlistEntry.findFirst({
+    where: { shop, id: entryId, status: "waiting" },
+  });
+
+  if (!entry) {
+    return { ok: false as const, error: "No waiting entry found for that id." };
+  }
+
+  const updated = await promoteWaitlistEntry(shop, entry, null);
+  return { ok: true as const, entry: updated };
+}
+
+export async function notifyNextWaitlistForGarment(
+  shop: string,
+  productId: string,
+  variantId?: string | null,
+) {
+  const now = new Date();
 
   const candidates = await prisma.waitlistEntry.findMany({
     where: {
       shop,
+      kind: "garment",
       productId,
       status: "waiting",
       OR: [{ claimExpiresAt: null }, { claimExpiresAt: { lt: now } }],
@@ -39,28 +131,97 @@ export async function notifyNextWaitlistForGarment(
     return null;
   }
 
-  const claimToken = generateClaimToken();
+  return promoteWaitlistEntry(shop, entry, null);
+}
 
-  const updated = await prisma.waitlistEntry.update({
+export async function notifyNextWaitlistForTryOnSlot(
+  shop: string,
+  input: {
+    date: Date;
+    durationMinutes?: number | null;
+    productId?: string | null;
+  },
+) {
+  const now = new Date();
+  const dayStart = new Date(`${formatIsoDate(input.date)}T00:00:00.000Z`);
+  const dayEnd = new Date(`${formatIsoDate(input.date)}T23:59:59.999Z`);
+
+  const candidates = await prisma.waitlistEntry.findMany({
+    where: {
+      shop,
+      kind: "try_on",
+      status: "waiting",
+      preferredDate: { gte: dayStart, lte: dayEnd },
+      AND: [
+        {
+          OR: [{ claimExpiresAt: null }, { claimExpiresAt: { lt: now } }],
+        },
+      ],
+    },
+    orderBy: { createdAt: "asc" },
+    take: 20,
+  });
+
+  const entry = candidates.find((candidate) => {
+    if (
+      input.durationMinutes &&
+      candidate.durationMinutes &&
+      candidate.durationMinutes !== input.durationMinutes
+    ) {
+      return false;
+    }
+    if (
+      input.productId &&
+      candidate.productId &&
+      candidate.productId !== "try-on" &&
+      candidate.productId !== input.productId
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  if (!entry) {
+    return null;
+  }
+
+  return promoteWaitlistEntry(shop, entry, null);
+}
+
+export async function removeWaitlistEntry(
+  shop: string,
+  entryId: string,
+  options: { notifyCustomer?: boolean } = {},
+) {
+  const entry = await prisma.waitlistEntry.findFirst({
+    where: { shop, id: entryId },
+  });
+
+  if (!entry) {
+    return { ok: false as const, error: "Waitlist entry not found." };
+  }
+
+  if (entry.status === "removed") {
+    return { ok: true as const, alreadyRemoved: true };
+  }
+
+  await prisma.waitlistEntry.update({
     where: { id: entry.id },
     data: {
-      notifiedAt: now,
-      claimToken,
-      claimExpiresAt,
-      status: "contacted",
+      status: "removed",
+      claimToken: null,
+      claimExpiresAt: null,
     },
   });
 
-  void sendWaitlistNotification(shop, {
-    email: updated.email,
-    name: updated.name,
-    productTitle: updated.productTitle,
-    claimUrl: claimToken
-      ? `https://${shop}/apps/gk-drobe/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`
-      : null,
-  }).catch(() => undefined);
+  if (options.notifyCustomer) {
+    void sendWaitlistRemovedNotification(
+      shop,
+      entryToNotificationContext(entry, null),
+    ).catch(() => undefined);
+  }
 
-  return updated;
+  return { ok: true as const };
 }
 
 export async function getWaitlistForGarment(
@@ -71,8 +232,10 @@ export async function getWaitlistForGarment(
   return prisma.waitlistEntry.findMany({
     where: {
       shop,
+      kind: "garment",
       productId,
       OR: [{ variantId }, { variantId: null }],
+      status: { not: "removed" },
     },
     orderBy: { createdAt: "asc" },
     take: 50,
@@ -92,7 +255,7 @@ export async function getWaitlistDemandByProduct(
   shop: string,
 ): Promise<WaitlistDemandRow[]> {
   const entries = await prisma.waitlistEntry.findMany({
-    where: { shop },
+    where: { shop, kind: "garment", status: { not: "removed" } },
     orderBy: { createdAt: "desc" },
   });
 
@@ -149,12 +312,4 @@ export async function validateWaitlistClaim(
   }
 
   return entry;
-}
-
-export function buildStorefrontClaimUrl(
-  shop: string,
-  productHandle: string,
-  claimToken: string,
-) {
-  return `https://${shop}/products/${productHandle}?gk_claim=${encodeURIComponent(claimToken)}`;
 }

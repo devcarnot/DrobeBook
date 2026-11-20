@@ -4,19 +4,133 @@ import type {
   HeadersFunction,
   LoaderFunctionArgs,
 } from "react-router";
-import { Form, Link, useActionData, useLoaderData, useNavigation, useOutlet, useSearchParams } from "react-router";
+import {
+  Form,
+  Link,
+  useActionData,
+  useLoaderData,
+  useNavigate,
+  useNavigation,
+  useOutlet,
+  useSearchParams,
+} from "react-router";
 
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import {
+  exportInventoryGarmentsCsv,
   getInventorySummary,
   listGarmentsForShop,
   type GarmentListSort,
 } from "../lib/garment/garment.server";
 import { syncRecentOrderBookings } from "../lib/order-booking.server";
+import { InventoryDateRangeCalendar } from "../components/InventoryDateRangeCalendar";
+import { resolveDatePresetRange } from "../lib/rental/date-range";
+import {
+  parseInventoryDateField,
+  parseInventoryDatePreset,
+  type InventoryDateField,
+  type InventoryDatePreset,
+  type RentalDatePreset,
+} from "../lib/rental/rental.types";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 const INVENTORY_PAGE_SIZE = 10;
+
+const DATE_FIELDS: Array<{ value: InventoryDateField; label: string }> = [
+  { value: "overlap", label: "Hire overlaps range" },
+  { value: "rentalStart", label: "Delivery / rental start" },
+  { value: "rentalEnd", label: "Rental end" },
+];
+
+function resolveInventoryDateParams(url: URL): {
+  datePreset: InventoryDatePreset;
+  dateField: InventoryDateField;
+  dateFrom: string;
+  dateTo: string;
+} {
+  const dateField = parseInventoryDateField(url.searchParams.get("dateField"));
+  const presetParam = url.searchParams.get("datePreset");
+  let dateFrom = url.searchParams.get("dateFrom")?.trim() ?? "";
+  let dateTo = url.searchParams.get("dateTo")?.trim() ?? "";
+
+  if (presetParam === "all" && !dateFrom && !dateTo) {
+    return { datePreset: "all", dateField, dateFrom: "", dateTo: "" };
+  }
+
+  const missingDates = !dateFrom && !dateTo;
+  if (missingDates && (!presetParam || presetParam === "all")) {
+    const range = resolveDatePresetRange("last7");
+    return {
+      datePreset: "last7",
+      dateField,
+      dateFrom: range.from.toISOString().slice(0, 10),
+      dateTo: range.to.toISOString().slice(0, 10),
+    };
+  }
+
+  let datePreset: InventoryDatePreset = parseInventoryDatePreset(presetParam);
+
+  if (missingDates && datePreset !== "all" && datePreset !== "custom") {
+    const resolved = resolveDatePresetRange(datePreset as RentalDatePreset);
+    dateFrom = resolved.from.toISOString().slice(0, 10);
+    dateTo = resolved.to.toISOString().slice(0, 10);
+  }
+
+  if (dateFrom && dateTo) {
+    if (presetParam && presetParam !== "custom" && presetParam !== "all") {
+      datePreset = presetParam as InventoryDatePreset;
+    } else if (presetParam === "custom" || !presetParam) {
+      datePreset = "custom";
+    }
+  } else {
+    datePreset = "all";
+    dateFrom = "";
+    dateTo = "";
+  }
+
+  return { datePreset, dateField, dateFrom, dateTo };
+}
+
+function parseGarmentListSort(value: string | null): GarmentListSort {
+  if (value === "timesRented" || value === "revenue" || value === "profit") {
+    return value;
+  }
+  return "name";
+}
+
+async function loadFilteredInventoryGarments(
+  admin: Parameters<typeof listGarmentsForShop>[0],
+  shop: string,
+  params: {
+    search: string | null;
+    sort: GarmentListSort;
+    filter: string;
+    datePreset: InventoryDatePreset;
+    dateField: InventoryDateField;
+    dateFrom: string;
+    dateTo: string;
+  },
+) {
+  let garments = await listGarmentsForShop(admin, shop, {
+    search: params.search,
+    sort: params.sort,
+    date: {
+      datePreset: params.datePreset,
+      dateFrom: params.dateFrom || undefined,
+      dateTo: params.dateTo || undefined,
+      dateField: params.dateField,
+    },
+  });
+
+  if (params.filter === "hold") {
+    garments = garments.filter((garment) => garment.activeHold);
+  } else if (params.filter === "rented") {
+    garments = garments.filter((garment) => garment.timesRented > 0);
+  }
+
+  return garments;
+}
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -24,12 +138,8 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const search = url.searchParams.get("q");
   const sortParam = url.searchParams.get("sort");
   const filter = url.searchParams.get("filter");
-  const sort: GarmentListSort =
-    sortParam === "timesRented" ||
-    sortParam === "revenue" ||
-    sortParam === "profit"
-      ? sortParam
-      : "name";
+  const { datePreset, dateField, dateFrom, dateTo } = resolveInventoryDateParams(url);
+  const sort = parseGarmentListSort(sortParam);
 
   let syncSummary: Awaited<ReturnType<typeof syncRecentOrderBookings>> | null =
     null;
@@ -45,16 +155,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     };
   }
 
-  let garments = await listGarmentsForShop(admin, session.shop, {
+  const dateRange =
+    datePreset !== "all"
+      ? datePreset === "custom"
+        ? resolveDatePresetRange("custom", dateFrom, dateTo)
+        : resolveDatePresetRange(datePreset as RentalDatePreset, dateFrom, dateTo)
+      : null;
+
+  let garments = await loadFilteredInventoryGarments(admin, session.shop, {
     search,
     sort,
+    filter: filter ?? "",
+    datePreset,
+    dateField,
+    dateFrom,
+    dateTo,
   });
-
-  if (filter === "hold") {
-    garments = garments.filter((garment) => garment.activeHold);
-  } else if (filter === "rented") {
-    garments = garments.filter((garment) => garment.timesRented > 0);
-  }
 
   const summary = await getInventorySummary(session.shop, garments);
 
@@ -79,6 +195,13 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     search: search ?? "",
     sort,
     filter: filter ?? "",
+    datePreset,
+    dateField,
+    dateFrom: dateFrom ?? "",
+    dateTo: dateTo ?? "",
+    dateRangeLabel: dateRange?.label ?? null,
+    dateRangeFrom: dateRange ? dateRange.from.toISOString().slice(0, 10) : null,
+    dateRangeTo: dateRange ? dateRange.to.toISOString().slice(0, 10) : null,
     total,
     page,
     pageSize: INVENTORY_PAGE_SIZE,
@@ -93,6 +216,57 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (request.method !== "POST") {
     return { ok: false, message: "Unsupported method" };
+  }
+
+  const formData = await request.formData();
+  const intent = String(formData.get("intent") ?? "sync");
+
+  if (intent === "export") {
+    const search = String(formData.get("q") ?? "").trim() || null;
+    const sort = parseGarmentListSort(String(formData.get("sort") ?? ""));
+    const filter = String(formData.get("filter") ?? "");
+    const exportParams = new URLSearchParams();
+    const preset = String(formData.get("datePreset") ?? "");
+    const from = String(formData.get("dateFrom") ?? "").trim();
+    const to = String(formData.get("dateTo") ?? "").trim();
+    const field = String(formData.get("dateField") ?? "");
+    if (preset) {
+      exportParams.set("datePreset", preset);
+    }
+    if (from) {
+      exportParams.set("dateFrom", from);
+    }
+    if (to) {
+      exportParams.set("dateTo", to);
+    }
+    if (field) {
+      exportParams.set("dateField", field);
+    }
+    const {
+      datePreset: exportDatePreset,
+      dateField: exportDateField,
+      dateFrom: exportDateFrom,
+      dateTo: exportDateTo,
+    } = resolveInventoryDateParams(new URL(`http://inventory.local/?${exportParams.toString()}`));
+
+    const garments = await loadFilteredInventoryGarments(admin, session.shop, {
+      search,
+      sort,
+      filter,
+      datePreset: exportDatePreset,
+      dateField: exportDateField,
+      dateFrom: exportDateFrom,
+      dateTo: exportDateTo,
+    });
+
+    const csv = exportInventoryGarmentsCsv(garments);
+    const stamp = new Date().toISOString().slice(0, 10);
+    return new Response(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="inventory-bookings-${stamp}.csv"`,
+      },
+    });
   }
 
   try {
@@ -146,6 +320,111 @@ function MetricCard({
   );
 }
 
+function buildInventoryClearDatesUrl(searchParams: URLSearchParams) {
+  const next = new URLSearchParams(searchParams);
+  next.set("datePreset", "all");
+  next.delete("dateFrom");
+  next.delete("dateTo");
+  next.set("page", "1");
+  return `/app/inventory?${next.toString()}`;
+}
+
+function InventoryFiltersForm({
+  search,
+  sort,
+  filter,
+  datePreset,
+  dateField,
+  dateFrom,
+  dateTo,
+  dateRangeLabel,
+  dateRangeFrom,
+  dateRangeTo,
+  onClearDates,
+}: {
+  search: string;
+  sort: GarmentListSort;
+  filter: string;
+  datePreset: InventoryDatePreset;
+  dateField: InventoryDateField;
+  dateFrom: string;
+  dateTo: string;
+  dateRangeLabel: string | null;
+  dateRangeFrom: string | null;
+  dateRangeTo: string | null;
+  onClearDates: () => void;
+}) {
+  const hasDateRange =
+    datePreset !== "all" && Boolean(dateRangeFrom && dateRangeTo);
+
+  return (
+    <Form method="get" className="gk-inventory-filters">
+      <input type="hidden" name="page" value="1" />
+
+      <div className="gk-inventory-filters__primary">
+        <div className="gk-inventory-filters__field gk-inventory-filters__field--search">
+          <s-text-field
+            label="Search"
+            name="q"
+            value={search}
+            placeholder="Product name or size"
+          />
+        </div>
+        <div className="gk-inventory-filters__field">
+          <s-select label="Sort by" name="sort" value={sort}>
+            <s-option value="name">Name</s-option>
+            <s-option value="timesRented">Times rented</s-option>
+            <s-option value="revenue">Revenue</s-option>
+            <s-option value="profit">Profit</s-option>
+          </s-select>
+        </div>
+        <div className="gk-inventory-filters__field">
+          <s-select label="Garments" name="filter" value={filter}>
+            <s-option value="">All garments</s-option>
+            <s-option value="rented">Rented in this view</s-option>
+            <s-option value="hold">Active try-on hold</s-option>
+          </s-select>
+        </div>
+        <div className="gk-inventory-filters__apply">
+          <s-button type="submit" variant="primary">
+            Apply filters
+          </s-button>
+        </div>
+      </div>
+
+      <section className="gk-inventory-filters__period" aria-labelledby="inventory-rental-period">
+        <div className="gk-inventory-filters__period-body" id="inventory-rental-period">
+          <div className="gk-inventory-filters__period-meta">
+            <span className="gk-inventory-filters__section-title">Rental period</span>
+            {hasDateRange ? (
+              <span className="gk-inventory-filters__active-range">
+                {formatDisplayDate(dateRangeFrom)} – {formatDisplayDate(dateRangeTo)}
+              </span>
+            ) : (
+              <span className="gk-inventory-filters__period-hint">All time</span>
+            )}
+          </div>
+          <div className="gk-inventory-filters__match">
+            <s-select label="Match rentals by" name="dateField" value={dateField}>
+              {DATE_FIELDS.map((field) => (
+                <s-option key={field.value} value={field.value}>
+                  {field.label}
+                </s-option>
+              ))}
+            </s-select>
+          </div>
+          <InventoryDateRangeCalendar
+            key={`${datePreset}-${dateFrom}-${dateTo}`}
+            initialFrom={dateFrom}
+            initialTo={dateTo}
+            onClear={onClearDates}
+          />
+        </div>
+      </section>
+    </Form>
+  );
+}
+
 export default function InventoryRoute() {
   const outlet = useOutlet();
   if (outlet) {
@@ -163,6 +442,13 @@ function InventoryListPage() {
     search,
     sort,
     filter,
+    datePreset,
+    dateField,
+    dateFrom,
+    dateTo,
+    dateRangeLabel,
+    dateRangeFrom,
+    dateRangeTo,
     total,
     page,
     totalPages,
@@ -172,7 +458,13 @@ function InventoryListPage() {
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
-  const isSyncing = navigation.state === "submitting";
+  const navigate = useNavigate();
+  const submitIntent =
+    navigation.state === "submitting"
+      ? String(navigation.formData?.get("intent") ?? "sync")
+      : null;
+  const isSyncing = submitIntent === "sync";
+  const isExporting = submitIntent === "export";
 
   const pageLinks = useMemo(() => {
     const makeUrl = (nextPage: number) => {
@@ -211,12 +503,28 @@ function InventoryListPage() {
           </s-banner>
         ) : null}
 
+        {datePreset !== "all" ? (
+          <s-banner tone="info">
+            Times rented, revenue, and profit reflect confirmed and pending hires in
+            the selected date range. Try-on holds and next available are current.
+          </s-banner>
+        ) : null}
+
         <div className="gk-inventory-metrics">
           <MetricCard label="Garments" value={summary.variantCount} />
-          <MetricCard label="Times rented" value={summary.totalTimesRented} />
+          <MetricCard
+            label={datePreset !== "all" ? "Times rented (period)" : "Times rented"}
+            value={summary.totalTimesRented}
+          />
           <MetricCard label="Try-on holds" value={summary.activeHolds} />
-          <MetricCard label="Revenue" value={summary.totalRevenueLabel} />
-          <MetricCard label="Profit" value={summary.totalProfitLabel} />
+          <MetricCard
+            label={datePreset !== "all" ? "Revenue (period)" : "Revenue"}
+            value={summary.totalRevenueLabel}
+          />
+          <MetricCard
+            label={datePreset !== "all" ? "Profit (period)" : "Profit"}
+            value={summary.totalProfitLabel}
+          />
         </div>
 
         <s-box padding="large" border="base" borderRadius="large" background="base">
@@ -229,43 +537,50 @@ function InventoryListPage() {
                     ? `Showing ${pageStart}–${pageEnd} of ${total} garments`
                     : `${total} garment${total === 1 ? "" : "s"} in this view`}
               </span>
-              <Form method="post">
-                <s-button
-                  type="submit"
-                  variant="secondary"
-                  {...(isSyncing ? { loading: true } : {})}
-                >
-                  Sync orders
-                </s-button>
-              </Form>
+              <div className="gk-inventory-toolbar__actions">
+                <Form method="post">
+                  <input type="hidden" name="intent" value="sync" />
+                  <s-button
+                    type="submit"
+                    variant="secondary"
+                    {...(isSyncing ? { loading: true } : {})}
+                  >
+                    Sync orders
+                  </s-button>
+                </Form>
+                <Form method="post">
+                  <input type="hidden" name="intent" value="export" />
+                  <input type="hidden" name="q" value={search} />
+                  <input type="hidden" name="sort" value={sort} />
+                  <input type="hidden" name="filter" value={filter} />
+                  <input type="hidden" name="dateField" value={dateField} />
+                  <input type="hidden" name="datePreset" value={datePreset} />
+                  <input type="hidden" name="dateFrom" value={dateFrom} />
+                  <input type="hidden" name="dateTo" value={dateTo} />
+                  <s-button
+                    type="submit"
+                    variant="secondary"
+                    {...(isExporting ? { loading: true } : {})}
+                  >
+                    Export CSV
+                  </s-button>
+                </Form>
+              </div>
             </div>
 
-            <Form method="get">
-              <ResponsiveGrid layout="filter-row" alignItems="end" gap="base">
-                <s-text-field
-                  label="Search"
-                  name="q"
-                  value={search}
-                  placeholder="Product name or size"
-                />
-                <s-select label="Sort by" name="sort" value={sort}>
-                  <s-option value="name">Name</s-option>
-                  <s-option value="timesRented">Times rented</s-option>
-                  <s-option value="revenue">Revenue</s-option>
-                  <s-option value="profit">Profit</s-option>
-                </s-select>
-                <s-select label="Filter" name="filter" value={filter}>
-                  <s-option value="">All garments</s-option>
-                  <s-option value="rented">Has been rented</s-option>
-                  <s-option value="hold">Active try-on hold</s-option>
-                </s-select>
-                <s-box paddingBlockStart="large-300">
-                  <s-button type="submit" variant="primary">
-                    Apply
-                  </s-button>
-                </s-box>
-              </ResponsiveGrid>
-            </Form>
+            <InventoryFiltersForm
+              search={search}
+              sort={sort}
+              filter={filter}
+              datePreset={datePreset}
+              dateField={dateField}
+              dateFrom={dateFrom}
+              dateTo={dateTo}
+              dateRangeLabel={dateRangeLabel}
+              dateRangeFrom={dateRangeFrom}
+              dateRangeTo={dateRangeTo}
+              onClearDates={() => navigate(buildInventoryClearDatesUrl(searchParams))}
+            />
           </s-stack>
         </s-box>
 

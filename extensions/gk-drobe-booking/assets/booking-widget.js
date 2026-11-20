@@ -1206,10 +1206,18 @@
     }
   }
 
-  async function shouldShowBookingWidget(root) {
+  function showBootstrapBookingError(root, message) {
+    const errorEl = root.querySelector("[data-gk-error]");
+    if (errorEl) {
+      errorEl.textContent = message;
+      errorEl.hidden = !message;
+    }
+  }
+
+  async function fetchProductRentalStatus(root) {
     const productId = root.dataset.productId;
     if (!productId) {
-      return false;
+      throw new Error("Missing product on this booking block.");
     }
 
     const proxyBase = root.dataset.proxyBase || "/apps/gk-drobe";
@@ -1218,7 +1226,14 @@
     );
     const data = await readJsonResponse(response);
 
-    return Boolean(data.rentalEnabled);
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load rental status.");
+    }
+
+    return {
+      imported: Boolean(data.imported),
+      rentalEnabled: Boolean(data.rentalEnabled),
+    };
   }
 
   function removeBookingShell(root) {
@@ -1238,16 +1253,31 @@
       const shell = root.closest("[data-gk-booking-shell]") || root;
 
       try {
-        const enabled = await shouldShowBookingWidget(root);
-        if (!enabled) {
-          removeBookingShell(root);
+        const status = await fetchProductRentalStatus(root);
+
+        if (!status.rentalEnabled) {
+          if (!status.imported) {
+            removeBookingShell(root);
+            continue;
+          }
+
+          showBootstrapBookingError(
+            root,
+            "Hire is not enabled for this gown yet. In DrobeBook admin open Products, import this product, and turn on rental.",
+          );
+          shell.hidden = false;
           continue;
         }
 
         shell.hidden = false;
         new GkDrobeBookingWidget(root);
-      } catch {
-        removeBookingShell(root);
+      } catch (error) {
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Could not load the booking widget.";
+        showBootstrapBookingError(root, message);
+        shell.hidden = false;
       }
     }
   }

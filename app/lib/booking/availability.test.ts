@@ -58,12 +58,14 @@ describe("booking availability rules", () => {
       variantId: "var-8",
       deliveryDate: d("2026-04-10"),
       durationDays: 4,
+      deliveryMethod: "pickup",
       today: d("2026-04-01"),
       bookings: [
         {
           startDate: d("2026-04-08"),
           endDate: d("2026-04-12"),
           status: "confirmed",
+          deliveryMethod: "post",
         },
       ],
       blockedDates: [],
@@ -283,6 +285,71 @@ describe("booking availability rules", () => {
     expect(otherDurationVariant.available).toBe(true);
   });
 
+  it("allows only one postage booking per garment per calendar week", () => {
+    const sameWeek = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "var-8",
+      deliveryDate: d("2026-04-10"),
+      durationDays: 4,
+      deliveryMethod: "post",
+      today: d("2026-04-01"),
+      bookings: [
+        {
+          startDate: d("2026-04-06"),
+          endDate: d("2026-04-07"),
+          status: "confirmed",
+          deliveryMethod: "post",
+        },
+      ],
+      blockedDates: [],
+    });
+
+    expect(sameWeek.available).toBe(false);
+    expect(sameWeek.reason).toMatch(/postage booking/i);
+
+    const followingWeek = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "var-8",
+      deliveryDate: d("2026-04-13"),
+      durationDays: 4,
+      deliveryMethod: "post",
+      today: d("2026-04-01"),
+      bookings: [
+        {
+          startDate: d("2026-04-06"),
+          endDate: d("2026-04-07"),
+          status: "confirmed",
+          deliveryMethod: "post",
+        },
+      ],
+      blockedDates: [],
+    });
+
+    expect(followingWeek.available).toBe(true);
+  });
+
+  it("does not count pickup bookings toward the weekly postage limit", () => {
+    const result = isProductVariantAvailable({
+      productId: "prod-1",
+      variantId: "var-8",
+      deliveryDate: d("2026-04-10"),
+      durationDays: 4,
+      deliveryMethod: "post",
+      today: d("2026-04-01"),
+      bookings: [
+        {
+          startDate: d("2026-04-06"),
+          endDate: d("2026-04-07"),
+          status: "confirmed",
+          deliveryMethod: "pickup",
+        },
+      ],
+      blockedDates: [],
+    });
+
+    expect(result.available).toBe(true);
+  });
+
   it("allows another booking when inventory quantity has remaining units", () => {
     const result = isProductVariantAvailable({
       productId: "prod-1",
@@ -296,6 +363,7 @@ describe("booking availability rules", () => {
           startDate: d("2026-09-07"),
           endDate: d("2026-09-10"),
           status: "confirmed",
+          deliveryMethod: "pickup",
         },
       ],
       blockedDates: [],

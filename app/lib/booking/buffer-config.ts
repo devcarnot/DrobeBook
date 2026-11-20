@@ -23,7 +23,7 @@ export const DEFAULT_POST_BUFFER: DeliveryBufferDefaults = {
   cutOffTime: "13:00",
   bufferBeforeRental: 0,
   bufferBeforeUnit: "calendar",
-  bufferAfterRental: 2,
+  bufferAfterRental: 5,
   bufferAfterUnit: "calendar",
 };
 

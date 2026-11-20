@@ -38,7 +38,13 @@
     "event_date": "Your Event Date:",
     "specific_items": "Please list any specific items you would like to try on:",
     "instagram": "Instagram handle",
-    "loading": "Loading availability..."
+    "loading": "Loading availability...",
+    "waitlist_toggle": "No slot available? Join the waitlist",
+    "waitlist_copy": "Leave your email — we'll notify you when a try-on slot opens on this day.",
+    "waitlist_email": "Email address",
+    "waitlist_name": "Name (optional)",
+    "waitlist_notes": "Notes (optional)",
+    "waitlist_submit": "Join waitlist"
   },
   "search": {
     "event_date": "Event Date",

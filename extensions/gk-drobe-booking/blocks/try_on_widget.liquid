@@ -107,6 +107,44 @@
         </button>
       </div>
 
+      <div class="gk-drobe-tryon__waitlist-claim" data-gk-waitlist-claim hidden></div>
+
+      <div class="gk-drobe-tryon__waitlist" data-gk-waitlist hidden>
+        <button type="button" class="gk-drobe-tryon__waitlist-toggle" data-gk-waitlist-toggle>
+          {{ 'try_on.waitlist_toggle' | t }}
+        </button>
+        <div class="gk-drobe-tryon__waitlist-form" data-gk-waitlist-form hidden>
+          <p class="gk-drobe-tryon__waitlist-copy" data-gk-waitlist-date-label></p>
+          <p class="gk-drobe-tryon__waitlist-copy">{{ 'try_on.waitlist_copy' | t }}</p>
+          <label class="gk-drobe-tryon__label" for="gk-tryon-waitlist-email-{{ block.id }}">{{ 'try_on.waitlist_email' | t }}</label>
+          <input
+            id="gk-tryon-waitlist-email-{{ block.id }}"
+            class="gk-drobe-tryon__input"
+            type="email"
+            data-gk-waitlist-email
+            required
+          >
+          <label class="gk-drobe-tryon__label" for="gk-tryon-waitlist-name-{{ block.id }}">{{ 'try_on.waitlist_name' | t }}</label>
+          <input
+            id="gk-tryon-waitlist-name-{{ block.id }}"
+            class="gk-drobe-tryon__input"
+            type="text"
+            data-gk-waitlist-name
+          >
+          <label class="gk-drobe-tryon__label" for="gk-tryon-waitlist-notes-{{ block.id }}">{{ 'try_on.waitlist_notes' | t }}</label>
+          <textarea
+            id="gk-tryon-waitlist-notes-{{ block.id }}"
+            class="gk-drobe-tryon__input"
+            rows="3"
+            data-gk-waitlist-notes
+          ></textarea>
+          <button type="button" class="gk-drobe-tryon__submit gk-drobe-tryon__submit--secondary" data-gk-waitlist-submit>
+            {{ 'try_on.waitlist_submit' | t }}
+          </button>
+          <div class="gk-drobe-tryon__waitlist-message" data-gk-waitlist-message hidden></div>
+        </div>
+      </div>
+
       <p class="gk-drobe-tryon__error" data-gk-error hidden></p>
     </div>
   </div>

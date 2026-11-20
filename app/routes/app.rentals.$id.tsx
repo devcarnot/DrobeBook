@@ -26,7 +26,10 @@ import {
 
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 
-import { getRentalById } from "../lib/rental/rental.server";
+import {
+  getRentalById,
+  updateRentalPickupCollectionWindow,
+} from "../lib/rental/rental.server";
 
 import { shopifyRentalOrderAdminUrl } from "../lib/rental/rental-shopify.server";
 
@@ -300,6 +303,18 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
 
 
 
+  if (intent === "pickup-collection-window") {
+    const window = String(formData.get("pickupCollectionWindow") ?? "");
+    const result = await updateRentalPickupCollectionWindow(
+      session.shop,
+      rentalId,
+      window,
+    );
+    return result.ok
+      ? { ok: true, savedPickupWindow: true }
+      : { ok: false, error: result.error };
+  }
+
   if (intent !== "send-notification") {
 
     return { ok: false, error: "Unknown action" };
@@ -343,6 +358,8 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
     customerName: booking.customerName,
 
     customerEmail: booking.customerEmail,
+
+    pickupCollectionWindow: booking.pickupCollectionWindow,
 
     productTitle: booking.productTitle,
 
@@ -594,6 +611,30 @@ export default function RentalDetailPage() {
               </DetailRow>
 
               <DetailRow label="Delivery">{deliveryLabel(rental.deliveryMethod)}</DetailRow>
+
+              {rental.deliveryMethod === "pickup" || rental.deliveryMethod === "local" ? (
+                <DetailRow label="Studio collection window">
+                  <Form method="post" className="gk-pickup-window-form">
+                    <input type="hidden" name="intent" value="pickup-collection-window" />
+                    <label className="gk-field-label" htmlFor="pickupCollectionWindow">
+                      Collection time (e.g. 10:00–12:00)
+                    </label>
+                    <input
+                      id="pickupCollectionWindow"
+                      name="pickupCollectionWindow"
+                      className="gk-field-input"
+                      defaultValue={rental.pickupCollectionWindow ?? ""}
+                      placeholder="10:00–12:00"
+                    />
+                    <s-button type="submit" variant="secondary">
+                      Save collection window
+                    </s-button>
+                  </Form>
+                  <s-text tone="neutral">
+                    Customers get an email reminder the day before when this is set.
+                  </s-text>
+                </DetailRow>
+              ) : null}
 
               <DetailRow label="Shopify order" empty={!shopifyOrderUrl}>
 

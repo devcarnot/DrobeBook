@@ -36,11 +36,18 @@ export type RentalDatePreset =
   | "today"
   | "yesterday"
   | "last7"
+  | "thisWeek"
+  | "lastWeek"
+  | "last30"
+  | "last60"
+  | "last90"
   | "thisMonth"
   | "lastMonth"
   | "last3Months"
   | "last6Months"
   | "custom";
+
+export type InventoryDatePreset = RentalDatePreset | "all";
 
 export type RentalListSort =
   | "dateCreated_desc"
@@ -137,6 +144,11 @@ export function parseDatePreset(value: string | null): RentalDatePreset {
     "today",
     "yesterday",
     "last7",
+    "thisWeek",
+    "lastWeek",
+    "last30",
+    "last60",
+    "last90",
     "thisMonth",
     "lastMonth",
     "last3Months",
@@ -146,6 +158,24 @@ export function parseDatePreset(value: string | null): RentalDatePreset {
   return presets.includes(value as RentalDatePreset)
     ? (value as RentalDatePreset)
     : "last3Months";
+}
+
+export type InventoryDateField = "overlap" | "rentalStart" | "rentalEnd";
+
+export function parseInventoryDatePreset(
+  value: string | null,
+): InventoryDatePreset {
+  if (!value || value === "all") {
+    return "all";
+  }
+  return parseDatePreset(value);
+}
+
+export function parseInventoryDateField(value: string | null): InventoryDateField {
+  if (value === "rentalStart" || value === "rentalEnd") {
+    return value;
+  }
+  return "overlap";
 }
 
 export function parseListView(value: string | null): RentalListView {

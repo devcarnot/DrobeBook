@@ -42,6 +42,8 @@ import {
 
   notificationsConfigFromFormData,
 
+  processScheduledAppointmentNotifications,
+
   processScheduledRentalNotifications,
 
   saveNotificationsConfig,
@@ -69,9 +71,10 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
   const notifications = await getNotificationsConfig(session.shop);
 
-  await processScheduledRentalNotifications(session.shop).catch(() => undefined);
-
-
+  await Promise.all([
+    processScheduledRentalNotifications(session.shop).catch(() => undefined),
+    processScheduledAppointmentNotifications(session.shop).catch(() => undefined),
+  ]);
 
   return {
 
@@ -99,9 +102,18 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "run-scheduled") {
 
-    const result = await processScheduledRentalNotifications(session.shop);
+    const [rental, appointment] = await Promise.all([
+      processScheduledRentalNotifications(session.shop),
+      processScheduledAppointmentNotifications(session.shop),
+    ]);
 
-    return { saved: false, scheduled: result };
+    return {
+      saved: false,
+      scheduled: {
+        processed: rental.processed + appointment.processed,
+        sent: rental.sent + appointment.sent,
+      },
+    };
 
   }
 

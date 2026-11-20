@@ -49,7 +49,12 @@ const DATE_FIELDS: Array<{ value: RentalDateField; label: string }> = [
 const DATE_PRESETS: Array<{ value: RentalDatePreset; label: string }> = [
   { value: "today", label: "Today" },
   { value: "yesterday", label: "Yesterday" },
+  { value: "thisWeek", label: "This week" },
+  { value: "lastWeek", label: "Last week" },
   { value: "last7", label: "Last 7 days" },
+  { value: "last30", label: "Last 30 days" },
+  { value: "last60", label: "Last 60 days" },
+  { value: "last90", label: "Last 90 days" },
   { value: "thisMonth", label: "This month to date" },
   { value: "lastMonth", label: "Last month" },
   { value: "last3Months", label: "Last 3 months" },

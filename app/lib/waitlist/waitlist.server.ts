@@ -27,17 +27,21 @@ const PRODUCTS_BY_IDS_QUERY = `#graphql
 
 export type WaitlistCreateInput = {
   shop: string;
+  kind?: "garment" | "try_on";
   productId: string;
   productTitle?: string | null;
   variantId?: string | null;
   size?: string | null;
   eventDate?: string | null;
+  preferredDate?: string | null;
+  preferredTime?: string | null;
+  durationMinutes?: number | null;
   email: string;
   name?: string | null;
   notes?: string | null;
 };
 
-export type WaitlistStatus = "waiting" | "contacted" | "fulfilled";
+export type WaitlistStatus = "waiting" | "contacted" | "fulfilled" | "removed";
 
 export type WaitlistEntryView = {
   id: string;
@@ -61,6 +65,10 @@ export type WaitlistEntryView = {
   adminProductUrl: string;
   storefrontProductUrl: string | null;
   mailtoUrl: string;
+  kind: "garment" | "try_on";
+  preferredDate: Date | null;
+  preferredTime: string | null;
+  durationMinutes: number | null;
 };
 
 export type WaitlistSummary = {
@@ -68,6 +76,8 @@ export type WaitlistSummary = {
   waiting: number;
   contacted: number;
   fulfilled: number;
+  removed: number;
+  tryOn: number;
 };
 
 export async function createWaitlistEntry(input: WaitlistCreateInput) {
@@ -76,21 +86,39 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
     throw new Error("A valid email address is required.");
   }
 
+  const kind = input.kind === "try_on" ? "try_on" : "garment";
   const productId = input.productId.trim();
-  if (!productId) {
+
+  if (kind === "garment" && !productId) {
     throw new Error("Product is required.");
   }
 
   const eventDate = input.eventDate ? parseIsoDate(input.eventDate) : null;
+  const preferredDate = input.preferredDate
+    ? parseIsoDate(input.preferredDate)
+    : null;
+
+  if (kind === "try_on" && !preferredDate) {
+    throw new Error("Choose a try-on date to join the waitlist.");
+  }
+
+  const durationMinutes =
+    input.durationMinutes && Number.isFinite(input.durationMinutes)
+      ? Math.round(input.durationMinutes)
+      : null;
 
   return prisma.waitlistEntry.create({
     data: {
       shop: input.shop,
-      productId,
+      kind,
+      productId: productId || "try-on",
       productTitle: input.productTitle?.trim() || null,
       variantId: input.variantId?.trim() || null,
       size: input.size?.trim() || null,
       eventDate,
+      preferredDate,
+      preferredTime: input.preferredTime?.trim() || null,
+      durationMinutes,
       email,
       name: input.name?.trim() || null,
       notes: input.notes?.trim() || null,
@@ -121,6 +149,8 @@ export async function getWaitlistSummary(shop: string): Promise<WaitlistSummary>
     waiting: 0,
     contacted: 0,
     fulfilled: 0,
+    removed: 0,
+    tryOn: 0,
   };
 
   for (const row of grouped) {
@@ -130,11 +160,21 @@ export async function getWaitlistSummary(shop: string): Promise<WaitlistSummary>
       counts.contacted = row._count._all;
     } else if (row.status === "fulfilled") {
       counts.fulfilled = row._count._all;
+    } else if (row.status === "removed") {
+      counts.removed = row._count._all;
     }
   }
 
+  counts.tryOn = await prisma.waitlistEntry.count({
+    where: { shop, kind: "try_on", status: { not: "removed" } },
+  });
+
   return {
-    total: counts.waiting + counts.contacted + counts.fulfilled,
+    total:
+      counts.waiting +
+      counts.contacted +
+      counts.fulfilled +
+      counts.removed,
     ...counts,
   };
 }
@@ -332,6 +372,10 @@ export async function getWaitlistPageData(
         ? `https://${shop}/products/${productHandle}`
         : null,
       mailtoUrl: "",
+      kind: entry.kind === "try_on" ? "try_on" : "garment",
+      preferredDate: entry.preferredDate,
+      preferredTime: entry.preferredTime,
+      durationMinutes: entry.durationMinutes,
     };
 
     view.mailtoUrl = buildMailtoUrl(view);
@@ -392,6 +436,34 @@ export async function updateWaitlistStatus(
   });
 }
 
+export async function fulfillWaitlistForTryOn(
+  shop: string,
+  customerEmail: string | null | undefined,
+  preferredDate: Date,
+  productId?: string | null,
+) {
+  const email = customerEmail?.trim().toLowerCase();
+  if (!email) {
+    return;
+  }
+
+  await prisma.waitlistEntry.updateMany({
+    where: {
+      shop,
+      kind: "try_on",
+      email,
+      preferredDate,
+      ...(productId ? { productId } : {}),
+      status: { in: ["waiting", "contacted"] },
+    },
+    data: {
+      status: "fulfilled",
+      claimToken: null,
+      claimExpiresAt: null,
+    },
+  });
+}
+
 export async function fulfillWaitlistForBooking(
   shop: string,
   productId: string,
@@ -406,6 +478,7 @@ export async function fulfillWaitlistForBooking(
   await prisma.waitlistEntry.updateMany({
     where: {
       shop,
+      kind: "garment",
       productId,
       email,
       OR: [{ variantId }, { variantId: null }],

@@ -21,6 +21,12 @@ import {
   type VariantUnitCost,
 } from "./garment-cost.server";
 import { getWaitlistForGarment } from "../waitlist/waitlist-notify.server";
+import { resolveDatePresetRange } from "../rental/date-range";
+import type {
+  InventoryDateField,
+  InventoryDatePreset,
+  RentalDatePreset,
+} from "../rental/rental.types";
 
 type AdminGraphqlClient = {
   graphql: (
@@ -445,16 +451,79 @@ export async function findNextAvailableDate(
   });
 }
 
+async function bookingStatsForDateRange(
+  shop: string,
+  range: { from: Date; to: Date },
+  dateField: InventoryDateField,
+): Promise<Map<string, { timesRented: number; totalRevenue: number }>> {
+  const dateFilter =
+    dateField === "rentalStart"
+      ? { startDate: { gte: range.from, lte: range.to } }
+      : dateField === "rentalEnd"
+        ? { endDate: { gte: range.from, lte: range.to } }
+        : {
+            startDate: { lte: range.to },
+            endDate: { gte: range.from },
+          };
+
+  const bookings = await prisma.booking.findMany({
+    where: {
+      shop,
+      status: { in: ["confirmed", "pending"] },
+      ...dateFilter,
+    },
+    select: {
+      productId: true,
+      variantId: true,
+      pricePaid: true,
+    },
+  });
+
+  const byVariant = new Map<string, { timesRented: number; totalRevenue: number }>();
+  for (const booking of bookings) {
+    const key = `${booking.productId}:${booking.variantId}`;
+    const row = byVariant.get(key) ?? { timesRented: 0, totalRevenue: 0 };
+    row.timesRented += 1;
+    row.totalRevenue += decimalToNumber(booking.pricePaid);
+    byVariant.set(key, row);
+  }
+  return byVariant;
+}
+
+export type GarmentListDateFilter = {
+  datePreset: InventoryDatePreset;
+  dateFrom?: string;
+  dateTo?: string;
+  dateField?: InventoryDateField;
+};
+
 export async function listGarmentsForShop(
   admin: AdminGraphqlClient,
   shop: string,
   options: {
     search?: string | null;
     sort?: GarmentListSort;
+    date?: GarmentListDateFilter;
   } = {},
 ): Promise<GarmentListItem[]> {
   const search = options.search?.trim() || null;
   const sort = options.sort ?? "name";
+  const datePreset = options.date?.datePreset ?? "all";
+  const dateField = options.date?.dateField ?? "overlap";
+  const periodStats =
+    datePreset !== "all"
+      ? await bookingStatsForDateRange(
+          shop,
+          resolveDatePresetRange(
+            datePreset === "custom"
+              ? "custom"
+              : (datePreset as RentalDatePreset),
+            options.date?.dateFrom,
+            options.date?.dateTo,
+          ),
+          dateField,
+        )
+      : null;
 
   const [productRows, garmentRows] = await Promise.all([
     fetchAllProducts(admin, search),
@@ -508,8 +577,11 @@ export async function listGarmentsForShop(
 
   for (const row of productRows) {
     const garment = garmentByVariant.get(`${row.productId}:${row.variantId}`);
-    const totalRevenue = decimalToNumber(garment?.totalRevenue);
-    const timesRented = garment?.timesRented ?? 0;
+    const period = periodStats?.get(`${row.productId}:${row.variantId}`);
+    const totalRevenue = period
+      ? period.totalRevenue
+      : decimalToNumber(garment?.totalRevenue);
+    const timesRented = period ? period.timesRented : (garment?.timesRented ?? 0);
     const unitCost =
       unitCosts.get(row.variantId) ??
       ({ amount: null, currencyCode: null, available: false } satisfies VariantUnitCost);
@@ -576,6 +648,42 @@ export async function listGarmentsForShop(
   });
 
   return items;
+}
+
+export function exportInventoryGarmentsCsv(garments: GarmentListItem[]): string {
+  const headers = [
+    "Product",
+    "Variant",
+    "Size",
+    "Product ID",
+    "Variant ID",
+    "Times rented",
+    "Revenue",
+    "Profit",
+    "Next available",
+    "Try-on hold",
+    "Pending bookings",
+  ];
+
+  const escape = (value: string) => `"${value.replace(/"/g, '""')}"`;
+
+  const rows = garments.map((garment) => [
+    garment.productTitle,
+    garment.variantTitle,
+    garment.sizeLabel,
+    garment.productId,
+    garment.variantId,
+    String(garment.timesRented),
+    garment.revenueLabel,
+    garment.profitLabel,
+    garment.nextAvailableDate ?? "",
+    garment.activeHold ? "Yes" : "No",
+    String(garment.pendingBookings),
+  ]);
+
+  return [headers, ...rows]
+    .map((row) => row.map((cell) => escape(String(cell))).join(","))
+    .join("\n");
 }
 
 export async function getGarmentDetail(
