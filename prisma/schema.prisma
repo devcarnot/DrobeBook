@@ -200,15 +200,21 @@ model WaitlistEntry {
 }
 
 model BlockedDate {
-  id        String   @id @default(cuid())
-  shop      String
-  productId String?
-  variantId String?
-  startDate DateTime
-  endDate   DateTime
-  reason    String?
-  createdBy String?
-  createdAt DateTime @default(now())
+  id             String   @id @default(cuid())
+  shop           String
+  productId      String?
+  variantId      String?
+  startDate      DateTime
+  endDate        DateTime
+  reason         String?
+  createdBy      String?
+  createdAt      DateTime @default(now())
+  /// range = fixed dates; weekly = recurring weekdays (see weekdayMask)
+  blockKind      String   @default("range")
+  /// Bitmask: bit 0 = Sunday … bit 6 = Saturday (UTC)
+  weekdayMask    Int?
+  appliesToHire  Boolean  @default(true)
+  appliesToTryOn Boolean  @default(true)
 
   @@index([shop, productId, variantId, startDate, endDate])
 }

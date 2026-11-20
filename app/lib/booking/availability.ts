@@ -1,5 +1,9 @@
 import type { BufferConfig, BufferDayUnit, DeliveryMethod } from "./buffer-config";
 import {
+  dateRangeOverlapsBlockedRule,
+  type BlockedDateRule,
+} from "../blocked-dates.logic";
+import {
   effectiveRangeForBooking,
   effectiveRangeForRequest,
   meetsDeliveryLeadTime,
@@ -43,6 +47,10 @@ export type BlockedDateRecord = {
   productId?: string | null;
   variantId?: string | null;
   reason?: string | null;
+  blockKind?: "range" | "weekly";
+  weekdayMask?: number | null;
+  appliesToHire?: boolean;
+  appliesToTryOn?: boolean;
 };
 
 export type AvailabilityInput = {
@@ -251,12 +259,26 @@ export function isProductVariantAvailable(input: AvailabilityInput): Availabilit
       continue;
     }
 
-    const blockedRange: DateRange = {
-      start: blocked.startDate,
-      end: blocked.endDate,
+    const rule: BlockedDateRule = {
+      blockKind: blocked.blockKind ?? "range",
+      startDate: blocked.startDate,
+      endDate: blocked.endDate,
+      weekdayMask: blocked.weekdayMask ?? null,
+      appliesToHire: blocked.appliesToHire ?? true,
+      appliesToTryOn: blocked.appliesToTryOn ?? false,
+      productId: blocked.productId,
+      variantId: blocked.variantId,
+      reason: blocked.reason,
     };
 
-    if (dateRangesOverlap(requestedRange, blockedRange)) {
+    if (
+      dateRangeOverlapsBlockedRule(
+        requestedRange.start,
+        requestedRange.end,
+        rule,
+        "hire",
+      )
+    ) {
       return {
         available: false,
         deliveryDate,

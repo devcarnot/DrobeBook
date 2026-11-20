@@ -65,6 +65,10 @@ const BLOCKED_DATE_SELECT = {
   productId: true,
   variantId: true,
   reason: true,
+  blockKind: true,
+  weekdayMask: true,
+  appliesToHire: true,
+  appliesToTryOn: true,
 } as const;
 
 function parseBufferDayUnit(value: unknown): BufferDayUnit | null {
@@ -104,6 +108,9 @@ function blockedDatesForVariant(
   variantId: string,
 ): BlockedDateRecord[] {
   return blockedDates.filter((blocked) => {
+    if (blocked.appliesToHire === false) {
+      return false;
+    }
     const productMatches =
       blocked.productId == null || blocked.productId === productId;
     const variantMatches =

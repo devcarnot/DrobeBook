@@ -1,4 +1,9 @@
 import prisma from "../db.server";
+import {
+  type BlockKind,
+  WEEKLY_BLOCK_VALID_FROM,
+  WEEKLY_BLOCK_VALID_UNTIL,
+} from "./blocked-dates.logic";
 
 function parseDateOnly(value: string): Date {
   return new Date(`${value}T12:00:00.000Z`);
@@ -17,15 +22,27 @@ export type BlockedDateRecord = {
   variantId: string | null;
   createdBy: string | null;
   createdAt: string;
+  blockKind: BlockKind;
+  weekdayMask: number | null;
+  appliesToHire: boolean;
+  appliesToTryOn: boolean;
 };
 
-export async function listBlockedDates(shop: string): Promise<BlockedDateRecord[]> {
-  const rows = await prisma.blockedDate.findMany({
-    where: { shop },
-    orderBy: { startDate: "asc" },
-  });
-
-  return rows.map((row) => ({
+function mapRow(row: {
+  id: string;
+  startDate: Date;
+  endDate: Date;
+  reason: string | null;
+  productId: string | null;
+  variantId: string | null;
+  createdBy: string | null;
+  createdAt: Date;
+  blockKind: string;
+  weekdayMask: number | null;
+  appliesToHire: boolean;
+  appliesToTryOn: boolean;
+}): BlockedDateRecord {
+  return {
     id: row.id,
     startDate: formatDateOnly(row.startDate),
     endDate: formatDateOnly(row.endDate),
@@ -34,6 +51,37 @@ export async function listBlockedDates(shop: string): Promise<BlockedDateRecord[
     variantId: row.variantId,
     createdBy: row.createdBy,
     createdAt: row.createdAt.toISOString(),
+    blockKind: row.blockKind === "weekly" ? "weekly" : "range",
+    weekdayMask: row.weekdayMask,
+    appliesToHire: row.appliesToHire,
+    appliesToTryOn: row.appliesToTryOn,
+  };
+}
+
+export async function listBlockedDates(shop: string): Promise<BlockedDateRecord[]> {
+  const rows = await prisma.blockedDate.findMany({
+    where: { shop },
+    orderBy: [{ blockKind: "asc" }, { startDate: "asc" }],
+  });
+
+  return rows.map(mapRow);
+}
+
+export async function listShopWideBlockRules(shop: string) {
+  const rows = await prisma.blockedDate.findMany({
+    where: { shop, productId: null, variantId: null },
+  });
+
+  return rows.map((row) => ({
+    blockKind: row.blockKind === "weekly" ? ("weekly" as const) : ("range" as const),
+    startDate: row.startDate,
+    endDate: row.endDate,
+    weekdayMask: row.weekdayMask,
+    appliesToHire: row.appliesToHire,
+    appliesToTryOn: row.appliesToTryOn,
+    productId: row.productId,
+    variantId: row.variantId,
+    reason: row.reason,
   }));
 }
 
@@ -46,8 +94,14 @@ export async function createBlockedDate(
     productId?: string;
     variantId?: string;
     createdBy?: string;
+    blockKind?: BlockKind;
+    weekdayMask?: number;
+    appliesToHire?: boolean;
+    appliesToTryOn?: boolean;
   },
 ): Promise<BlockedDateRecord> {
+  const blockKind = input.blockKind ?? "range";
+
   const row = await prisma.blockedDate.create({
     data: {
       shop,
@@ -57,19 +111,48 @@ export async function createBlockedDate(
       productId: input.productId ?? null,
       variantId: input.variantId ?? null,
       createdBy: input.createdBy ?? null,
+      blockKind,
+      weekdayMask: blockKind === "weekly" ? (input.weekdayMask ?? 0) : null,
+      appliesToHire: input.appliesToHire ?? true,
+      appliesToTryOn: input.appliesToTryOn ?? true,
     },
   });
 
-  return {
-    id: row.id,
-    startDate: formatDateOnly(row.startDate),
-    endDate: formatDateOnly(row.endDate),
-    reason: row.reason,
-    productId: row.productId,
-    variantId: row.variantId,
-    createdBy: row.createdBy,
-    createdAt: row.createdAt.toISOString(),
-  };
+  return mapRow(row);
+}
+
+export async function createWeeklyBlockedDays(
+  shop: string,
+  input: {
+    weekdayMask: number;
+    reason?: string;
+    appliesToHire?: boolean;
+    appliesToTryOn?: boolean;
+    validFrom?: string;
+    validUntil?: string;
+    createdBy?: string;
+  },
+): Promise<BlockedDateRecord> {
+  if (input.weekdayMask === 0) {
+    throw new Error("Select at least one weekday.");
+  }
+
+  const appliesToHire = input.appliesToHire ?? true;
+  const appliesToTryOn = input.appliesToTryOn ?? true;
+  if (!appliesToHire && !appliesToTryOn) {
+    throw new Error("Select at least one booking type (hire or try-on).");
+  }
+
+  return createBlockedDate(shop, {
+    startDate: input.validFrom ?? WEEKLY_BLOCK_VALID_FROM,
+    endDate: input.validUntil ?? WEEKLY_BLOCK_VALID_UNTIL,
+    reason: input.reason,
+    blockKind: "weekly",
+    weekdayMask: input.weekdayMask,
+    appliesToHire,
+    appliesToTryOn,
+    createdBy: input.createdBy,
+  });
 }
 
 export async function deleteBlockedDate(
@@ -88,16 +171,7 @@ export async function deleteBlockedDate(
     where: { id, shop },
   });
 
-  return {
-    id: existing.id,
-    startDate: formatDateOnly(existing.startDate),
-    endDate: formatDateOnly(existing.endDate),
-    reason: existing.reason,
-    productId: existing.productId,
-    variantId: existing.variantId,
-    createdBy: existing.createdBy,
-    createdAt: existing.createdAt.toISOString(),
-  };
+  return mapRow(existing);
 }
 
 export async function createGarmentBlockedDate(
@@ -127,5 +201,10 @@ export async function createGarmentBlockedDate(
     update: {},
   });
 
-  return createBlockedDate(shop, input);
+  return createBlockedDate(shop, {
+    ...input,
+    blockKind: "range",
+    appliesToHire: true,
+    appliesToTryOn: false,
+  });
 }

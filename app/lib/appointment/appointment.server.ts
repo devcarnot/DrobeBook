@@ -18,6 +18,8 @@ import {
   getDayTypeForDate,
   isPastDate,
 } from "./slots";
+import { isDateBlockedByRule } from "../blocked-dates.logic";
+import { listShopWideBlockRules } from "../blocked-dates.server";
 import { parseIsoDate } from "../booking/availability.server";
 
 export type AppointmentCalendarParams = {
@@ -261,6 +263,7 @@ export async function getUnavailableAppointmentDates(
   const today = params.today ?? new Date();
   const unavailable: string[] = [];
   const totalDays = daysInMonth(params.year, params.month);
+  const shopBlockRules = await listShopWideBlockRules(params.shop);
   const occupanciesByDate = await getOccupanciesForMonth(
     params.shop,
     params.year,
@@ -274,6 +277,15 @@ export async function getUnavailableAppointmentDates(
     if (
       isPastDate(date, today) ||
       date.getTime() < earliestAppointmentDate(today).getTime()
+    ) {
+      unavailable.push(dateIso);
+      continue;
+    }
+
+    if (
+      shopBlockRules.some((rule) =>
+        isDateBlockedByRule(date, rule, "try_on"),
+      )
     ) {
       unavailable.push(dateIso);
       continue;

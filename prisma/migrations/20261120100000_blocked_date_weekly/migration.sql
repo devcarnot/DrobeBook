@@ -1,0 +1,4 @@
+ALTER TABLE "BlockedDate" ADD COLUMN "blockKind" TEXT NOT NULL DEFAULT 'range';
+ALTER TABLE "BlockedDate" ADD COLUMN "weekdayMask" INTEGER;
+ALTER TABLE "BlockedDate" ADD COLUMN "appliesToHire" BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE "BlockedDate" ADD COLUMN "appliesToTryOn" BOOLEAN NOT NULL DEFAULT true;

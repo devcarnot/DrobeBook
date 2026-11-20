@@ -1,24 +1,15 @@
 import prisma from "../../db.server";
-import { addDays, formatDateIso, toDateOnly } from "./availability";
+import {
+  expandRangeToIsoDates,
+  expandWeeklyHireHolidays,
+} from "../blocked-dates.logic";
+import { addDays, toDateOnly } from "./availability";
 import {
   DEFAULT_BUFFER_CONFIG,
   parseBufferConfig,
   type BufferConfig,
 } from "./buffer-config";
 import { getShopConfig, saveShopConfig } from "../shop-settings.server";
-
-function expandBlockedRange(start: Date, end: Date): string[] {
-  const dates: string[] = [];
-  let current = toDateOnly(start);
-  const last = toDateOnly(end);
-
-  while (current.getTime() <= last.getTime()) {
-    dates.push(formatDateIso(current));
-    current = addDays(current, 1);
-  }
-
-  return dates;
-}
 
 export async function getShopBufferConfig(shop: string): Promise<BufferConfig> {
   const config = await getShopConfig(shop);
@@ -40,16 +31,46 @@ export async function getHolidayDates(shop: string): Promise<Set<string>> {
       shop,
       productId: null,
       variantId: null,
+      appliesToHire: true,
     },
     select: {
       startDate: true,
       endDate: true,
+      blockKind: true,
+      weekdayMask: true,
+      appliesToHire: true,
+      appliesToTryOn: true,
+      productId: true,
+      variantId: true,
+      reason: true,
     },
   });
 
   const holidays = new Set<string>();
+  const weeklyRules = rows
+    .filter((row) => row.blockKind === "weekly")
+    .map((row) => ({
+      blockKind: "weekly" as const,
+      startDate: row.startDate,
+      endDate: row.endDate,
+      weekdayMask: row.weekdayMask,
+      appliesToHire: row.appliesToHire,
+      appliesToTryOn: row.appliesToTryOn,
+      productId: row.productId,
+      variantId: row.variantId,
+      reason: row.reason,
+    }));
+
+  const today = toDateOnly(new Date());
+  const through = addDays(today, 365 * 3);
+
+  for (const iso of expandWeeklyHireHolidays(weeklyRules, today, through)) {
+    holidays.add(iso);
+  }
+
   for (const row of rows) {
-    for (const iso of expandBlockedRange(row.startDate, row.endDate)) {
+    if (row.blockKind === "weekly") continue;
+    for (const iso of expandRangeToIsoDates(row.startDate, row.endDate)) {
       holidays.add(iso);
     }
   }
