@@ -4,8 +4,13 @@
   }
   window.__gkDrobeClutchUpsellInit = true;
 
-  const PROXY_BASE = "/apps/gk-drobe";
+  const PROXY_BASE =
+    window.__gkDrobeCartUpsell?.proxyBase || "/apps/gk-drobe";
   const ROOT = window.Shopify?.routes?.root || "/";
+  const DEBUG =
+    typeof window !== "undefined" &&
+    (window.location.search.includes("gk_clutch_debug=1") ||
+      window.localStorage?.getItem("gk_clutch_debug") === "1");
   const BOOKING_ID_KEY = "_gk_booking_id";
   const SKIP_STORAGE_KEY = "gk-drobe-clutch-skipped";
 
@@ -28,8 +33,45 @@
   let modalEl = null;
   let checkoutListenerAttached = false;
 
+  function debugLog(...args) {
+    if (DEBUG) {
+      console.info("[gk-clutch]", ...args);
+    }
+  }
+
   function isCartPage() {
-    return window.location.pathname.includes("/cart");
+    return /(^|\/)cart\/?$/i.test(window.location.pathname);
+  }
+
+  function normalizeProperties(properties) {
+    if (!properties) {
+      return {};
+    }
+
+    if (Array.isArray(properties)) {
+      const normalized = {};
+      properties.forEach((entry) => {
+        if (entry && entry.name != null) {
+          normalized[String(entry.name)] =
+            entry.value == null ? "" : String(entry.value);
+        }
+      });
+      return normalized;
+    }
+
+    return { ...properties };
+  }
+
+  function hydrateCart(cart) {
+    if (!cart?.items) {
+      return cart;
+    }
+
+    cart.items = cart.items.map((item) => ({
+      ...item,
+      properties: normalizeProperties(item.properties),
+    }));
+    return cart;
   }
 
   function getBookingSize(properties) {
@@ -155,8 +197,25 @@
     return `gk-${Date.now()}-${Math.random().toString(36).slice(2)}`;
   }
 
+  function isLinkedLine(properties) {
+    return Boolean(properties?.["For item"]) && !properties?.["Delivery Date"];
+  }
+
   function getPrimaryBooking(cart) {
-    return cart.items.find((item) => isBookingItem(item)) ?? null;
+    hydrateCart(cart);
+    const candidates = cart.items.filter((item) => {
+      if (isLinkedLine(item.properties)) {
+        return false;
+      }
+      return isBookingItem(item);
+    });
+
+    debugLog("booking candidates", candidates.length, candidates);
+
+    const withDates = candidates.find((item) =>
+      Boolean(item.properties?.["Delivery Date"] && item.properties?.["Return Date"]),
+    );
+    return withDates ?? candidates[0] ?? null;
   }
 
   function skipKey(bookingId) {
@@ -485,7 +544,12 @@
     const deliveryMethod = parseDeliveryMethod(booking.properties?.["Delivery Method"]);
 
     if (!deliveryIso || !durationDays) {
-      return null;
+      return {
+        enabled: false,
+        reason: "missing_dates",
+        message:
+          "Could not read hire dates from your gown cart item. Refresh the cart and try again.",
+      };
     }
 
     const excludeIds = cart.items.map((item) => String(item.product_id)).join(",");
@@ -504,15 +568,22 @@
     }
 
     if (!data.enabled) {
-      return null;
+      return {
+        enabled: false,
+        reason: "disabled",
+        message:
+          "Clutch upsell is off or no collection is selected in DrobeBook → Settings → Cart.",
+      };
     }
 
     return data;
   }
 
   async function maybeShowClutchModal(checkoutUrl, cart) {
+    hydrateCart(cart);
     const booking = getPrimaryBooking(cart);
     if (!booking) {
+      debugLog("no booking line in cart — checkout continues");
       window.location.href = checkoutUrl;
       return;
     }
@@ -539,9 +610,13 @@
 
     try {
       const offer = await loadClutchOffer(booking, cart);
-      if (!offer) {
-        hideModal();
-        window.location.href = checkoutUrl;
+      if (!offer || offer.enabled === false) {
+        if (statusEl) {
+          statusEl.textContent =
+            offer?.message ||
+            "Clutch offer is not available right now. Use Skip to continue to checkout.";
+          statusEl.hidden = false;
+        }
         return;
       }
 
@@ -553,8 +628,11 @@
         offer.returnDate,
       );
 
-      if (!offer.products.length) {
-        return;
+      if (!offer.products.length && statusEl) {
+        statusEl.textContent =
+          offer.config?.emptyLabel ||
+          "No clutches are available for your hire dates.";
+        statusEl.hidden = false;
       }
     } catch (error) {
       if (statusEl) {
@@ -574,10 +652,14 @@
       return false;
     }
 
+    hydrateCart(cart);
     const booking = getPrimaryBooking(cart);
     if (!booking) {
+      debugLog("intercept: no gown hire line detected", cart.items);
       return false;
     }
+
+    debugLog("intercept: gown hire line", booking);
 
     event.preventDefault();
     event.stopPropagation();
@@ -608,7 +690,30 @@
         }
 
         const checkoutUrl = resolveCheckoutUrl(target);
+        debugLog("checkout click", target, checkoutUrl);
         await interceptCheckout(event, checkoutUrl);
+      },
+      true,
+    );
+
+    document.addEventListener(
+      "click",
+      async (event) => {
+        if (!isCartPage()) {
+          return;
+        }
+
+        const link = event.target instanceof Element ? event.target.closest("a[href]") : null;
+        if (!link || !/\/checkout/i.test(link.getAttribute("href") || "")) {
+          return;
+        }
+
+        if (link.getAttribute("target") === "_blank") {
+          return;
+        }
+
+        debugLog("checkout link", link.href);
+        await interceptCheckout(event, link.href);
       },
       true,
     );
@@ -655,10 +760,8 @@
   }
 
   function init() {
-    if (!isCartPage()) {
-      return;
-    }
     attachCheckoutInterceptor();
+    debugLog("init", { cartPage: isCartPage(), proxy: PROXY_BASE, embed: window.__gkDrobeCartUpsell });
   }
 
   if (document.readyState === "loading") {
