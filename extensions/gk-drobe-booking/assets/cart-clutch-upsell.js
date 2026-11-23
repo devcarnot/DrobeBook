@@ -32,6 +32,8 @@
   let pendingCheckoutUrl = null;
   let modalEl = null;
   let checkoutListenerAttached = false;
+  let clutchOfferCache = null;
+  let clutchOfferPromise = null;
 
   function debugLog(...args) {
     if (DEBUG) {
@@ -356,10 +358,102 @@
     }
   }
 
+  function bookingCacheKey(booking) {
+    const properties = booking.properties || {};
+    return [
+      parseDisplayDate(properties["Delivery Date"]),
+      resolveDurationDays(properties),
+      parseDeliveryMethod(properties["Delivery Method"]),
+    ].join("|");
+  }
+
+  function showLoadingState(modal, message) {
+    modal.classList.add("gk-clutch-modal--loading");
+    const listEl = modal.querySelector("[data-gk-clutch-list]");
+    const statusEl = modal.querySelector("[data-gk-clutch-status]");
+    if (!listEl) {
+      return;
+    }
+
+    listEl.innerHTML = "";
+    for (let index = 0; index < 3; index += 1) {
+      const skeleton = document.createElement("div");
+      skeleton.className = "gk-clutch-card gk-clutch-card--skeleton";
+      skeleton.setAttribute("aria-hidden", "true");
+      skeleton.innerHTML = `
+        <div class="gk-clutch-card__skeleton-image"></div>
+        <div class="gk-clutch-card__skeleton-body">
+          <div class="gk-clutch-card__skeleton-line gk-clutch-card__skeleton-line--title"></div>
+          <div class="gk-clutch-card__skeleton-line gk-clutch-card__skeleton-line--meta"></div>
+        </div>
+        <div class="gk-clutch-card__skeleton-price"></div>
+        <div class="gk-clutch-card__skeleton-button"></div>
+      `;
+      listEl.appendChild(skeleton);
+    }
+
+    if (statusEl) {
+      statusEl.className = "gk-clutch-modal__status gk-clutch-modal__status--loading";
+      statusEl.innerHTML = `
+        <span class="gk-clutch-modal__spinner" aria-hidden="true"></span>
+        <span>${message || "Loading available clutches…"}</span>
+      `;
+      statusEl.hidden = false;
+    }
+  }
+
   function showModal() {
     const modal = ensureModal();
     modal.hidden = false;
+    modal.classList.remove("gk-clutch-modal--closing");
+    modal.classList.add("gk-clutch-modal--visible");
     document.documentElement.classList.add("gk-clutch-modal-open");
+  }
+
+  async function warmClutchOfferCache() {
+    if (!isCartPage()) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${ROOT}cart.js`);
+      const cart = await response.json();
+      const booking = getPrimaryBooking(cart);
+      if (!booking) {
+        return;
+      }
+
+      const key = bookingCacheKey(booking);
+      if (clutchOfferCache?.key === key && Date.now() - clutchOfferCache.at < 120000) {
+        return;
+      }
+
+      clutchOfferPromise = loadClutchOffer(booking, cart)
+        .then((data) => {
+          clutchOfferCache = { key, data, at: Date.now() };
+          return data;
+        })
+        .catch(() => null);
+    } catch {
+      // optional prefetch only
+    }
+  }
+
+  async function resolveClutchOffer(booking, cart) {
+    const key = bookingCacheKey(booking);
+    if (clutchOfferCache?.key === key && Date.now() - clutchOfferCache.at < 120000) {
+      return clutchOfferCache.data;
+    }
+
+    if (clutchOfferPromise) {
+      const data = await clutchOfferPromise;
+      clutchOfferPromise = null;
+      if (data) {
+        return data;
+      }
+    }
+
+    return loadClutchOffer(booking, cart);
   }
 
   function renderProducts(config, products, booking, deliveryIso, returnIso) {
@@ -392,9 +486,13 @@
 
     listEl.innerHTML = "";
 
+    modal.classList.remove("gk-clutch-modal--loading");
+
     if (!products.length) {
       if (statusEl) {
-        statusEl.textContent = config.emptyLabel || "No clutches are available for your hire dates.";
+        statusEl.className = "gk-clutch-modal__status";
+        statusEl.textContent =
+          config.emptyLabel || "No clutches are available for your hire dates.";
         statusEl.hidden = false;
       }
       return;
@@ -402,6 +500,8 @@
 
     if (statusEl) {
       statusEl.hidden = true;
+      statusEl.className = "gk-clutch-modal__status";
+      statusEl.innerHTML = "";
     }
 
     const bookingId = booking.properties?.[BOOKING_ID_KEY] || createBookingId();
@@ -417,12 +517,19 @@
       card.className = "gk-clutch-card";
 
       const image = document.createElement("img");
-      image.className = "gk-clutch-card__image";
+      image.className = "gk-clutch-card__image gk-clutch-card__image--loading";
       image.alt = "";
       image.loading = "lazy";
-      image.src =
-        product.imageUrl ||
-        "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'/%3E";
+      image.decoding = "async";
+      image.addEventListener("load", () => {
+        image.classList.remove("gk-clutch-card__image--loading");
+      });
+      if (product.imageUrl) {
+        image.src = product.imageUrl;
+      } else {
+        image.removeAttribute("src");
+        image.classList.remove("gk-clutch-card__image--loading");
+      }
 
       const body = document.createElement("div");
       body.className = "gk-clutch-card__body";
@@ -601,20 +708,28 @@
 
     const modal = ensureModal();
     const statusEl = modal.querySelector("[data-gk-clutch-status]");
-    const listEl = modal.querySelector("[data-gk-clutch-list]");
-    if (statusEl) {
-      statusEl.textContent = "Loading…";
-      statusEl.hidden = false;
+    const titleEl = modal.querySelector("[data-gk-clutch-title]");
+    const subtitleEl = modal.querySelector("[data-gk-clutch-subtitle]");
+    const skipBtn = modal.querySelector("[data-gk-clutch-skip]");
+
+    if (titleEl) titleEl.textContent = "Add a clutch to your hire";
+    if (subtitleEl) {
+      subtitleEl.textContent = "Finding clutches available for your hire dates…";
     }
-    if (listEl) {
-      listEl.innerHTML = "";
+    if (skipBtn) {
+      skipBtn.textContent = "Skip & checkout";
     }
+
+    showLoadingState(modal, "Loading available clutches…");
     showModal();
 
     try {
-      const offer = await loadClutchOffer(booking, cart);
+      const offer = await resolveClutchOffer(booking, cart);
       if (!offer || offer.enabled === false) {
+        modal.classList.remove("gk-clutch-modal--loading");
+        modal.querySelector("[data-gk-clutch-list]").innerHTML = "";
         if (statusEl) {
+          statusEl.className = "gk-clutch-modal__status";
           statusEl.textContent =
             offer?.message ||
             "Clutch offer is not available right now. Use Skip to continue to checkout.";
@@ -632,13 +747,17 @@
       );
 
       if (!offer.products.length && statusEl) {
+        statusEl.className = "gk-clutch-modal__status";
         statusEl.textContent =
           offer.config?.emptyLabel ||
           "No clutches are available for your hire dates.";
         statusEl.hidden = false;
       }
     } catch (error) {
+      modal.classList.remove("gk-clutch-modal--loading");
+      modal.querySelector("[data-gk-clutch-list]").innerHTML = "";
       if (statusEl) {
+        statusEl.className = "gk-clutch-modal__status";
         statusEl.textContent =
           error?.message || "Could not load clutches. Skip to continue to checkout.";
         statusEl.hidden = false;
@@ -787,6 +906,17 @@
 
   function init() {
     attachCheckoutInterceptor();
+    warmClutchOfferCache();
+    document.addEventListener("cart:updated", () => {
+      clutchOfferCache = null;
+      clutchOfferPromise = null;
+      warmClutchOfferCache();
+    });
+    document.addEventListener("cart:change", () => {
+      clutchOfferCache = null;
+      clutchOfferPromise = null;
+      warmClutchOfferCache();
+    });
     debugLog("init", { cartPage: isCartPage(), proxy: PROXY_BASE, embed: window.__gkDrobeCartUpsell });
   }
 

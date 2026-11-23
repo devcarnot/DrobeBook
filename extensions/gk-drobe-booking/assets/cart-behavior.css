@@ -26,6 +26,41 @@
   pointer-events: none !important;
 }
 
+@keyframes gk-clutch-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gk-clutch-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes gk-clutch-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gk-clutch-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
 html.gk-clutch-modal-open {
   overflow: hidden;
 }
@@ -37,7 +72,7 @@ html.gk-clutch-modal-open {
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 1rem;
+  padding: 0.75rem;
 }
 
 .gk-clutch-modal[hidden] {
@@ -47,45 +82,61 @@ html.gk-clutch-modal-open {
 .gk-clutch-modal__backdrop {
   position: absolute;
   inset: 0;
-  background: rgba(0, 0, 0, 0.45);
+  background: rgba(18, 18, 18, 0.52);
+  animation: gk-clutch-backdrop-in 0.22s ease;
+}
+
+.gk-clutch-modal--visible .gk-clutch-modal__panel {
+  animation: gk-clutch-panel-in 0.28s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .gk-clutch-modal__panel {
   position: relative;
   z-index: 1;
-  width: min(100%, 520px);
-  max-height: min(92vh, 720px);
+  width: min(100%, 44rem);
+  min-height: min(70vh, 520px);
+  max-height: min(94vh, 820px);
   display: flex;
   flex-direction: column;
   background: #fff;
-  border-radius: 16px;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.18);
-  padding: 1.25rem 1.25rem 1rem;
+  border-radius: 18px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.22);
+  padding: 1.5rem 1.35rem 1.15rem;
 }
 
 .gk-clutch-modal__close {
   position: absolute;
-  top: 0.65rem;
-  right: 0.75rem;
+  top: 0.55rem;
+  right: 0.65rem;
   border: none;
-  background: transparent;
-  font-size: 1.65rem;
+  background: rgba(0, 0, 0, 0.04);
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 999px;
+  font-size: 1.35rem;
   line-height: 1;
   cursor: pointer;
   color: #616161;
+  transition: background 0.18s ease, color 0.18s ease, transform 0.18s ease;
+}
+
+.gk-clutch-modal__close:hover {
+  background: rgba(0, 0, 0, 0.08);
+  color: #202223;
+  transform: scale(1.05);
 }
 
 .gk-clutch-modal__title {
-  margin: 0 2rem 0.35rem 0;
-  font-size: 1.35rem;
+  margin: 0 2.25rem 0.4rem 0;
+  font-size: clamp(1.35rem, 2.8vw, 1.65rem);
   line-height: 1.25;
   font-weight: 600;
 }
 
 .gk-clutch-modal__subtitle {
-  margin: 0 0 0.5rem;
+  margin: 0 0 0.55rem;
   color: #616161;
-  font-size: 0.9375rem;
+  font-size: 0.97rem;
   line-height: 1.45;
 }
 
@@ -93,12 +144,30 @@ html.gk-clutch-modal-open {
   margin: 0 0 0.85rem;
   font-size: 0.8125rem;
   color: #737373;
+  font-weight: 500;
 }
 
 .gk-clutch-modal__status {
   margin: 0 0 0.75rem;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   color: #616161;
+}
+
+.gk-clutch-modal__status--loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-weight: 500;
+}
+
+.gk-clutch-modal__spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  border-top-color: #202223;
+  border-radius: 50%;
+  animation: gk-clutch-spin 0.75s linear infinite;
+  flex-shrink: 0;
 }
 
 .gk-clutch-modal__list {
@@ -106,21 +175,28 @@ html.gk-clutch-modal-open {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  gap: 0.65rem;
+  gap: 0.75rem;
   margin: 0 0 1rem;
   padding-right: 0.15rem;
   -webkit-overflow-scrolling: touch;
+  min-height: 8rem;
 }
 
 .gk-clutch-card {
   display: grid;
-  grid-template-columns: 64px 1fr auto;
+  grid-template-columns: 72px 1fr auto;
   grid-template-rows: auto auto;
-  gap: 0.5rem 0.75rem;
+  gap: 0.55rem 0.85rem;
   align-items: center;
-  padding: 0.65rem 0.75rem;
+  padding: 0.8rem 0.85rem;
   border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 12px;
+  border-radius: 14px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
+}
+
+.gk-clutch-card:hover {
+  border-color: rgba(0, 0, 0, 0.14);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
 }
 
 .gk-clutch-card--added {
@@ -129,11 +205,69 @@ html.gk-clutch-modal-open {
 }
 
 .gk-clutch-card__image {
-  width: 64px;
-  height: 64px;
-  border-radius: 10px;
+  width: 72px;
+  height: 72px;
+  border-radius: 12px;
   object-fit: cover;
   grid-row: 1 / span 2;
+  background: rgba(0, 0, 0, 0.05);
+  transition: opacity 0.25s ease;
+}
+
+.gk-clutch-card__image--loading {
+  opacity: 0;
+}
+
+.gk-clutch-card--skeleton {
+  pointer-events: none;
+}
+
+.gk-clutch-card__skeleton-image,
+.gk-clutch-card__skeleton-price,
+.gk-clutch-card__skeleton-button,
+.gk-clutch-card__skeleton-line {
+  background: linear-gradient(
+    90deg,
+    rgba(0, 0, 0, 0.06) 25%,
+    rgba(0, 0, 0, 0.1) 37%,
+    rgba(0, 0, 0, 0.06) 63%
+  );
+  background-size: 400% 100%;
+  animation: gk-clutch-shimmer 1.2s ease infinite;
+  border-radius: 8px;
+}
+
+.gk-clutch-card__skeleton-image {
+  width: 72px;
+  height: 72px;
+  grid-row: 1 / span 2;
+  border-radius: 12px;
+}
+
+.gk-clutch-card__skeleton-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gk-clutch-card__skeleton-line--title {
+  height: 0.9rem;
+  width: 72%;
+}
+
+.gk-clutch-card__skeleton-line--meta {
+  height: 0.7rem;
+  width: 42%;
+}
+
+.gk-clutch-card__skeleton-price {
+  width: 3.5rem;
+  height: 1.5rem;
+}
+
+.gk-clutch-card__skeleton-button {
+  grid-column: 1 / -1;
+  height: 2.4rem;
 }
 
 .gk-clutch-card__body {
@@ -170,42 +304,63 @@ html.gk-clutch-modal-open {
   grid-column: 1 / -1;
   width: 100%;
   border: none;
-  border-radius: 10px;
-  padding: 0.65rem 0.85rem;
+  border-radius: 11px;
+  padding: 0.72rem 1rem;
+  min-height: 2.75rem;
   background: #202223;
   color: #fff;
   font: inherit;
-  font-size: 0.875rem;
+  font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.18s ease, transform 0.15s ease, box-shadow 0.18s ease;
+}
+
+.gk-clutch-card__add:hover:not(:disabled) {
+  background: #000;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.gk-clutch-card__add:active:not(:disabled) {
+  transform: translateY(0);
 }
 
 .gk-clutch-card__add:disabled {
-  opacity: 0.6;
+  opacity: 0.65;
   cursor: default;
 }
 
 .gk-clutch-modal__actions {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0.55rem;
+  padding-top: 0.15rem;
 }
 
 .gk-clutch-modal__skip,
 .gk-clutch-modal__checkout {
   width: 100%;
-  border-radius: 10px;
-  padding: 0.75rem 1rem;
+  border-radius: 11px;
+  padding: 0.82rem 1rem;
+  min-height: 2.85rem;
   font: inherit;
-  font-size: 0.9375rem;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
+  transition: background 0.18s ease, border-color 0.18s ease, transform 0.15s ease;
 }
 
 .gk-clutch-modal__skip {
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.14);
   background: #fff;
   color: #202223;
+}
+
+.gk-clutch-modal__skip:hover {
+  border-color: rgba(0, 0, 0, 0.22);
+  background: rgba(0, 0, 0, 0.03);
+  transform: translateY(-1px);
 }
 
 .gk-clutch-modal__checkout {
@@ -214,25 +369,73 @@ html.gk-clutch-modal-open {
   color: #fff;
 }
 
-@media (min-width: 560px) {
+.gk-clutch-modal__checkout:hover {
+  background: #000;
+  transform: translateY(-1px);
+}
+
+@media (min-width: 640px) {
+  .gk-clutch-modal {
+    padding: 1.25rem;
+  }
+
+  .gk-clutch-modal__panel {
+    padding: 1.65rem 1.5rem 1.25rem;
+  }
+
   .gk-clutch-modal__actions {
-    flex-direction: row;
+    flex-direction: row-reverse;
+    gap: 0.65rem;
+  }
+
+  .gk-clutch-modal__skip,
+  .gk-clutch-modal__checkout {
+    flex: 1;
   }
 
   .gk-clutch-card {
-    grid-template-columns: 72px 1fr auto auto;
+    grid-template-columns: 80px 1fr auto auto;
     grid-template-rows: auto;
+    padding: 0.85rem 1rem;
   }
 
-  .gk-clutch-card__image {
-    width: 72px;
-    height: 72px;
+  .gk-clutch-card__image,
+  .gk-clutch-card__skeleton-image {
+    width: 80px;
+    height: 80px;
     grid-row: auto;
   }
 
   .gk-clutch-card__add {
     grid-column: auto;
     width: auto;
+    min-width: 7.5rem;
     white-space: nowrap;
+  }
+
+  .gk-clutch-card__skeleton-button {
+    grid-column: auto;
+    width: 7.5rem;
+    height: 2.5rem;
+  }
+}
+
+@media (max-width: 639px) {
+  .gk-clutch-modal__panel {
+    width: 100%;
+    min-height: min(78vh, 640px);
+    border-radius: 16px;
+  }
+
+  .gk-clutch-card__price {
+    grid-column: 2 / -1;
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.4rem;
+    justify-self: start;
+  }
+
+  .gk-clutch-card__add {
+    margin-top: 0.15rem;
   }
 }
