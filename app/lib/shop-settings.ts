@@ -5,6 +5,13 @@ import {
   type HireDurationOption,
 } from "./hire-durations";
 import {
+  DEFAULT_HIRE_ADDONS_HEADING,
+  hireAddOnsFromFormData,
+  normalizeAddOnsHeading,
+  normalizeHireAddOns,
+  type HireAddOn,
+} from "./hire-add-ons";
+import {
   DEFAULT_HIRE_TERMS,
   hireTermsFromFormData,
   normalizeHireTerms,
@@ -32,6 +39,8 @@ export type WidgetConfig = {
   buttonLabelPending: string;
   buttonLabelReady: string;
   hireTerms: HireTerm[];
+  hireAddOnsHeading: string;
+  hireAddOns: HireAddOn[];
   fontFamily: string;
   colors: WidgetColorScheme;
 };
@@ -53,6 +62,8 @@ export const DEFAULT_WIDGET_CONFIG: WidgetConfig = {
   buttonLabelPending: "Select dates first",
   buttonLabelReady: "Add hire to cart",
   hireTerms: DEFAULT_HIRE_TERMS.map((entry) => ({ ...entry })),
+  hireAddOnsHeading: DEFAULT_HIRE_ADDONS_HEADING,
+  hireAddOns: [],
   fontFamily:
     'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif',
   colors: { ...DEFAULT_WIDGET_COLORS },
@@ -117,6 +128,8 @@ export function widgetConfigFromFormData(formData: FormData): WidgetConfig {
         DEFAULT_WIDGET_CONFIG.buttonLabelReady,
     ),
     hireTerms: hireTermsFromFormData(formData),
+    hireAddOnsHeading: normalizeAddOnsHeading(formData.get("hireAddOnsHeading")),
+    hireAddOns: hireAddOnsFromFormData(formData),
     fontFamily: String(
       formData.get("fontFamily") ?? DEFAULT_WIDGET_CONFIG.fontFamily,
     ),
@@ -140,6 +153,8 @@ export function parseWidgetConfig(raw: string | null | undefined): WidgetConfig 
     parsed.colors = parseWidgetColors(parsed.colors);
     parsed.hireDurations = normalizeHireDurations(parsed.hireDurations);
     parsed.hireTerms = normalizeHireTerms(parsed.hireTerms);
+    parsed.hireAddOnsHeading = normalizeAddOnsHeading(parsed.hireAddOnsHeading);
+    parsed.hireAddOns = normalizeHireAddOns(parsed.hireAddOns);
     parsed.fontFamily =
       String(parsed.fontFamily ?? "").trim() || DEFAULT_WIDGET_CONFIG.fontFamily;
     return parsed;

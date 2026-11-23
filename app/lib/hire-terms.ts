@@ -25,8 +25,12 @@ function slugify(value: string): string {
 }
 
 export function normalizeHireTerms(value: unknown): HireTerm[] {
-  if (!Array.isArray(value) || value.length === 0) {
+  if (!Array.isArray(value)) {
     return DEFAULT_HIRE_TERMS.map((entry) => ({ ...entry }));
+  }
+
+  if (value.length === 0) {
+    return [];
   }
 
   const terms = value
@@ -46,9 +50,7 @@ export function normalizeHireTerms(value: unknown): HireTerm[] {
     })
     .filter((entry): entry is HireTerm => entry != null);
 
-  return terms.length > 0
-    ? terms
-    : DEFAULT_HIRE_TERMS.map((entry) => ({ ...entry }));
+  return terms;
 }
 
 export function hireTermsFromFormData(formData: FormData): HireTerm[] {
@@ -58,7 +60,11 @@ export function hireTermsFromFormData(formData: FormData): HireTerm[] {
   }
 
   try {
-    return normalizeHireTerms(JSON.parse(raw));
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length === 0) {
+      return [];
+    }
+    return normalizeHireTerms(parsed);
   } catch {
     return DEFAULT_HIRE_TERMS.map((entry) => ({ ...entry }));
   }

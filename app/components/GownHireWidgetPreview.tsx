@@ -242,6 +242,43 @@ export function GownHireWidgetPreview({ config }: { config: WidgetConfig }) {
         </div>
       ) : null}
 
+      {config.hireAddOns.length > 0 ? (
+        <div style={widgetGroupStyle()}>
+          <strong style={{ fontSize: "1rem", fontWeight: 500, marginBottom: "0.5rem" }}>
+            {config.hireAddOnsHeading || "Need Fashion Tape"}
+          </strong>
+          <div style={{ display: "flex", flexDirection: "column", gap: "0.45rem" }}>
+            {config.hireAddOns.map((addOn) => (
+              <label
+                key={addOn.id}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.65rem",
+                  padding: "0.5rem 0.65rem",
+                  border: "1px solid rgba(0,0,0,0.08)",
+                  borderRadius: "10px",
+                  fontSize: "0.875rem",
+                }}
+              >
+                <input type="checkbox" readOnly style={{ margin: 0 }} />
+                {addOn.imageUrl ? (
+                  <img
+                    src={addOn.imageUrl}
+                    alt=""
+                    width={40}
+                    height={40}
+                    style={{ borderRadius: 8, objectFit: "cover" }}
+                  />
+                ) : null}
+                <span style={{ flex: 1 }}>{addOn.title}</span>
+                {addOn.displayPrice ? <strong>${addOn.displayPrice}</strong> : null}
+              </label>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
       <div style={primaryButtonStyle()}>
         {ready
           ? config.buttonLabelReady || "Add hire to cart"

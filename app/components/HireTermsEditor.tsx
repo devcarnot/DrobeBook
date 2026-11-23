@@ -29,16 +29,15 @@ export function HireTermsEditor({ terms, onChange }: HireTermsEditorProps) {
   };
 
   const removeTerm = (index: number) => {
-    if (terms.length <= 1) {
-      return;
-    }
     onChange(terms.filter((_, termIndex) => termIndex !== index));
   };
 
   return (
     <s-stack direction="block" gap="large">
       <s-paragraph tone="neutral" color="subdued">
-        Customers must tick every checkbox before they can add a hire to cart.
+        {terms.length
+          ? "Customers must tick every checkbox before they can add a hire to cart."
+          : "No hire terms are shown on the storefront — customers can add to cart as soon as dates are selected."}
       </s-paragraph>
 
       {terms.map((term, index) => (
@@ -55,16 +54,14 @@ export function HireTermsEditor({ terms, onChange }: HireTermsEditorProps) {
               placeholder="I agree to the hire terms and conditions"
               onChange={(event) => updateLabel(index, event.currentTarget.value)}
             />
-            {terms.length > 1 ? (
-              <s-button
-                type="button"
-                variant="tertiary"
-                tone="critical"
-                onClick={() => removeTerm(index)}
-              >
-                Remove checkbox
-              </s-button>
-            ) : null}
+            <s-button
+              type="button"
+              variant="tertiary"
+              tone="critical"
+              onClick={() => removeTerm(index)}
+            >
+              Remove checkbox
+            </s-button>
           </s-stack>
         </s-box>
       ))}

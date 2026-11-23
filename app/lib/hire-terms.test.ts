@@ -6,8 +6,12 @@ import {
 } from "./hire-terms";
 
 describe("normalizeHireTerms", () => {
-  it("returns defaults when input is empty", () => {
-    expect(normalizeHireTerms([])).toEqual(DEFAULT_HIRE_TERMS);
+  it("returns defaults when input is not an array", () => {
+    expect(normalizeHireTerms(null)).toEqual(DEFAULT_HIRE_TERMS);
+  });
+
+  it("allows an explicit empty list (no storefront checkboxes)", () => {
+    expect(normalizeHireTerms([])).toEqual([]);
   });
 
   it("keeps valid custom terms", () => {

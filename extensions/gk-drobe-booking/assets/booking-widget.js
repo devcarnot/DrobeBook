@@ -108,6 +108,8 @@
         buttonLabelPending: "Select dates first",
         buttonLabelReady: "Add hire to cart",
         hireTerms: [],
+        hireAddOnsHeading: "Need Fashion Tape",
+        hireAddOns: [],
         fontFamily: "",
       };
 
@@ -123,6 +125,7 @@
         eventDate: "",
         damageProtection: false,
         acceptedTerms: {},
+        selectedAddOnVariants: new Set(),
         calendarYear: new Date().getFullYear(),
         calendarMonth: new Date().getMonth() + 1,
         unavailableDates: new Set(),
@@ -187,6 +190,9 @@
       this.durationGroupEl = this.root.querySelector("[data-gk-duration-group]");
       this.termsGroupEl = this.root.querySelector("[data-gk-terms-group]");
       this.termsEl = this.root.querySelector("[data-gk-terms]");
+      this.addOnsGroupEl = this.root.querySelector("[data-gk-addons-group]");
+      this.addOnsHeadingEl = this.root.querySelector("[data-gk-addons-heading]");
+      this.addOnsListEl = this.root.querySelector("[data-gk-addons-list]");
       this.waitlistEl = this.root.querySelector("[data-gk-waitlist]");
       this.waitlistToggle = this.root.querySelector("[data-gk-waitlist-toggle]");
       this.waitlistForm = this.root.querySelector("[data-gk-waitlist-form]");
@@ -325,10 +331,19 @@
         }
 
         this.renderHireTerms();
+        this.renderAddOns();
         this.updateWaitlistVisibility();
       } catch {
         // Storefront still works with block defaults.
       }
+    }
+
+    formatAddOnPrice(displayPrice) {
+      const raw = String(displayPrice ?? "").trim();
+      if (!raw) {
+        return "";
+      }
+      return raw.startsWith("$") ? raw : `$${raw}`;
     }
 
     renderHireTerms() {
@@ -373,6 +388,84 @@
         label.appendChild(checkbox);
         label.appendChild(text);
         this.termsEl.appendChild(label);
+      });
+    }
+
+    renderAddOns() {
+      if (!this.addOnsGroupEl || !this.addOnsListEl) {
+        return;
+      }
+
+      const addOns = Array.isArray(this.config.hireAddOns)
+        ? this.config.hireAddOns.filter((entry) => entry?.variantId && entry?.title)
+        : [];
+
+      this.addOnsListEl.innerHTML = "";
+      this.state.selectedAddOnVariants = new Set();
+
+      if (!addOns.length) {
+        this.addOnsGroupEl.hidden = true;
+        return;
+      }
+
+      this.addOnsGroupEl.hidden = false;
+      if (this.addOnsHeadingEl) {
+        this.addOnsHeadingEl.textContent =
+          this.config.hireAddOnsHeading || "Need Fashion Tape";
+      }
+
+      addOns.forEach((addOn, index) => {
+        const row = document.createElement("label");
+        row.className = "gk-drobe-booking__addon";
+
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.className = "gk-drobe-booking__addon-checkbox";
+        checkbox.dataset.addOnVariantId = String(addOn.variantId);
+        checkbox.addEventListener("change", () => {
+          const variantId = String(addOn.variantId);
+          if (checkbox.checked) {
+            this.state.selectedAddOnVariants.add(variantId);
+          } else {
+            this.state.selectedAddOnVariants.delete(variantId);
+          }
+        });
+
+        const body = document.createElement("span");
+        body.className = "gk-drobe-booking__addon-body";
+
+        if (addOn.imageUrl) {
+          const image = document.createElement("img");
+          image.className = "gk-drobe-booking__addon-image";
+          image.src = addOn.imageUrl;
+          image.alt = "";
+          image.width = 48;
+          image.height = 48;
+          image.loading = "lazy";
+          body.appendChild(image);
+        }
+
+        const meta = document.createElement("span");
+        meta.className = "gk-drobe-booking__addon-meta";
+
+        const title = document.createElement("span");
+        title.className = "gk-drobe-booking__addon-title";
+        title.textContent = addOn.title;
+        meta.appendChild(title);
+
+        body.appendChild(meta);
+        row.appendChild(checkbox);
+        row.appendChild(body);
+
+        const price = this.formatAddOnPrice(addOn.displayPrice);
+        if (price) {
+          const priceEl = document.createElement("span");
+          priceEl.className = "gk-drobe-booking__addon-price";
+          priceEl.textContent = price;
+          row.appendChild(priceEl);
+        }
+
+        this.addOnsListEl.appendChild(row);
       });
     }
 
@@ -1221,6 +1314,23 @@
           quantity: 1,
           properties: {
             "For item": this.buildItemDescriptor(),
+            _gk_linked_booking_id: bookingId,
+          },
+        });
+      }
+
+      const linkedDescriptor = this.buildItemDescriptor();
+      const addOns = Array.isArray(this.config.hireAddOns) ? this.config.hireAddOns : [];
+      for (const addOn of addOns) {
+        const variantId = String(addOn.variantId ?? "");
+        if (!variantId || !this.state.selectedAddOnVariants.has(variantId)) {
+          continue;
+        }
+        items.push({
+          id: Number(variantId),
+          quantity: 1,
+          properties: {
+            "For item": linkedDescriptor,
             _gk_linked_booking_id: bookingId,
           },
         });

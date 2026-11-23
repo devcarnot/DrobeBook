@@ -411,6 +411,75 @@
   text-align: center;
 }
 
+.gk-drobe-booking__addons-heading {
+  margin: 0 0 0.75rem;
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--gk-label-text);
+}
+
+.gk-drobe-booking__addons {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.gk-drobe-booking__addon {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.gk-drobe-booking__addon-checkbox {
+  flex-shrink: 0;
+  margin: 0;
+}
+
+.gk-drobe-booking__addon-body {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.gk-drobe-booking__addon-image {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  object-fit: cover;
+  flex-shrink: 0;
+  background: rgba(0, 0, 0, 0.04);
+}
+
+.gk-drobe-booking__addon-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.gk-drobe-booking__addon-title {
+  font-weight: 500;
+  color: var(--gk-date-text);
+  word-break: break-word;
+}
+
+.gk-drobe-booking__addon-price {
+  flex-shrink: 0;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: var(--gk-date-text);
+}
+
 .gk-drobe-booking__terms {
   display: flex;
   flex-direction: column;

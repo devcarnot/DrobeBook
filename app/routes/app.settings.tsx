@@ -25,6 +25,7 @@ import {
 import { ColorField } from "../components/ColorField";
 import { GownHireWidgetPreview } from "../components/GownHireWidgetPreview";
 import { HireTermsEditor } from "../components/HireTermsEditor";
+import { HireAddOnsEditor } from "../components/HireAddOnsEditor";
 import { DamageProtectionProductPicker } from "../components/DamageProtectionProductPicker";
 import { ScrollablePillTabs } from "../components/ScrollablePillTabs";
 import { SettingsFeatureNav } from "../components/SettingsFeatureNav";
@@ -67,7 +68,7 @@ const SETTINGS_TABS = [
     label: "Hire terms",
     title: "Mandatory hire terms",
     description:
-      "Checkboxes customers must accept before adding a hire to cart.",
+      "Optional checkboxes before add to cart. Remove all checkboxes to hide this section on the storefront.",
   },
   {
     id: "protection",
@@ -78,8 +79,16 @@ const SETTINGS_TABS = [
       "Optional add-on shown during booking. Pick a product from your store.",
   },
   {
-    id: "colors",
+    id: "addons",
     step: "6",
+    label: "Add-ons",
+    title: "Optional add-on products",
+    description:
+      "Extra products customers can tick to add with their hire (up to 10).",
+  },
+  {
+    id: "colors",
+    step: "7",
     label: "Colors",
     title: "Color scheme",
     description:
@@ -152,6 +161,16 @@ function WidgetConfigHiddenFields({ draft }: { draft: WidgetConfig }) {
         type="hidden"
         name="hireTermsJson"
         value={JSON.stringify(draft.hireTerms)}
+      />
+      <input
+        type="hidden"
+        name="hireAddOnsHeading"
+        value={draft.hireAddOnsHeading}
+      />
+      <input
+        type="hidden"
+        name="hireAddOnsJson"
+        value={JSON.stringify(draft.hireAddOns)}
       />
       <input type="hidden" name="fontFamily" value={draft.fontFamily} />
       <input type="hidden" name="damageProtectionVariantId" value={draft.damageProtectionVariantId} />
@@ -266,6 +285,27 @@ function SettingsTabPanel({
           setDraft((current) => ({
             ...current,
             hireTerms,
+          }))
+        }
+      />
+    );
+  }
+
+  if (tab.id === "addons") {
+    return (
+      <HireAddOnsEditor
+        heading={draft.hireAddOnsHeading}
+        addOns={draft.hireAddOns}
+        onHeadingChange={(hireAddOnsHeading) =>
+          setDraft((current) => ({
+            ...current,
+            hireAddOnsHeading,
+          }))
+        }
+        onChange={(hireAddOns) =>
+          setDraft((current) => ({
+            ...current,
+            hireAddOns,
           }))
         }
       />
