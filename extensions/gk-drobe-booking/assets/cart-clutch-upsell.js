@@ -406,7 +406,10 @@
 
     const bookingId = booking.properties?.[BOOKING_ID_KEY] || createBookingId();
     const linkedDescriptor = buildItemDescriptor(booking);
-    const durationLabel = getBookingDuration(booking.properties) || "";
+    const durationDaysResolved = resolveDurationDays(booking.properties);
+    const durationLabel =
+      getBookingDuration(booking.properties) ||
+      (durationDaysResolved ? `${durationDaysResolved} Day Hire` : "");
     const deliveryMethodLabel = booking.properties?.["Delivery Method"] || "Post";
 
     products.forEach((product) => {
@@ -643,7 +646,15 @@
     }
   }
 
-  async function interceptCheckout(event, checkoutUrl) {
+  function blockCheckoutNavigation(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+  }
+
+  async function handleCheckoutAttempt(checkoutUrl) {
     let cart;
     try {
       const response = await fetch(`${ROOT}cart.js`);
@@ -660,13 +671,6 @@
     }
 
     debugLog("intercept: gown hire line", booking);
-
-    event.preventDefault();
-    event.stopPropagation();
-  if (typeof event.stopImmediatePropagation === "function") {
-      event.stopImmediatePropagation();
-    }
-
     await maybeShowClutchModal(checkoutUrl, cart);
     return true;
   }
@@ -691,7 +695,12 @@
 
         const checkoutUrl = resolveCheckoutUrl(target);
         debugLog("checkout click", target, checkoutUrl);
-        await interceptCheckout(event, checkoutUrl);
+        blockCheckoutNavigation(event);
+
+        const handled = await handleCheckoutAttempt(checkoutUrl);
+        if (!handled) {
+          window.location.href = checkoutUrl;
+        }
       },
       true,
     );
@@ -712,8 +721,14 @@
           return;
         }
 
-        debugLog("checkout link", link.href);
-        await interceptCheckout(event, link.href);
+        const checkoutUrl = link.href;
+        debugLog("checkout link", checkoutUrl);
+        blockCheckoutNavigation(event);
+
+        const handled = await handleCheckoutAttempt(checkoutUrl);
+        if (!handled) {
+          window.location.href = checkoutUrl;
+        }
       },
       true,
     );
@@ -741,19 +756,30 @@
           return;
         }
 
-        const checkoutUrl = action.includes("checkout")
-          ? action
-          : `${ROOT}checkout`;
-
         const submitter = event.submitter;
         if (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) {
           const name = (submitter.getAttribute("name") || "").toLowerCase();
           if (name && name !== "checkout" && name !== "update") {
             return;
           }
+          if (name === "update") {
+            return;
+          }
+        } else if (!/checkout/i.test(action)) {
+          return;
         }
 
-        await interceptCheckout(event, checkoutUrl);
+        const checkoutUrl = action.includes("checkout")
+          ? action
+          : `${ROOT}checkout`;
+
+        debugLog("checkout submit", checkoutUrl, submitter);
+        blockCheckoutNavigation(event);
+
+        const handled = await handleCheckoutAttempt(checkoutUrl);
+        if (!handled) {
+          window.location.href = checkoutUrl;
+        }
       },
       true,
     );
