@@ -182,27 +182,31 @@ async function loadCollectionProducts(
   return [];
 }
 
+const MAX_CLUTCH_RESULTS = 14;
+
 export async function searchAvailableClutches(
   admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
   params: SearchClutchesParams,
 ): Promise<ClutchUpsellProduct[]> {
-  const products = await loadCollectionProducts(
-    admin,
-    params.collectionId || params.config.collectionId,
-    params.collectionHandle || params.config.collectionHandle,
-  );
+  const returnDate = computeReturnDate(params.deliveryDate, params.durationDays);
+  const collectionId = params.collectionId || params.config.collectionId;
+  const collectionHandle =
+    params.collectionHandle || params.config.collectionHandle;
+
+  const [products, availabilityData] = await Promise.all([
+    loadCollectionProducts(admin, collectionId, collectionHandle),
+    loadShopAvailabilityDataForWindow(
+      params.shop,
+      params.deliveryDate,
+      returnDate,
+    ),
+  ]);
 
   if (!products.length) {
     return [];
   }
 
   const exclude = new Set((params.excludeProductIds ?? []).map(String));
-  const returnDate = computeReturnDate(params.deliveryDate, params.durationDays);
-  const availabilityData = await loadShopAvailabilityDataForWindow(
-    params.shop,
-    params.deliveryDate,
-    returnDate,
-  );
   const today = params.today ?? new Date();
   const results: ClutchUpsellProduct[] = [];
 
@@ -272,6 +276,9 @@ export async function searchAvailableClutches(
 
     if (best) {
       results.push(best);
+      if (results.length >= MAX_CLUTCH_RESULTS) {
+        break;
+      }
     }
   }
 

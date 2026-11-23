@@ -65,12 +65,34 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     duration: String(durationDays),
     method: deliveryMethod,
     collectionId: upsell.collectionId || upsell.collectionHandle,
-    exclude: excludeProductIds.sort().join(","),
+    discount: String(upsell.discountPercent),
   });
+
+  const excludeSet = new Set(excludeProductIds);
+
+  const filterExcluded = (body: string) => {
+    if (!excludeSet.size) {
+      return body;
+    }
+    try {
+      const parsed = JSON.parse(body) as {
+        products?: Array<{ productId: string }>;
+      };
+      if (!Array.isArray(parsed.products)) {
+        return body;
+      }
+      parsed.products = parsed.products.filter(
+        (product) => !excludeSet.has(product.productId),
+      );
+      return JSON.stringify(parsed);
+    } catch {
+      return body;
+    }
+  };
 
   const cached = readClutchResponseCache(cacheKey);
   if (cached) {
-    return new Response(cached, {
+    return new Response(filterExcluded(cached), {
       headers: {
         "Content-Type": "application/json",
         "Cache-Control": "private, max-age=60",
