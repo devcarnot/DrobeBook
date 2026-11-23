@@ -10,6 +10,10 @@ import {
   type ShopConfig,
 } from "./shop-config";
 import {
+  DEFAULT_CLUTCH_UPSELL_CONFIG,
+  type ClutchUpsellConfig,
+} from "./cart/clutch-upsell-config";
+import {
   DEFAULT_WIDGET_CONFIG,
   type WidgetConfig,
 } from "./shop-settings";
@@ -95,9 +99,27 @@ export async function saveShopSearchConfig(
   return search;
 }
 
+export async function getShopClutchUpsellConfig(shop: string): Promise<ClutchUpsellConfig> {
+  const config = await getShopConfig(shop);
+  return config.clutchUpsell;
+}
+
+export async function saveShopClutchUpsellConfig(
+  shop: string,
+  clutchUpsell: ClutchUpsellConfig,
+): Promise<ClutchUpsellConfig> {
+  const existing = await getShopConfig(shop);
+  await saveShopConfig(shop, {
+    ...existing,
+    clutchUpsell,
+  });
+  return clutchUpsell;
+}
+
 export {
   DEFAULT_WIDGET_CONFIG,
   DEFAULT_SHOP_CONFIG,
   DEFAULT_APPOINTMENT_CONFIG,
   DEFAULT_SEARCH_CONFIG,
+  DEFAULT_CLUTCH_UPSELL_CONFIG,
 };

@@ -1,11 +1,12 @@
 import type { CSSProperties } from "react";
 
-type SettingsFeature = "gown-hire" | "try-on" | "search";
+type SettingsFeature = "gown-hire" | "try-on" | "search" | "cart";
 
 const FEATURES: Array<{ id: SettingsFeature; label: string; href: string }> = [
   { id: "gown-hire", label: "Gown Hire", href: "/app/settings" },
   { id: "try-on", label: "Try-on", href: "/app/settings/try-on" },
   { id: "search", label: "Search", href: "/app/settings/search" },
+  { id: "cart", label: "Cart", href: "/app/settings/cart-upsell" },
 ];
 
 const trackStyle: CSSProperties = {

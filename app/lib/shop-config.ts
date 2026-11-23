@@ -35,6 +35,12 @@ import {
   normalizeNotificationsConfig,
 } from "./notifications/notification-config";
 import type { NotificationsConfig } from "./notifications/notification.types";
+import {
+  DEFAULT_CLUTCH_UPSELL_CONFIG,
+  clutchUpsellConfigFromFormData,
+  normalizeClutchUpsellConfig,
+  type ClutchUpsellConfig,
+} from "./cart/clutch-upsell-config";
 
 export type AppointmentConfig = {
   introText: string;
@@ -126,6 +132,7 @@ export type ShopConfig = {
   onboarding: OnboardingConfig;
   waitlist: WaitlistConfig;
   notifications: NotificationsConfig;
+  clutchUpsell: ClutchUpsellConfig;
 };
 
 export const DEFAULT_WAITLIST_CONFIG: WaitlistConfig = {
@@ -436,6 +443,7 @@ export const DEFAULT_SHOP_CONFIG: ShopConfig = {
   onboarding: { ...DEFAULT_ONBOARDING_CONFIG },
   waitlist: { ...DEFAULT_WAITLIST_CONFIG },
   notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
+  clutchUpsell: { ...DEFAULT_CLUTCH_UPSELL_CONFIG },
 };
 
 export function parseShopConfig(raw: string | null | undefined): ShopConfig {
@@ -495,6 +503,7 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
           ...(parsed.waitlist ?? {}),
         },
         notifications: normalizeNotificationsConfig(parsed.notifications),
+        clutchUpsell: normalizeClutchUpsellConfig(parsed.clutchUpsell),
       };
     }
 
@@ -506,6 +515,7 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
       onboarding: { ...DEFAULT_ONBOARDING_CONFIG },
       waitlist: { ...DEFAULT_WAITLIST_CONFIG },
       notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
+      clutchUpsell: { ...DEFAULT_CLUTCH_UPSELL_CONFIG },
     };
   } catch {
     return structuredClone(DEFAULT_SHOP_CONFIG);
