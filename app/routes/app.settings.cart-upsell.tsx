@@ -6,6 +6,7 @@ import type {
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
+import { ClutchCollectionPicker } from "../components/ClutchCollectionPicker";
 import { SettingsFeatureNav } from "../components/SettingsFeatureNav";
 import {
   DEFAULT_CLUTCH_UPSELL_CONFIG,
@@ -88,6 +89,8 @@ export default function CartUpsellSettingsPage() {
           />
           <input type="hidden" name="modalTitle" value={draft.modalTitle} />
           <input type="hidden" name="modalSubtitle" value={draft.modalSubtitle} />
+          <input type="hidden" name="collectionId" value={draft.collectionId} />
+          <input type="hidden" name="collectionTitle" value={draft.collectionTitle} />
           <input type="hidden" name="collectionHandle" value={draft.collectionHandle} />
           <input type="hidden" name="discountPercent" value={String(draft.discountPercent)} />
           <input type="hidden" name="skipButtonLabel" value={draft.skipButtonLabel} />
@@ -107,14 +110,26 @@ export default function CartUpsellSettingsPage() {
               onChange={(event) => updateDraft("enabled", event.currentTarget.checked)}
             />
 
-            <s-text-field
-              label="Clutch collection handle"
-              value={draft.collectionHandle}
-              placeholder="clutches"
-              onChange={(event) =>
-                updateDraft("collectionHandle", event.currentTarget.value)
+            <ClutchCollectionPicker
+              collectionId={draft.collectionId}
+              collectionHandle={draft.collectionHandle}
+              collectionTitle={draft.collectionTitle}
+              onSelect={({ collectionId, collectionHandle, collectionTitle }) =>
+                setDraft((current) => ({
+                  ...current,
+                  collectionId,
+                  collectionHandle,
+                  collectionTitle,
+                }))
               }
-              details="Shopify collection handle for hire clutches (required when enabled)."
+              onClear={() =>
+                setDraft((current) => ({
+                  ...current,
+                  collectionId: "",
+                  collectionHandle: "",
+                  collectionTitle: "",
+                }))
+              }
             />
 
             <s-text-field

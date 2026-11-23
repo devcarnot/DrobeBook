@@ -40,8 +40,46 @@
     return properties?._Duration ?? properties?.Duration ?? null;
   }
 
+  function hasHireDates(properties) {
+    return Boolean(properties?.["Delivery Date"] && properties?.["Return Date"]);
+  }
+
   function isBookingItem(item) {
-    return Boolean(getBookingSize(item.properties) && getBookingDuration(item.properties));
+    const properties = item.properties || {};
+    if (properties[BOOKING_ID_KEY]) {
+      return true;
+    }
+
+    const hasSize = Boolean(getBookingSize(properties));
+    const hasDuration = Boolean(getBookingDuration(properties));
+
+    if (hasSize && (hasDuration || hasHireDates(properties))) {
+      return true;
+    }
+
+    return hasHireDates(properties) && Boolean(properties["Delivery Method"]);
+  }
+
+  function resolveDurationDays(properties) {
+    const fromLabel = parseDurationDays(getBookingDuration(properties));
+    if (fromLabel) {
+      return fromLabel;
+    }
+
+    const deliveryIso = parseDisplayDate(properties?.["Delivery Date"]);
+    const returnIso = parseDisplayDate(properties?.["Return Date"]);
+    if (!deliveryIso || !returnIso) {
+      return null;
+    }
+
+    const start = new Date(`${deliveryIso}T12:00:00.000Z`);
+    const end = new Date(`${returnIso}T12:00:00.000Z`);
+    const diffDays = Math.round((end - start) / 86400000) + 1;
+    if (diffDays >= 1 && diffDays <= 90) {
+      return diffDays;
+    }
+
+    return null;
   }
 
   function parseIsoDate(value) {
@@ -146,19 +184,39 @@
       return null;
     }
 
-    return node.closest(
-      [
-        'button[name="checkout"]',
-        'input[name="checkout"]',
-        'a[href*="/checkout"]',
-        '[data-cart-checkout]',
-        ".cart__checkout-button",
-        "#checkout",
-        ".cart__ctas button",
-        ".cart__checkout",
-        'button[type="submit"][formaction*="checkout"]',
-      ].join(","),
-    );
+    const selector = [
+      'button[name="checkout"]',
+      'input[name="checkout"]',
+      'a[href*="/checkout"]',
+      '[data-cart-checkout]',
+      "[data-checkout-button]",
+      ".cart__checkout-button",
+      ".cart__checkout",
+      ".cart__ctas button",
+      "#checkout",
+      'button[type="submit"][formaction*="checkout"]',
+      "shopify-accelerated-checkout button",
+    ].join(",");
+
+    const direct = node.closest(selector);
+    if (direct) {
+      return direct;
+    }
+
+    const clickable =
+      node instanceof Element ? node : null;
+    if (!clickable) {
+      return null;
+    }
+
+    const button =
+      clickable.closest("button, a, input[type='submit'], [role='button']") || clickable;
+    const label = (button.textContent || "").replace(/\s+/g, " ").trim().toLowerCase();
+    if (label === "check out" || label === "checkout" || label === "proceed to checkout") {
+      return button;
+    }
+
+    return null;
   }
 
   function resolveCheckoutUrl(target) {
@@ -423,7 +481,7 @@
 
   async function loadClutchOffer(booking, cart) {
     const deliveryIso = parseDisplayDate(booking.properties?.["Delivery Date"]);
-    const durationDays = parseDurationDays(getBookingDuration(booking.properties));
+    const durationDays = resolveDurationDays(booking.properties);
     const deliveryMethod = parseDeliveryMethod(booking.properties?.["Delivery Method"]);
 
     if (!deliveryIso || !durationDays) {
@@ -507,6 +565,30 @@
     }
   }
 
+  async function interceptCheckout(event, checkoutUrl) {
+    let cart;
+    try {
+      const response = await fetch(`${ROOT}cart.js`);
+      cart = await response.json();
+    } catch {
+      return false;
+    }
+
+    const booking = getPrimaryBooking(cart);
+    if (!booking) {
+      return false;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+  if (typeof event.stopImmediatePropagation === "function") {
+      event.stopImmediatePropagation();
+    }
+
+    await maybeShowClutchModal(checkoutUrl, cart);
+    return true;
+  }
+
   function attachCheckoutInterceptor() {
     if (checkoutListenerAttached) {
       return;
@@ -526,24 +608,47 @@
         }
 
         const checkoutUrl = resolveCheckoutUrl(target);
+        await interceptCheckout(event, checkoutUrl);
+      },
+      true,
+    );
 
-        let cart;
-        try {
-          const response = await fetch(`${ROOT}cart.js`);
-          cart = await response.json();
-        } catch {
+    document.addEventListener(
+      "submit",
+      async (event) => {
+        if (!isCartPage()) {
           return;
         }
 
-        const booking = getPrimaryBooking(cart);
-        if (!booking) {
+        const form = event.target;
+        if (!(form instanceof HTMLFormElement)) {
           return;
         }
 
-        event.preventDefault();
-        event.stopPropagation();
+        const action = form.getAttribute("action") || "";
+        const isCheckoutForm =
+          /checkout/i.test(action) ||
+          form.querySelector('[name="checkout"]') ||
+          form.id === "cart" ||
+          /cart/i.test(action);
 
-        await maybeShowClutchModal(checkoutUrl, cart);
+        if (!isCheckoutForm) {
+          return;
+        }
+
+        const checkoutUrl = action.includes("checkout")
+          ? action
+          : `${ROOT}checkout`;
+
+        const submitter = event.submitter;
+        if (submitter instanceof HTMLButtonElement || submitter instanceof HTMLInputElement) {
+          const name = (submitter.getAttribute("name") || "").toLowerCase();
+          if (name && name !== "checkout" && name !== "update") {
+            return;
+          }
+        }
+
+        await interceptCheckout(event, checkoutUrl);
       },
       true,
     );

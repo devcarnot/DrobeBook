@@ -2,6 +2,8 @@ export type ClutchUpsellConfig = {
   enabled: boolean;
   modalTitle: string;
   modalSubtitle: string;
+  collectionId: string;
+  collectionTitle: string;
   collectionHandle: string;
   discountPercent: number;
   skipButtonLabel: string;
@@ -15,6 +17,8 @@ export const DEFAULT_CLUTCH_UPSELL_CONFIG: ClutchUpsellConfig = {
   enabled: false,
   modalTitle: "Add a clutch to your hire",
   modalSubtitle: "Complete your look — discounted hire rates for these dates.",
+  collectionId: "",
+  collectionTitle: "",
   collectionHandle: "",
   discountPercent: 15,
   skipButtonLabel: "Skip & checkout",
@@ -23,6 +27,15 @@ export const DEFAULT_CLUTCH_UPSELL_CONFIG: ClutchUpsellConfig = {
   loadingLabel: "Loading clutches…",
   emptyLabel: "No clutches are available for your hire dates.",
 };
+
+function normalizeCollectionId(value: unknown): string {
+  const trimmed = String(value ?? "").trim();
+  const gidMatch = trimmed.match(/Collection\/(\d+)/i);
+  if (gidMatch) {
+    return gidMatch[1];
+  }
+  return /^\d+$/.test(trimmed) ? trimmed : "";
+}
 
 function parsePercent(value: unknown): number {
   const parsed = Number.parseInt(String(value ?? ""), 10);
@@ -45,6 +58,8 @@ export function normalizeClutchUpsellConfig(
     modalSubtitle: String(
       value.modalSubtitle ?? DEFAULT_CLUTCH_UPSELL_CONFIG.modalSubtitle,
     ).trim(),
+    collectionId: normalizeCollectionId(value.collectionId),
+    collectionTitle: String(value.collectionTitle ?? "").trim(),
     collectionHandle: String(value.collectionHandle ?? "").trim(),
     discountPercent: parsePercent(value.discountPercent),
     skipButtonLabel: String(
@@ -63,11 +78,17 @@ export function normalizeClutchUpsellConfig(
   };
 }
 
+export function clutchCollectionConfigured(config: ClutchUpsellConfig): boolean {
+  return Boolean(config.collectionId || config.collectionHandle);
+}
+
 export function clutchUpsellConfigFromFormData(formData: FormData): ClutchUpsellConfig {
   return normalizeClutchUpsellConfig({
     enabled: formData.get("clutchUpsellEnabled") === "true",
     modalTitle: formData.get("modalTitle"),
     modalSubtitle: formData.get("modalSubtitle"),
+    collectionId: formData.get("collectionId"),
+    collectionTitle: formData.get("collectionTitle"),
     collectionHandle: formData.get("collectionHandle"),
     discountPercent: formData.get("discountPercent"),
     skipButtonLabel: formData.get("skipButtonLabel"),

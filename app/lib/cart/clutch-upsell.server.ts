@@ -106,47 +106,41 @@ export type SearchClutchesParams = {
   deliveryDate: Date;
   durationDays: HireDurationDays;
   deliveryMethod: "post" | "pickup";
-  collectionHandle: string;
+  collectionId?: string;
+  collectionHandle?: string;
   excludeProductIds?: string[];
   config: ClutchUpsellConfig;
   today?: Date;
 };
 
-export async function searchAvailableClutches(
+async function loadCollectionProducts(
   admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
-  params: SearchClutchesParams,
-): Promise<ClutchUpsellProduct[]> {
-  if (!params.collectionHandle || params.collectionHandle === "all") {
-    return [];
-  }
-
-  const query = `#graphql
-    query ClutchUpsellCollection($handle: String!) {
-      collection(handle: $handle) {
-        products(first: 100) {
+  collectionId: string | undefined,
+  collectionHandle: string | undefined,
+): Promise<ShopifyProductNode[]> {
+  const productSelection = `
+    products(first: 100) {
+      nodes {
+        id
+        title
+        handle
+        featuredImage {
+          url
+        }
+        options {
+          name
+          values
+        }
+        variants(first: 50) {
           nodes {
             id
             title
-            handle
-            featuredImage {
-              url
-            }
-            options {
+            availableForSale
+            price
+            compareAtPrice
+            selectedOptions {
               name
-              values
-            }
-            variants(first: 50) {
-              nodes {
-                id
-                title
-                availableForSale
-                price
-                compareAtPrice
-                selectedOptions {
-                  name
-                  value
-                }
-              }
+              value
             }
           }
         }
@@ -154,12 +148,52 @@ export async function searchAvailableClutches(
     }
   `;
 
-  const response = await admin.graphql(query, {
-    variables: { handle: params.collectionHandle },
-  });
-  const payload = await response.json();
-  const products = (payload.data?.collection?.products?.nodes ??
-    []) as ShopifyProductNode[];
+  if (collectionId) {
+    const response = await admin.graphql(
+      `#graphql
+      query ClutchUpsellCollectionById($id: ID!) {
+        collection(id: $id) {
+          ${productSelection}
+        }
+      }
+    `,
+      { variables: { id: `gid://shopify/Collection/${collectionId}` } },
+    );
+    const payload = await response.json();
+    return (payload.data?.collection?.products?.nodes ?? []) as ShopifyProductNode[];
+  }
+
+  if (collectionHandle && collectionHandle !== "all") {
+    const response = await admin.graphql(
+      `#graphql
+      query ClutchUpsellCollectionByHandle($handle: String!) {
+        collection(handle: $handle) {
+          ${productSelection}
+        }
+      }
+    `,
+      { variables: { handle: collectionHandle } },
+    );
+    const payload = await response.json();
+    return (payload.data?.collection?.products?.nodes ?? []) as ShopifyProductNode[];
+  }
+
+  return [];
+}
+
+export async function searchAvailableClutches(
+  admin: { graphql: (query: string, options?: { variables?: Record<string, unknown> }) => Promise<Response> },
+  params: SearchClutchesParams,
+): Promise<ClutchUpsellProduct[]> {
+  const products = await loadCollectionProducts(
+    admin,
+    params.collectionId || params.config.collectionId,
+    params.collectionHandle || params.config.collectionHandle,
+  );
+
+  if (!products.length) {
+    return [];
+  }
 
   const exclude = new Set((params.excludeProductIds ?? []).map(String));
   const availabilityData = await loadShopAvailabilityData(params.shop);

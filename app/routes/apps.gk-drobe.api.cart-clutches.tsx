@@ -6,6 +6,7 @@ import {
   parseHireDuration,
   parseIsoDate,
 } from "../lib/booking/availability.server";
+import { clutchCollectionConfigured } from "../lib/cart/clutch-upsell-config";
 import { searchAvailableClutches } from "../lib/cart/clutch-upsell.server";
 import { getShopConfig } from "../lib/shop-settings.server";
 import { parseDisplayDate } from "../lib/order-booking.server";
@@ -21,7 +22,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const shopConfig = await getShopConfig(session.shop);
   const upsell = shopConfig.clutchUpsell;
 
-  if (!upsell.enabled || !upsell.collectionHandle) {
+  if (!upsell.enabled || !clutchCollectionConfigured(upsell)) {
     return Response.json({
       enabled: false,
       config: upsell,
