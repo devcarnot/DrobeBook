@@ -34,6 +34,9 @@
   let checkoutListenerAttached = false;
   let clutchOfferCache = null;
   let clutchOfferPromise = null;
+  let lastCartSnapshot = null;
+  let lastCartSnapshotAt = 0;
+  let checkoutUpsellActive = false;
 
   function debugLog(...args) {
     if (DEBUG) {
@@ -280,6 +283,109 @@
     return null;
   }
 
+  function checkoutLoadingTargets(triggerEl) {
+    if (!(triggerEl instanceof Element)) {
+      return [];
+    }
+
+    if (
+      triggerEl.matches(
+        'button[name="checkout"], input[name="checkout"], #checkout, .cart__checkout-button',
+      )
+    ) {
+      return [triggerEl];
+    }
+
+    const nested = triggerEl.querySelectorAll(
+      'button[name="checkout"], input[name="checkout"], #checkout, .cart__checkout-button',
+    );
+    if (nested.length) {
+      return Array.from(nested);
+    }
+
+    if (triggerEl.matches("button, input[type='submit'], a")) {
+      return [triggerEl];
+    }
+
+    return [];
+  }
+
+  function setCheckoutButtonLoading(triggerEl, loading) {
+    const targets = checkoutLoadingTargets(triggerEl);
+    targets.forEach((el) => {
+      if (!(el instanceof HTMLElement)) {
+        return;
+      }
+
+      if (loading) {
+        el.classList.add("gk-checkout-btn--loading");
+        el.setAttribute("aria-busy", "true");
+        if (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) {
+          el.dataset.gkClutchWasDisabled = el.disabled ? "1" : "0";
+          el.disabled = true;
+        }
+      } else {
+        el.classList.remove("gk-checkout-btn--loading");
+        el.removeAttribute("aria-busy");
+        if (el instanceof HTMLButtonElement || el instanceof HTMLInputElement) {
+          if (el.dataset.gkClutchWasDisabled !== "1") {
+            el.disabled = false;
+          }
+          delete el.dataset.gkClutchWasDisabled;
+        }
+      }
+    });
+  }
+
+  function openClutchModalShell() {
+    const modal = ensureModal();
+    const titleEl = modal.querySelector("[data-gk-clutch-title]");
+    const subtitleEl = modal.querySelector("[data-gk-clutch-subtitle]");
+    const skipBtn = modal.querySelector("[data-gk-clutch-skip]");
+
+    if (titleEl) titleEl.textContent = "Add a clutch to your hire";
+    if (subtitleEl) {
+      subtitleEl.textContent = "Preparing clutch options for your hire dates…";
+    }
+    if (skipBtn) {
+      skipBtn.textContent = "Skip & checkout";
+    }
+
+    showLoadingState(modal, "Loading available clutches…");
+    showModal();
+  }
+
+  async function fetchCartSnapshot({ preferCache = true } = {}) {
+    const freshEnough =
+      preferCache &&
+      lastCartSnapshot &&
+      Date.now() - lastCartSnapshotAt < 30_000;
+
+    if (freshEnough) {
+      fetch(`${ROOT}cart.js`, { credentials: "same-origin" })
+        .then((response) => (response.ok ? response.json() : null))
+        .then((cart) => {
+          if (cart) {
+            lastCartSnapshot = hydrateCart(cart);
+            lastCartSnapshotAt = Date.now();
+          }
+        })
+        .catch(() => {});
+
+      return lastCartSnapshot;
+    }
+
+    const response = await fetch(`${ROOT}cart.js`, { credentials: "same-origin" });
+    if (!response.ok) {
+      throw new Error("cart");
+    }
+
+    const cart = hydrateCart(await response.json());
+    lastCartSnapshot = cart;
+    lastCartSnapshotAt = Date.now();
+    return cart;
+  }
+
   function resolveCheckoutUrl(target) {
     if (!(target instanceof Element)) {
       return `${ROOT}checkout`;
@@ -416,8 +522,7 @@
     }
 
     try {
-      const response = await fetch(`${ROOT}cart.js`);
-      const cart = await response.json();
+      const cart = await fetchCartSnapshot({ preferCache: false });
       const booking = getPrimaryBooking(cart);
       if (!booking) {
         return;
@@ -689,39 +794,20 @@
     return data;
   }
 
-  async function maybeShowClutchModal(checkoutUrl, cart) {
+  async function populateClutchModal(cart) {
     hydrateCart(cart);
     const booking = getPrimaryBooking(cart);
     if (!booking) {
-      debugLog("no booking line in cart — checkout continues");
-      window.location.href = checkoutUrl;
-      return;
+      return { show: false, reason: "no_booking" };
     }
 
     const bookingId = booking.properties?.[BOOKING_ID_KEY];
     if (bookingId && wasSkippedForBooking(bookingId)) {
-      window.location.href = checkoutUrl;
-      return;
+      return { show: false, reason: "skipped" };
     }
-
-    pendingCheckoutUrl = checkoutUrl;
 
     const modal = ensureModal();
     const statusEl = modal.querySelector("[data-gk-clutch-status]");
-    const titleEl = modal.querySelector("[data-gk-clutch-title]");
-    const subtitleEl = modal.querySelector("[data-gk-clutch-subtitle]");
-    const skipBtn = modal.querySelector("[data-gk-clutch-skip]");
-
-    if (titleEl) titleEl.textContent = "Add a clutch to your hire";
-    if (subtitleEl) {
-      subtitleEl.textContent = "Finding clutches available for your hire dates…";
-    }
-    if (skipBtn) {
-      skipBtn.textContent = "Skip & checkout";
-    }
-
-    showLoadingState(modal, "Loading available clutches…");
-    showModal();
 
     try {
       const offer = await resolveClutchOffer(booking, cart);
@@ -735,7 +821,7 @@
             "Clutch offer is not available right now. Use Skip to continue to checkout.";
           statusEl.hidden = false;
         }
-        return;
+        return { show: true, reason: "offer_disabled" };
       }
 
       renderProducts(
@@ -753,6 +839,8 @@
           "No clutches are available for your hire dates.";
         statusEl.hidden = false;
       }
+
+      return { show: true, reason: "ready" };
     } catch (error) {
       modal.classList.remove("gk-clutch-modal--loading");
       modal.querySelector("[data-gk-clutch-list]").innerHTML = "";
@@ -762,6 +850,7 @@
           error?.message || "Could not load clutches. Skip to continue to checkout.";
         statusEl.hidden = false;
       }
+      return { show: true, reason: "error" };
     }
   }
 
@@ -773,25 +862,47 @@
     }
   }
 
-  async function handleCheckoutAttempt(checkoutUrl) {
-    let cart;
+  async function handleCheckoutAttempt(checkoutUrl, triggerEl) {
+    if (checkoutUpsellActive) {
+      return true;
+    }
+
+    checkoutUpsellActive = true;
+    pendingCheckoutUrl = checkoutUrl;
+
+    setCheckoutButtonLoading(triggerEl, true);
+    openClutchModalShell();
+
     try {
-      const response = await fetch(`${ROOT}cart.js`);
-      cart = await response.json();
-    } catch {
-      return false;
-    }
+      let cart;
+      try {
+        cart = await fetchCartSnapshot();
+      } catch {
+        hideModal();
+        return false;
+      }
 
-    hydrateCart(cart);
-    const booking = getPrimaryBooking(cart);
-    if (!booking) {
-      debugLog("intercept: no gown hire line detected", cart.items);
-      return false;
-    }
+      const booking = getPrimaryBooking(cart);
+      if (!booking) {
+        debugLog("intercept: no gown hire line detected", cart.items);
+        hideModal();
+        return false;
+      }
 
-    debugLog("intercept: gown hire line", booking);
-    await maybeShowClutchModal(checkoutUrl, cart);
-    return true;
+      debugLog("intercept: gown hire line", booking);
+      setCheckoutButtonLoading(triggerEl, false);
+
+      const result = await populateClutchModal(cart);
+      if (!result?.show) {
+        hideModal();
+        return false;
+      }
+
+      return true;
+    } finally {
+      checkoutUpsellActive = false;
+      setCheckoutButtonLoading(triggerEl, false);
+    }
   }
 
   function attachCheckoutInterceptor() {
@@ -816,7 +927,7 @@
         debugLog("checkout click", target, checkoutUrl);
         blockCheckoutNavigation(event);
 
-        const handled = await handleCheckoutAttempt(checkoutUrl);
+        const handled = await handleCheckoutAttempt(checkoutUrl, target);
         if (!handled) {
           window.location.href = checkoutUrl;
         }
@@ -844,7 +955,7 @@
         debugLog("checkout link", checkoutUrl);
         blockCheckoutNavigation(event);
 
-        const handled = await handleCheckoutAttempt(checkoutUrl);
+        const handled = await handleCheckoutAttempt(checkoutUrl, link);
         if (!handled) {
           window.location.href = checkoutUrl;
         }
@@ -895,7 +1006,10 @@
         debugLog("checkout submit", checkoutUrl, submitter);
         blockCheckoutNavigation(event);
 
-        const handled = await handleCheckoutAttempt(checkoutUrl);
+        const handled = await handleCheckoutAttempt(
+          checkoutUrl,
+          submitter instanceof Element ? submitter : form,
+        );
         if (!handled) {
           window.location.href = checkoutUrl;
         }
@@ -910,11 +1024,15 @@
     document.addEventListener("cart:updated", () => {
       clutchOfferCache = null;
       clutchOfferPromise = null;
+      lastCartSnapshot = null;
+      lastCartSnapshotAt = 0;
       warmClutchOfferCache();
     });
     document.addEventListener("cart:change", () => {
       clutchOfferCache = null;
       clutchOfferPromise = null;
+      lastCartSnapshot = null;
+      lastCartSnapshotAt = 0;
       warmClutchOfferCache();
     });
     debugLog("init", { cartPage: isCartPage(), proxy: PROXY_BASE, embed: window.__gkDrobeCartUpsell });

@@ -211,6 +211,53 @@ export async function loadVariantAvailabilityData(
   };
 }
 
+export async function loadShopAvailabilityDataForWindow(
+  shop: string,
+  rangeStart: Date,
+  rangeEnd: Date,
+): Promise<ShopAvailabilityData> {
+  const windowStart = toDateOnly(rangeStart);
+  const windowEnd = toDateOnly(rangeEnd);
+
+  const [bookings, blockedDates, bufferConfig, holidays] = await Promise.all([
+    prisma.booking.findMany({
+      where: {
+        shop,
+        status: "confirmed",
+        startDate: { lte: windowEnd },
+        endDate: { gte: windowStart },
+      },
+      select: BOOKING_SELECT,
+    }),
+    prisma.blockedDate.findMany({
+      where: { shop },
+      select: BLOCKED_DATE_SELECT,
+    }),
+    getShopBufferConfig(shop),
+    getHolidayDates(shop),
+  ]);
+
+  const bookingsByVariant = new Map<string, BookingRecord[]>();
+  for (const booking of bookings) {
+    const key = `${booking.productId}:${booking.variantId}`;
+    const record = mapBookingRecord(booking);
+    const existing = bookingsByVariant.get(key);
+    if (existing) {
+      existing.push(record);
+    } else {
+      bookingsByVariant.set(key, [record]);
+    }
+  }
+
+  return {
+    bufferConfig,
+    holidays,
+    bookings: bookings.map(mapBookingRecord),
+    blockedDates,
+    bookingsByVariant,
+  };
+}
+
 export async function loadShopAvailabilityData(
   shop: string,
 ): Promise<ShopAvailabilityData> {

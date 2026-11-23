@@ -7,6 +7,11 @@ import {
   parseIsoDate,
 } from "../lib/booking/availability.server";
 import { clutchCollectionConfigured } from "../lib/cart/clutch-upsell-config";
+import {
+  clutchResponseCacheKey,
+  readClutchResponseCache,
+  writeClutchResponseCache,
+} from "../lib/cart/clutch-upsell-cache.server";
 import { searchAvailableClutches } from "../lib/cart/clutch-upsell.server";
 import { getShopConfig } from "../lib/shop-settings.server";
 import { parseDisplayDate } from "../lib/order-booking.server";
@@ -54,6 +59,25 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
     .map((entry) => entry.trim())
     .filter(Boolean);
 
+  const cacheKey = clutchResponseCacheKey({
+    shop: session.shop,
+    delivery: deliveryDate.toISOString().slice(0, 10),
+    duration: String(durationDays),
+    method: deliveryMethod,
+    collectionId: upsell.collectionId || upsell.collectionHandle,
+    exclude: excludeProductIds.sort().join(","),
+  });
+
+  const cached = readClutchResponseCache(cacheKey);
+  if (cached) {
+    return new Response(cached, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "private, max-age=60",
+      },
+    });
+  }
+
   try {
     const { admin } = await unauthenticated.admin(session.shop);
     const products = await searchAvailableClutches(admin, {
@@ -61,6 +85,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
       deliveryDate,
       durationDays,
       deliveryMethod,
+      collectionId: upsell.collectionId,
       collectionHandle: upsell.collectionHandle,
       excludeProductIds,
       config: upsell,
@@ -68,13 +93,22 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 
     const returnDate = computeReturnDate(deliveryDate, durationDays);
 
-    return Response.json({
+    const payload = JSON.stringify({
       enabled: true,
       config: upsell,
       deliveryDate: deliveryDate.toISOString().slice(0, 10),
       returnDate: returnDate.toISOString().slice(0, 10),
       durationDays,
       products,
+    });
+
+    writeClutchResponseCache(cacheKey, payload);
+
+    return new Response(payload, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "private, max-age=60",
+      },
     });
   } catch (error) {
     console.error("[cart-clutches]", error);

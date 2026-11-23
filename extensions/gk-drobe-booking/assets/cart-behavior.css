@@ -439,3 +439,40 @@ html.gk-clutch-modal-open {
     margin-top: 0.15rem;
   }
 }
+
+.gk-checkout-btn--loading {
+  position: relative;
+  pointer-events: none;
+  color: transparent !important;
+}
+
+.gk-checkout-btn--loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: gk-checkout-spin 0.65s linear infinite;
+}
+
+.cart__checkout-button.gk-checkout-btn--loading::after,
+button[name="checkout"].gk-checkout-btn--loading::after {
+  border-color: rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+}
+
+input[name="checkout"].gk-checkout-btn--loading::after,
+.gk-checkout-btn--loading.gk-checkout-btn--loading--dark::after {
+  border-color: rgba(0, 0, 0, 0.15);
+  border-top-color: #202223;
+}
+
+@keyframes gk-checkout-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

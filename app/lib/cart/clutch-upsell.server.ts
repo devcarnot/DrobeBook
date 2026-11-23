@@ -2,9 +2,10 @@ import {
   formatDateIso,
   type HireDurationDays,
 } from "../booking/availability";
+import { computeReturnDate } from "../booking/availability";
 import {
   evaluateProductAvailability,
-  loadShopAvailabilityData,
+  loadShopAvailabilityDataForWindow,
 } from "../booking/availability.server";
 import type { ClutchUpsellConfig } from "./clutch-upsell-config";
 
@@ -119,7 +120,7 @@ async function loadCollectionProducts(
   collectionHandle: string | undefined,
 ): Promise<ShopifyProductNode[]> {
   const productSelection = `
-    products(first: 100) {
+    products(first: 48) {
       nodes {
         id
         title
@@ -131,7 +132,7 @@ async function loadCollectionProducts(
           name
           values
         }
-        variants(first: 50) {
+            variants(first: 20) {
           nodes {
             id
             title
@@ -196,7 +197,12 @@ export async function searchAvailableClutches(
   }
 
   const exclude = new Set((params.excludeProductIds ?? []).map(String));
-  const availabilityData = await loadShopAvailabilityData(params.shop);
+  const returnDate = computeReturnDate(params.deliveryDate, params.durationDays);
+  const availabilityData = await loadShopAvailabilityDataForWindow(
+    params.shop,
+    params.deliveryDate,
+    returnDate,
+  );
   const today = params.today ?? new Date();
   const results: ClutchUpsellProduct[] = [];
 
