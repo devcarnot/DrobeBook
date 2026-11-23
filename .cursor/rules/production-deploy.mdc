@@ -1,0 +1,32 @@
+---
+description: Deploy completed user-requested changes to DrobeBook production (Railway + Shopify)
+alwaysApply: true
+---
+
+# Production-first deploy (DrobeBook)
+
+When the user asks for a **feature, fix, or config change** (not questions-only or review-only):
+
+1. **Implement** the change in this repo.
+2. **Verify** with `npm test` when backend/availability logic changed.
+3. **Ship to live** without waiting for a separate "please deploy" message:
+   - `git add` relevant files → **commit** with a clear message → `git push origin main` (Railway auto-deploy + Prisma migrations on start).
+   - If anything under `extensions/gk-drobe-booking/` changed:  
+     `npx shopify app deploy --config shopify.app.production.toml --allow-updates --message "<short note>"`
+4. **Confirm** for the user: commit hash, Railway on `main`, Shopify version name if extension deployed.
+
+## Defaults
+
+- **Production URL**: `https://drobebook-production.up.railway.app`
+- **Shop**: production via `shopify.app.production.toml` (DrobeBook / Niraa)
+- **Do not** commit secrets (`.env`). **Do not** force-push `main`.
+
+## Exceptions
+
+- User says **local only**, **no deploy**, or **don't commit**.
+- Deploy fails (Shopify auth): push code anyway, tell user to run the Shopify deploy command once logged in.
+- Question-only / explain-only tasks: no deploy.
+
+## After deploy
+
+Short **Done** list: what shipped, what to hard-refresh on the storefront (theme changes), admin-only-only changes (no theme deploy needed).
