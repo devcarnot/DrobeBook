@@ -472,25 +472,23 @@
 
       const year = Number(this.state.calendarYear);
       const month = Number(this.state.calendarMonth);
-      const { leadingDays, cells } = calendar.buildSundayStartMonthCells(year, month);
+      const { leadingDays, daysInMonth } = calendar.buildSundayStartMonthCells(
+        year,
+        month,
+      );
 
       this.calendarGrid.innerHTML = "";
       this.calendarGrid.dataset.gkMonthStartDow = String(leadingDays);
 
-      for (const cellDay of cells) {
-        if (cellDay === null) {
-          const empty = document.createElement("div");
-          empty.className = "gk-drobe-tryon__day gk-drobe-tryon__day--empty";
-          empty.setAttribute("aria-hidden", "true");
-          this.calendarGrid.appendChild(empty);
-          continue;
-        }
-
+      for (let cellDay = 1; cellDay <= daysInMonth; cellDay += 1) {
         const iso = calendar.formatCalendarIso(year, month, cellDay);
         const button = document.createElement("button");
         button.type = "button";
         button.className = "gk-drobe-tryon__day";
         button.textContent = String(cellDay);
+        if (cellDay === 1 && leadingDays > 0) {
+          button.style.gridColumnStart = String(leadingDays + 1);
+        }
 
         const unavailable = this.state.unavailableDates.has(iso);
         if (unavailable) {

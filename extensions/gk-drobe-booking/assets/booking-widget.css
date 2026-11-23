@@ -226,9 +226,12 @@
   transition: background 0.12s ease, color 0.12s ease;
 }
 
+/* Legacy placeholders — prefer grid-column-start on day 1 (theme :empty { display:none } breaks padding cells). */
 .gk-drobe-booking__day--empty {
   visibility: hidden;
   pointer-events: none;
+  min-height: 2.15rem;
+  aspect-ratio: 1;
 }
 
 .gk-drobe-booking__day--unavailable {
