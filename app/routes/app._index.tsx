@@ -336,6 +336,12 @@ function QuickstartDashboard({
 
   const otherActivities = [
     {
+      label: "Backup dress discount",
+      description:
+        "Enable automatic 80% off backup gown hires at checkout.",
+      href: "/app/backup-discount",
+    },
+    {
       label: "Buffer settings",
       description: "Lead time, cut-off, and before/after rental buffers.",
       href: "/app/buffer-settings",

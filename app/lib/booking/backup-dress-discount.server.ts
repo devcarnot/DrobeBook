@@ -87,6 +87,17 @@ export type BackupDressDiscountStatus = {
   discountTitle: string | null;
   discountStatus: string | null;
   active: boolean;
+  loadErrors: string[];
+};
+
+export const EMPTY_BACKUP_DRESS_DISCOUNT_STATUS: BackupDressDiscountStatus = {
+  functionId: null,
+  functionTitle: null,
+  discountNodeId: null,
+  discountTitle: null,
+  discountStatus: null,
+  active: false,
+  loadErrors: [],
 };
 
 function pickUserErrors(
@@ -121,11 +132,14 @@ export async function resolveBackupDressFunctionId(
     errors?: Array<{ message: string }>;
   };
 
-  if (json.errors?.length) {
-    throw new Error(json.errors.map((error) => error.message).join("; "));
-  }
-
   const nodes = json.data?.shopifyFunctions?.nodes ?? [];
+  if (json.errors?.length) {
+    console.warn(
+      "[backup-dress-discount] shopifyFunctions:",
+      json.errors.map((error) => error.message).join("; "),
+    );
+    return { id: null, title: null };
+  }
   const match =
     nodes.find((node) =>
       String(node.title ?? "")
@@ -145,6 +159,7 @@ export async function resolveBackupDressFunctionId(
 export async function getBackupDressDiscountStatus(
   admin: AdminGraphql,
 ): Promise<BackupDressDiscountStatus> {
+  const loadErrors: string[] = [];
   const { id: functionId, title: functionTitle } =
     await resolveBackupDressFunctionId(admin);
 
@@ -166,7 +181,9 @@ export async function getBackupDressDiscountStatus(
   };
 
   if (listJson.errors?.length) {
-    throw new Error(listJson.errors.map((error) => error.message).join("; "));
+    loadErrors.push(
+      listJson.errors.map((error) => error.message).join("; "),
+    );
   }
 
   const discountNode = (listJson.data?.automaticDiscountNodes?.nodes ?? []).find(
@@ -186,6 +203,7 @@ export async function getBackupDressDiscountStatus(
     discountTitle: discountNode?.automaticDiscount?.title ?? null,
     discountStatus: status,
     active: status === "ACTIVE",
+    loadErrors,
   };
 }
 

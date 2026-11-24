@@ -74,6 +74,12 @@ export default function BackupDressDiscountPage() {
           <s-box padding="base" border="base" borderRadius="base" background="base">
             <s-stack direction="block" gap="small">
               <s-text type="strong">Status</s-text>
+              {status.loadErrors?.length ? (
+                <s-banner tone="warning" heading="Could not load discount data">
+                  {status.loadErrors.join(" ")}
+                </s-banner>
+              ) : null}
+
               {!status.functionId ? (
                 <s-banner tone="warning" heading="Function not deployed">
                   Deploy the DrobeBook app version that includes{" "}
