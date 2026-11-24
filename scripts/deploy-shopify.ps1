@@ -3,17 +3,8 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
-$wsl = Get-Command wsl -ErrorAction SilentlyContinue
-if ($wsl) {
-  $linuxPath = ($root -replace "\\", "/") -replace "^C:", "/mnt/c"
-  $message = if ($args.Count -gt 0) { $args[0] } else { "Backup dress deploy" }
-  Write-Host "==> WSL detected — building & deploying via Linux..."
-  & wsl bash -lc "cd '$linuxPath' && bash scripts/wsl-deploy-backup-discount.sh"
-  exit $LASTEXITCODE
-}
-
-Write-Host "WSL not installed. Install: wsl --install (Admin PowerShell, then reboot)."
-Write-Host "Falling back to Windows-only build (may hang on function WASM)..."
+Write-Host "Windows deploy: theme usually works; function WASM build may need GitHub Actions or a Linux machine."
+Write-Host "Theme-only tip: temporarily move extensions\gown-backup-discount aside, then shopify app deploy."
 
 Write-Host "==> Installing function extension dependencies..."
 Set-Location "extensions\gown-backup-discount"
