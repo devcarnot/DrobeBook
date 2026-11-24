@@ -13,7 +13,7 @@ description = "t:description"
   export = "run"
 
   [extensions.build]
-  command = "npm exec -- shopify app function build"
+  command = ""
   path = "dist/function.wasm"
   watch = ["src/**/*.js", "src/**/*.graphql"]
 
