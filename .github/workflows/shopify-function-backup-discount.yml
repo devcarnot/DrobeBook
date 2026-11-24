@@ -1,0 +1,36 @@
+name: Build backup dress discount function
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "extensions/gown-backup-discount/**"
+
+jobs:
+  build-function:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: extensions/gown-backup-discount/package-lock.json
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli@latest
+      - name: Install function extension deps
+        working-directory: extensions/gown-backup-discount
+        run: npm ci
+      - name: Generate GraphQL types
+        working-directory: extensions/gown-backup-discount
+        run: npm run typegen
+      - name: Build function WASM
+        working-directory: extensions/gown-backup-discount
+        run: npm exec -- shopify app function build
+      - name: Upload WASM artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gown-backup-discount-wasm
+          path: extensions/gown-backup-discount/dist/function.wasm
