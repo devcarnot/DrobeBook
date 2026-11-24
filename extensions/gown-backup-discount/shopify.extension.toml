@@ -1,0 +1,22 @@
+api_version = "2026-07"
+
+[[extensions]]
+name = "t:name"
+handle = "gown-backup-discount"
+type = "function"
+uid = "b22a4d8a-78ba-6e12-acff-3dbe7c023e651d3edcb1"
+description = "t:description"
+
+  [[extensions.targeting]]
+  target = "purchase.product-discount.run"
+  input_query = "src/run.graphql"
+  export = "run"
+
+  [extensions.build]
+  command = "npm exec -- shopify app function build"
+  path = "dist/function.wasm"
+  watch = ["src/**/*.js", "src/**/*.graphql"]
+
+  [extensions.ui.paths]
+  create = "/"
+  details = "/"

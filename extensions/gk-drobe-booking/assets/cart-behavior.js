@@ -750,9 +750,17 @@
     }
 
     await refreshCartSections().catch(() => undefined);
+    if (typeof window.__gkRunBackupDressPricing === "function") {
+      await window.__gkRunBackupDressPricing(cart).catch(() => undefined);
+      cart = await fetchCart().catch(() => cart);
+    }
+
     updateCartCount(cart.item_count);
     publishCartUpdate(cart);
     await enhanceCartUi();
+    if (typeof window.__gkRunBackupDressPricing === "function") {
+      await window.__gkRunBackupDressPricing(cart).catch(() => undefined);
+    }
   }
 
   function handleCartMutationResponse(response) {

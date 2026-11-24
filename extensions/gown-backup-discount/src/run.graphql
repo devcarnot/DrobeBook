@@ -1,0 +1,31 @@
+query RunInput {
+  cart {
+    lines {
+      id
+      quantity
+      cost {
+        amountPerQuantity {
+          amount
+        }
+      }
+      deliveryDate: attribute(key: "Delivery Date") {
+        value
+      }
+      returnDate: attribute(key: "Return Date") {
+        value
+      }
+      size: attribute(key: "_Size") {
+        value
+      }
+      duration: attribute(key: "_Duration") {
+        value
+      }
+      clutch: attribute(key: "_gk_clutch_upsell") {
+        value
+      }
+      forItem: attribute(key: "For item") {
+        value
+      }
+    }
+  }
+}

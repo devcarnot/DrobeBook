@@ -19,12 +19,20 @@ import {
   saveRentalDurationMode,
 } from "../lib/dashboard.server";
 import type { RentalDurationMode } from "../lib/shop-config";
+import { ensureBackupDressAutomaticDiscount } from "../lib/booking/backup-dress-discount.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const data = await getDashboardPageData(session.shop);
+
+  const functionId = process.env.BACKUP_DRESS_FUNCTION_ID;
+  if (functionId) {
+    ensureBackupDressAutomaticDiscount(admin, functionId).catch((error) => {
+      console.warn("[backup-dress-discount]", error);
+    });
+  }
 
   return { ...data, shop: session.shop };
 };
