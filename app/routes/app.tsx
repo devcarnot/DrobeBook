@@ -24,6 +24,7 @@ export default function App() {
         <s-link href="/app">Dashboard</s-link>
         <s-link href="/app/products">Products</s-link>
         <s-link href="/app/rentals">Rentals</s-link>
+        <s-link href="/app/backup-discount">Backup dress discount</s-link>
         <s-link href="/app/settings">Store Front widget</s-link>
         <s-link href="/app/buffer-settings">Buffer settings</s-link>
         <s-link href="/app/blocked-dates">Blocked dates</s-link>
