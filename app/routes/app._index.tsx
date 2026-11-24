@@ -27,12 +27,9 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const data = await getDashboardPageData(session.shop);
 
-  const functionId = process.env.BACKUP_DRESS_FUNCTION_ID;
-  if (functionId) {
-    ensureBackupDressAutomaticDiscount(admin, functionId).catch((error) => {
-      console.warn("[backup-dress-discount]", error);
-    });
-  }
+  ensureBackupDressAutomaticDiscount(admin).catch((error) => {
+    console.warn("[backup-dress-discount]", error);
+  });
 
   return { ...data, shop: session.shop };
 };

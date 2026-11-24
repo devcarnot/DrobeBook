@@ -18,5 +18,5 @@ description = "t:description"
   watch = ["src/**/*.js", "src/**/*.graphql"]
 
   [extensions.ui.paths]
-  create = "/"
-  details = "/"
+  create = "/app/backup-discount"
+  details = "/app/backup-discount"
