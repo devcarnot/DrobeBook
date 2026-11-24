@@ -71,6 +71,14 @@ export default function BackupDressDiscountPage() {
             discount.
           </s-text>
 
+          <s-banner tone="info" heading="Shopify plan note">
+            Checkout Functions in a <s-text type="strong">custom / private app</s-text>{" "}
+            (installed only for your store, not from the public App Store) are{" "}
+            <s-text type="strong">Shopify Plus only</s-text>. On Basic/Grow/Advanced,
+            enable will fail with the error below unless the app is distributed as
+            a public App Store app.
+          </s-banner>
+
           <s-box padding="base" border="base" borderRadius="base" background="base">
             <s-stack direction="block" gap="small">
               <s-text type="strong">Status</s-text>
