@@ -1,7 +1,19 @@
-# Shopify deploy helper (Windows). Builds the backup-discount function, then deploys the app.
+﻿# Shopify deploy helper (Windows). Prefers WSL for function WASM build.
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
+
+$wsl = Get-Command wsl -ErrorAction SilentlyContinue
+if ($wsl) {
+  $linuxPath = ($root -replace "\\", "/") -replace "^C:", "/mnt/c"
+  $message = if ($args.Count -gt 0) { $args[0] } else { "Backup dress deploy" }
+  Write-Host "==> WSL detected — building & deploying via Linux..."
+  & wsl bash -lc "cd '$linuxPath' && bash scripts/wsl-deploy-backup-discount.sh"
+  exit $LASTEXITCODE
+}
+
+Write-Host "WSL not installed. Install: wsl --install (Admin PowerShell, then reboot)."
+Write-Host "Falling back to Windows-only build (may hang on function WASM)..."
 
 Write-Host "==> Installing function extension dependencies..."
 Set-Location "extensions\gown-backup-discount"
