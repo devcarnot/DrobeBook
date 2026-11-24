@@ -1,0 +1,48 @@
+name: Deploy DrobeBook to Shopify (production)
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: shopify-deploy-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install Shopify CLI
+        run: npm install -g @shopify/cli@5
+
+      - name: Install function extension deps
+        working-directory: extensions/gown-backup-discount
+        run: npm ci
+
+      - name: Generate GraphQL types
+        working-directory: extensions/gown-backup-discount
+        run: npm run typegen
+
+      - name: Build function WASM
+        env:
+          CI: "true"
+          SHOPIFY_CLI_NO_ANALYTICS: "1"
+        run: shopify app function build --path extensions/gown-backup-discount --verbose
+
+      - name: Deploy to Shopify
+        env:
+          SHOPIFY_SERVICE_ACCOUNT_TOKEN: ${{ secrets.SHOPIFY_SERVICE_ACCOUNT_TOKEN }}
+          CI: "true"
+          SHOPIFY_CLI_NO_ANALYTICS: "1"
+        run: |
+          shopify app deploy \
+            --config shopify.app.production.toml \
+            --allow-updates \
+            --no-build \
+            --message "Backup dress checkout discount function (CI)"
