@@ -69,7 +69,8 @@ const FIND_SHOPIFY_FUNCTIONS = `#graphql
   }
 `;
 
-export const BACKUP_DRESS_DISCOUNT_TITLE = "DrobeBook backup dress hire";
+import { BACKUP_DRESS_DISCOUNT_TITLE } from "./backup-dress-discount";
+
 const BACKUP_FUNCTION_TITLE_HINT = "backup dress";
 
 type AdminGraphql = {

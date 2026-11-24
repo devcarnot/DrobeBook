@@ -5,10 +5,10 @@ import type {
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
+import { BACKUP_DRESS_DISCOUNT_TITLE } from "../lib/booking/backup-dress-discount";
 import {
   ensureBackupDressAutomaticDiscount,
   getBackupDressDiscountStatus,
-  BACKUP_DRESS_DISCOUNT_TITLE,
 } from "../lib/booking/backup-dress-discount.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -16,7 +16,7 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin } = await authenticate.admin(request);
   const status = await getBackupDressDiscountStatus(admin);
-  return { status };
+  return { status, discountTitle: BACKUP_DRESS_DISCOUNT_TITLE };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -41,7 +41,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function BackupDressDiscountPage() {
-  const { status: loaderStatus } = useLoaderData<typeof loader>();
+  const { status: loaderStatus, discountTitle } = useLoaderData<typeof loader>();
   const actionData = useActionData<typeof action>();
   const navigation = useNavigation();
   const status = actionData?.status ?? loaderStatus;
@@ -82,7 +82,7 @@ export default function BackupDressDiscountPage() {
                 </s-banner>
               ) : status.active ? (
                 <s-banner tone="success" heading="Active at checkout">
-                  {BACKUP_DRESS_DISCOUNT_TITLE} is on. Customers see the discount
+                  {discountTitle} is on. Customers see the discount
                   on qualifying backup dress lines when they check out.
                 </s-banner>
               ) : (
@@ -98,7 +98,7 @@ export default function BackupDressDiscountPage() {
               </s-text>
               {status.discountStatus ? (
                 <s-text tone="neutral" color="subdued">
-                  Discount: {status.discountTitle ?? BACKUP_DRESS_DISCOUNT_TITLE}{" "}
+                  Discount: {status.discountTitle ?? discountTitle}{" "}
                   — {status.discountStatus}
                 </s-text>
               ) : null}
