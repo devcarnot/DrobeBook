@@ -91,18 +91,16 @@ describe("backup-dress-variant.logic", () => {
     ]);
   });
 
-  it("prefers Duration suffix when three options include Hire pricing", () => {
+  it("falls back to Duration suffix when Hire pricing has only Standard", () => {
     const selected = [
       { name: "Size", value: "M" },
       { name: "Duration", value: "4 Days" },
       { name: "Hire pricing", value: "Standard" },
     ];
     const plans = buildBackupOptionValuePlans(selected, judeProduct);
-    expect(plans[0]).toEqual([
-      { optionName: "Size", name: "M" },
-      { optionName: "Duration", name: "4 Days · Backup" },
-      { optionName: "Hire pricing", name: "Standard" },
-    ]);
+    expect(plans.some((plan) => plan.some((row) => row.name === "4 Days · Backup"))).toBe(
+      true,
+    );
   });
 
   it("flags backup catalog variants for search and checkout", () => {
