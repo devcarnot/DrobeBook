@@ -188,9 +188,11 @@ export default function BackupDressDiscountPage() {
           </Form>
 
           <s-text tone="neutral" color="subdued">
-            Sync adds a &quot;Hire pricing&quot; option on each rental product (Standard /
-            Backup) and creates backup variants at {PAY_PERCENT}% of the main hire price.
-            Saving rental settings on a single product also triggers sync for that product.
+            Sync creates backup variants at {PAY_PERCENT}% of hire price. Products that already
+            have <s-text type="strong">Hire pricing</s-text> keep that option as{" "}
+            <s-text type="strong">Standard</s-text> and get backup siblings via a{" "}
+            <s-text type="strong">· Backup</s-text> value on Size or Duration — you do not need to
+            add Backup under Hire pricing manually.
           </s-text>
         </s-stack>
       </s-section>
