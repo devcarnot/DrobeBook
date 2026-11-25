@@ -87,6 +87,22 @@ export function isBackupDurationValue(value: unknown): boolean {
   );
 }
 
+/** Shopify variant title when selected options are not stored locally (import / coverage). */
+export function isBackupCatalogVariantTitle(title: unknown): boolean {
+  const normalized = safeText(title).toLowerCase();
+  if (!normalized) {
+    return false;
+  }
+  if (normalized.includes(HIRE_PRICING_BACKUP.toLowerCase())) {
+    return true;
+  }
+  if (normalized.includes("· backup")) {
+    return true;
+  }
+  const parts = normalized.split("/").map((part) => part.trim());
+  return parts.some((part) => isBackupDurationValue(part));
+}
+
 export function backupSuffixLabel(mainValue: unknown): string {
   const trimmed = safeText(mainValue);
   if (isBackupDurationValue(trimmed)) {

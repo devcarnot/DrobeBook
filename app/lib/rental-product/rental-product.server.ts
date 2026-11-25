@@ -1,3 +1,4 @@
+import { isBackupCatalogVariantTitle } from "../booking/backup-dress-variant.logic";
 import prisma from "../../db.server";
 import {
   extractNumericId,
@@ -293,6 +294,7 @@ async function upsertImportedProduct(
       });
 
   for (const variant of catalogProduct.variants) {
+    const isBackupCatalog = isBackupCatalogVariantTitle(variant.title);
     await prisma.rentalProductVariant.upsert({
       where: {
         shop_shopifyVariantId: {
@@ -309,7 +311,7 @@ async function upsertImportedProduct(
         price: variant.price,
         inventoryItemId: variant.inventoryItemId,
         inventoryQuantity: variant.inventoryQuantity,
-        availableInShopify: true,
+        availableInShopify: !isBackupCatalog,
       },
       update: {
         rentalProductId: rentalProduct.id,
@@ -318,7 +320,7 @@ async function upsertImportedProduct(
         price: variant.price,
         inventoryItemId: variant.inventoryItemId,
         inventoryQuantity: variant.inventoryQuantity,
-        availableInShopify: true,
+        availableInShopify: !isBackupCatalog,
       },
     });
   }

@@ -4,6 +4,7 @@ import {
   buildBackupOptionValuePlans,
   buildCompleteBackupOptionValues,
   HIRE_PRICING_BACKUP,
+  isBackupCatalogVariantTitle,
   isCustomerFacingHireVariant,
   listAlterationCandidates,
   normalizeProductOptions,
@@ -101,6 +102,12 @@ describe("backup-dress-variant.logic", () => {
     expect(plans.some((plan) => plan.some((row) => row.name === "4 Days · Backup"))).toBe(
       true,
     );
+  });
+
+  it("detects backup catalog variants from Shopify variant titles", () => {
+    expect(isBackupCatalogVariantTitle("6 / 4 Days / Standard")).toBe(false);
+    expect(isBackupCatalogVariantTitle("M / 4 Days / Backup (80% off)")).toBe(true);
+    expect(isBackupCatalogVariantTitle("6 / 4 Days · Backup / Standard")).toBe(true);
   });
 
   it("flags backup catalog variants for search and checkout", () => {

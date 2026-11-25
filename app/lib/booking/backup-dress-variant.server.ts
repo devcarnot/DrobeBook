@@ -6,6 +6,7 @@ import {
   HIRE_PRICING_BACKUP,
   HIRE_PRICING_OPTION_NAME,
   HIRE_PRICING_STANDARD,
+  isBackupCatalogVariantTitle,
   isBackupSelectedOption,
   isHirePricingOption,
   isRetryableBackupCreateError,
@@ -350,7 +351,11 @@ async function ensureBackupVariantForMain(
     normalizeSelectedOption(row),
   );
   if (isBackupSelectedOption(selectedOptions)) {
-    return extractNumericId(variant.id);
+    await prisma.rentalProductVariant.update({
+      where: { id: row.id },
+      data: { availableInShopify: false },
+    });
+    return null;
   }
 
   const mainPriceCents = priceToCents(variant.price);
@@ -637,7 +642,7 @@ export async function getBackupVariantCoverageForShop(
     },
   });
 
-  const variantRows = await prisma.rentalProductVariant.count({
+  const enabledVariantRows = await prisma.rentalProductVariant.findMany({
     where: {
       shop,
       availableInShopify: true,
@@ -645,20 +650,20 @@ export async function getBackupVariantCoverageForShop(
         rentalEnabled: true,
         removedAt: null,
       },
+    },
+    select: {
+      title: true,
+      backupShopifyVariantId: true,
     },
   });
 
-  const withBackupVariant = await prisma.rentalProductVariant.count({
-    where: {
-      shop,
-      availableInShopify: true,
-      backupShopifyVariantId: { not: null },
-      rentalProduct: {
-        rentalEnabled: true,
-        removedAt: null,
-      },
-    },
-  });
+  const mainHireRows = enabledVariantRows.filter(
+    (row) => !isBackupCatalogVariantTitle(row.title),
+  );
+  const variantRows = mainHireRows.length;
+  const withBackupVariant = mainHireRows.filter(
+    (row) => row.backupShopifyVariantId != null,
+  ).length;
 
   return {
     enabledRentalProducts,
@@ -687,6 +692,31 @@ export async function ensureAllBackupVariantsForShop(
     select: { id: true },
   });
 
+  const allVariantRows = await prisma.rentalProductVariant.findMany({
+    where: {
+      shop,
+      rentalProduct: {
+        rentalEnabled: true,
+        removedAt: null,
+      },
+    },
+    select: {
+      id: true,
+      title: true,
+      availableInShopify: true,
+    },
+  });
+
+  const backupCatalogIds = allVariantRows
+    .filter((row) => isBackupCatalogVariantTitle(row.title))
+    .map((row) => row.id);
+  if (backupCatalogIds.length) {
+    await prisma.rentalProductVariant.updateMany({
+      where: { id: { in: backupCatalogIds } },
+      data: { availableInShopify: false },
+    });
+  }
+
   const variantRows = await prisma.rentalProductVariant.findMany({
     where: {
       shop,
@@ -703,10 +733,14 @@ export async function ensureAllBackupVariantsForShop(
     },
   });
 
+  const mainVariantRows = variantRows.filter(
+    (row) => !isBackupCatalogVariantTitle(row.title),
+  );
+
   const errors: string[] = [];
   const maxErrors = 8;
 
-  for (const row of variantRows) {
+  for (const row of mainVariantRows) {
     const label =
       row.rentalProduct?.title && row.title
         ? `${row.rentalProduct.title} — ${row.title}`
@@ -728,7 +762,7 @@ export async function ensureAllBackupVariantsForShop(
 
     if (errors.length >= maxErrors) {
       errors.push(
-        `…and ${variantRows.length - maxErrors} more. Fix the errors above, then sync again.`,
+        `…and ${mainVariantRows.length - maxErrors} more. Fix the errors above, then sync again.`,
       );
       break;
     }
@@ -739,7 +773,7 @@ export async function ensureAllBackupVariantsForShop(
   return {
     ok: errors.length === 0 && coverage.missingBackupVariant === 0,
     productsProcessed: products.length,
-    variantsAttempted: variantRows.length,
+    variantsAttempted: mainVariantRows.length,
     errors,
     coverage,
   };
@@ -764,6 +798,9 @@ export async function ensureBackupVariantsForRentalProduct(
   }
 
   for (const row of rows) {
+    if (isBackupCatalogVariantTitle(row.title)) {
+      continue;
+    }
     try {
       await ensureBackupVariantForMain(admin, shop, row.shopifyVariantId);
     } catch (error) {
