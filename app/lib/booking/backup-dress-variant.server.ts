@@ -239,12 +239,59 @@ function nonHireProductOptions(productOptions: ProductOptionRow[]): ProductOptio
   return productOptions.filter((option) => !isHirePricingOption(option.name));
 }
 
+/** Only create a new Hire pricing option when the product does not already have one. */
 function shouldUseHirePricingBackupPath(productOptions: ProductOptionRow[]): boolean {
   if (productOptions.some((option) => isHirePricingOption(option.name))) {
-    return true;
+    return false;
   }
   const nonHire = nonHireProductOptions(productOptions);
-  return nonHire.length < 3 && productOptions.length < 3;
+  return nonHire.length > 0 && nonHire.length < 3 && productOptions.length < 3;
+}
+
+function isRetryableBackupCreateError(message: string): boolean {
+  return /option does not exist|metafield linked|hire pricing|nonlinked option/i.test(
+    message,
+  );
+}
+
+function alignOptionValuesToProduct(
+  optionValues: Array<{ optionName: string; name: string }>,
+  productOptions: ProductOptionRow[],
+): Array<{ optionName: string; name: string }> {
+  const available = new Map(
+    productOptions.map((row) => [safeText(row.name).toLowerCase(), safeText(row.name)]),
+  );
+
+  return optionValues.map((row) => {
+    const officialName = available.get(safeText(row.optionName).toLowerCase());
+    if (!officialName) {
+      throw new Error(`Option does not exist: ${safeText(row.optionName)}`);
+    }
+    return {
+      optionName: officialName,
+      name: safeText(row.name),
+    };
+  });
+}
+
+function buildSuffixBackupOptionValues(
+  selectedOptions: Array<{ name: string; value: string }>,
+  productOptions: ProductOptionRow[],
+): Array<{ optionName: string; name: string }> | null {
+  const alteration = pickAlterationOption(selectedOptions, productOptions);
+  if (!alteration) {
+    return null;
+  }
+
+  const backupValue = backupDurationLabel(alteration.mainValue);
+  return selectedOptions.map((option) => ({
+    optionName: safeText(option.name),
+    name:
+      safeText(option.name).toLowerCase() ===
+      safeText(alteration.option.name).toLowerCase()
+        ? backupValue
+        : safeText(option.value),
+  }));
 }
 
 function pickAlterationOption(
@@ -465,22 +512,7 @@ function buildBackupOptionValues(
     ];
   }
 
-  const alteration = pickAlterationOption(selectedOptions, productOptions);
-  if (!alteration) {
-    return null;
-  }
-
-  const backupValue = backupDurationLabel(alteration.mainValue);
-  return selectedOptions
-    .filter((option) => !isHirePricingOption(option.name))
-    .map((option) => ({
-      optionName: option.name,
-      name:
-        safeText(option.name).toLowerCase() ===
-          safeText(alteration.option.name).toLowerCase()
-          ? backupValue
-          : option.value,
-    }));
+  return buildSuffixBackupOptionValues(selectedOptions, productOptions);
 }
 
 async function ensureHirePricingOption(
@@ -649,15 +681,15 @@ async function ensureBackupVariantForMain(
     refreshedOptions = await refreshProductOptions(admin, variant.product.id);
   }
 
-  const optionValues = buildBackupOptionValues(refreshedSelected, refreshedOptions);
+  let optionValues = buildBackupOptionValues(refreshedSelected, refreshedOptions);
 
   if (!optionValues?.length) {
     throw new Error("Could not determine backup variant options for this product.");
   }
 
   const alteration = pickAlterationOption(refreshedSelected, refreshedOptions);
-  const usesDurationSuffix = optionValues.some((row) => isBackupDurationValue(row.name));
-  if (alteration?.option.id && usesDurationSuffix) {
+  const usesSuffix = optionValues.some((row) => isBackupDurationValue(row.name));
+  if (alteration?.option.id && usesSuffix) {
     const existingValues =
       alteration.option.optionValues?.map((row) => safeText(row.name)) ?? [];
     const backupValue = backupDurationLabel(alteration.mainValue);
@@ -669,7 +701,13 @@ async function ensureBackupVariantForMain(
       existingValues,
     );
     refreshedOptions = await refreshProductOptions(admin, variant.product.id);
+    optionValues = buildSuffixBackupOptionValues(refreshedSelected, refreshedOptions);
+    if (!optionValues?.length) {
+      throw new Error("Could not build backup suffix options after adding option value.");
+    }
   }
+
+  optionValues = alignOptionValuesToProduct(optionValues, refreshedOptions);
 
   const productSnapshot = await admin.graphql(PRODUCT_VARIANTS_QUERY, {
     variables: { id: variant.product.id },
@@ -724,6 +762,52 @@ async function ensureBackupVariantForMain(
         optionValues,
         mainShopifyVariantId,
       );
+      if (!backupNumericId && isRetryableBackupCreateError(String(error))) {
+        const suffixValues = buildSuffixBackupOptionValues(
+          refreshedSelected,
+          refreshedOptions,
+        );
+        if (suffixValues?.length) {
+          const alterationRetry = pickAlterationOption(
+            refreshedSelected,
+            refreshedOptions,
+          );
+          if (alterationRetry?.option.id) {
+            const backupValue = backupDurationLabel(alterationRetry.mainValue);
+            const existingValues =
+              alterationRetry.option.optionValues?.map((row) =>
+                safeText(row.name),
+              ) ?? [];
+            try {
+              await ensureOptionValueOnProduct(
+                admin,
+                variant.product.id,
+                alterationRetry.option.id,
+                backupValue,
+                existingValues,
+              );
+              refreshedOptions = await refreshProductOptions(
+                admin,
+                variant.product.id,
+              );
+            } catch (optionError) {
+              console.warn("[backup-dress-variant] suffix option add", optionError);
+            }
+          }
+          const alignedSuffix = alignOptionValuesToProduct(
+            suffixValues,
+            refreshedOptions,
+          );
+          backupNumericId = await createBackupProductVariant(
+            admin,
+            variant.product.id,
+            alignedSuffix,
+            backupPriceCents,
+            variant.sku,
+          );
+        }
+      }
+
       if (!backupNumericId) {
         const message = error instanceof Error ? error.message : String(error);
         const accessHint = /access|permission|denied|scope/i.test(message)
