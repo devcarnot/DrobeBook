@@ -19,17 +19,12 @@ import {
   saveRentalDurationMode,
 } from "../lib/dashboard.server";
 import type { RentalDurationMode } from "../lib/shop-config";
-import { ensureBackupDressAutomaticDiscount } from "../lib/booking/backup-dress-discount.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  const { admin, session } = await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
   const data = await getDashboardPageData(session.shop);
-
-  ensureBackupDressAutomaticDiscount(admin).catch((error) => {
-    console.warn("[backup-dress-discount]", error);
-  });
 
   return { ...data, shop: session.shop };
 };
@@ -338,7 +333,7 @@ function QuickstartDashboard({
     {
       label: "Backup dress discount",
       description:
-        "Enable automatic 80% off backup gown hires at checkout.",
+        "Sync backup-priced variants and verify cart pricing (no Plus checkout discount).",
       href: "/app/backup-discount",
     },
     {

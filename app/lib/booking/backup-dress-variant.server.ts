@@ -405,6 +405,86 @@ export async function getBackupVariantMapForShop(
   return { variants };
 }
 
+export type BackupVariantCoverage = {
+  enabledRentalProducts: number;
+  variantRows: number;
+  withBackupVariant: number;
+  missingBackupVariant: number;
+};
+
+export async function getBackupVariantCoverageForShop(
+  shop: string,
+): Promise<BackupVariantCoverage> {
+  const enabledRentalProducts = await prisma.rentalProduct.count({
+    where: {
+      shop,
+      rentalEnabled: true,
+      removedAt: null,
+    },
+  });
+
+  const variantRows = await prisma.rentalProductVariant.count({
+    where: {
+      shop,
+      availableInShopify: true,
+      rentalProduct: {
+        rentalEnabled: true,
+        removedAt: null,
+      },
+    },
+  });
+
+  const withBackupVariant = await prisma.rentalProductVariant.count({
+    where: {
+      shop,
+      availableInShopify: true,
+      backupShopifyVariantId: { not: null },
+      rentalProduct: {
+        rentalEnabled: true,
+        removedAt: null,
+      },
+    },
+  });
+
+  return {
+    enabledRentalProducts,
+    variantRows,
+    withBackupVariant,
+    missingBackupVariant: Math.max(0, variantRows - withBackupVariant),
+  };
+}
+
+export async function ensureAllBackupVariantsForShop(
+  admin: AdminGraphql,
+  shop: string,
+): Promise<{ ok: boolean; productsProcessed: number; errors: string[] }> {
+  const products = await prisma.rentalProduct.findMany({
+    where: {
+      shop,
+      rentalEnabled: true,
+      removedAt: null,
+    },
+    select: { id: true },
+  });
+
+  const errors: string[] = [];
+  for (const product of products) {
+    try {
+      await ensureBackupVariantsForRentalProduct(admin, shop, product.id);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Unknown error";
+      errors.push(message);
+    }
+  }
+
+  return {
+    ok: errors.length === 0,
+    productsProcessed: products.length,
+    errors,
+  };
+}
+
 export async function ensureBackupVariantsForRentalProduct(
   admin: AdminGraphql,
   shop: string,
