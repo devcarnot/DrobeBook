@@ -74,6 +74,18 @@
       .map((item) => item.key);
   }
 
+  const BACKUP_HIDDEN_PROPERTIES = new Set([
+    "_gk_hire_tier",
+    "_gk_hire_group",
+    "Hire type",
+    "Original hire price",
+    "Backup discount",
+  ]);
+
+  function shouldHideLineProperty(name) {
+    return BACKUP_HIDDEN_PROPERTIES.has(String(name ?? "").trim());
+  }
+
   function looksLikeVariantSummary(text) {
     const normalized = String(text || "")
       .replace(/\s+/g, " ")
@@ -593,6 +605,19 @@
       }
 
       if (/^Duration:\s*.+$/i.test(text) && text.length < 50) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
+          }
+        }
+      }
+
+      if (
+        /^(Hire type|Original hire price|Backup discount):/i.test(text) ||
+        shouldHideLineProperty(text.split(":")[0])
+      ) {
         hideNode(node);
         if (node.matches("dt")) {
           const next = node.nextElementSibling;

@@ -652,6 +652,36 @@ html.gk-clutch-modal-open {
   position: relative;
 }
 
+.gk-backup-dress-price--hidden {
+  display: none !important;
+}
+
+.gk-backup-dress-pill {
+  display: inline-flex;
+  align-items: center;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  max-width: 100%;
+}
+
+.gk-backup-dress-pill--main {
+  color: #4f435d;
+  background: linear-gradient(135deg, rgba(90, 79, 107, 0.14), rgba(90, 79, 107, 0.06));
+  border: 1px solid rgba(90, 79, 107, 0.22);
+}
+
+.gk-backup-dress-pill--backup {
+  color: #8a2f4d;
+  background: linear-gradient(135deg, rgba(237, 209, 220, 0.92), rgba(249, 230, 237, 0.85));
+  border: 1px solid rgba(158, 61, 92, 0.28);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.65) inset;
+}
+
 .gk-backup-dress-badge {
   display: inline-block;
   margin-top: 0.35rem;
@@ -676,12 +706,50 @@ html.gk-clutch-modal-open {
   border: 1px solid rgba(158, 61, 92, 0.25);
 }
 
+.gk-backup-dress-price-wrap {
+  margin-top: 0.35rem;
+}
+
 .gk-backup-dress-price {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 0.12rem;
-  margin-top: 0.25rem;
+}
+
+.gk-backup-dress-price__off {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9e3d5c;
+}
+
+.gk-backup-dress-subtotal-note {
+  margin: 0.75rem 0 1rem;
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(158, 61, 92, 0.18);
+  background: rgba(255, 250, 252, 0.95);
+}
+
+.gk-backup-dress-subtotal-note__label {
+  margin: 0;
+  font-size: 0.75rem;
+  color: #6a5d62;
+}
+
+.gk-backup-dress-subtotal-note__amount {
+  margin: 0.2rem 0 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #3f3038;
+}
+
+.gk-backup-dress-subtotal-note__hint {
+  margin: 0.35rem 0 0;
+  font-size: 0.72rem;
+  color: #9e3d5c;
 }
 
 .gk-backup-dress-price__current {

@@ -16,6 +16,7 @@ import {
   saveRentalProductConfiguration,
 } from "../lib/rental-product/rental-product.server";
 import { shopifyAdminProductUrl } from "../lib/shopify-ids";
+import { ensureBackupVariantsForRentalProduct } from "../lib/booking/backup-dress-variant.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -50,7 +51,7 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
-  const { session } = await authenticate.admin(request);
+  const { admin, session } = await authenticate.admin(request);
   const formData = await request.formData();
   const rentalProductId = String(formData.get("rentalProductId") ?? "");
   const rentalEnabled = formData.get("rentalEnabled") === "true";
@@ -59,6 +60,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     rentalEnabled,
     markConfigured: true,
   });
+
+  if (result.ok && rentalEnabled) {
+    ensureBackupVariantsForRentalProduct(admin, session.shop, rentalProductId).catch(
+      (error) => {
+        console.warn("[backup-dress-variant] configure ensure failed", error);
+      },
+    );
+  }
 
   return result;
 };
