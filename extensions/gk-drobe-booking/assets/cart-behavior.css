@@ -648,6 +648,33 @@ html.gk-clutch-modal-open {
   }
 }
 
+.gk-clear-cart-wrap {
+  margin: 0 0 1rem;
+  width: 100%;
+}
+
+.gk-clear-cart-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.55rem 1.1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(90, 79, 107, 0.35);
+  background: #fff;
+  color: #5a4f6b;
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.gk-clear-cart-btn:hover {
+  background: rgba(237, 209, 220, 0.35);
+  border-color: rgba(158, 61, 92, 0.35);
+  color: #8a2f4d;
+}
+
 .gk-backup-dress-row {
   position: relative;
 }

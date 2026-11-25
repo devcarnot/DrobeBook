@@ -19,7 +19,12 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   .filter(Boolean);
 
   if (!variantIds.length) {
-    return Response.json({ variants: {} });
+    try {
+      const discountConfig = await getShopBackupDressDiscountConfig(session.shop);
+      return Response.json({ enabled: discountConfig.enabled, variants: {} });
+    } catch {
+      return Response.json({ enabled: true, variants: {} });
+    }
   }
 
   try {

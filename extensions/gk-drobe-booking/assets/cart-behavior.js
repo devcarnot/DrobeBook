@@ -112,6 +112,77 @@
     return response.json();
   }
 
+  function isCartPage() {
+    return /\/cart(\/|$|\?)/i.test(`${window.location.pathname}${window.location.search}`);
+  }
+
+  function pauseBackupForUserAction() {
+    if (typeof window.__gkDrobePauseBackupPricing === "function") {
+      window.__gkDrobePauseBackupPricing(120_000);
+    } else {
+      window.__gkDrobePauseBackupPricingUntil = Date.now() + 120_000;
+    }
+    window.__gkDrobeIgnoreCartMutationsUntil = Date.now() + 8000;
+  }
+
+  async function clearEntireCart() {
+    if (
+      !window.confirm("Remove all items from your cart?")
+    ) {
+      return;
+    }
+    pauseBackupForUserAction();
+    window.__gkDrobeIgnoreCartMutationsUntil = Date.now() + 20_000;
+    try {
+      const response = await fetch(`${ROOT}cart/clear.js`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Gk-Drobe-Backup": "1",
+        },
+        credentials: "same-origin",
+      });
+      if (!response.ok) {
+        throw new Error("Could not clear cart");
+      }
+      window.location.href = `${ROOT}cart`;
+    } catch {
+      window.location.reload();
+    }
+  }
+
+  function injectClearCartButton(cart) {
+    if (!isCartPage() || !cart?.item_count) {
+      document.querySelector("[data-gk-clear-cart]")?.remove();
+      return;
+    }
+    if (document.querySelector("[data-gk-clear-cart]")) {
+      return;
+    }
+
+    const anchor =
+      document.querySelector(
+        ".cart__footer .totals, #main-cart-footer .totals, .cart__ctas, .cart__checkout-wrapper, .cart__footer",
+      ) ?? document.querySelector("form[action='/cart']");
+
+    if (!anchor) {
+      return;
+    }
+
+    const wrap = document.createElement("div");
+    wrap.className = "gk-clear-cart-wrap";
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "gk-clear-cart-btn";
+    button.dataset.gkClearCart = "true";
+    button.textContent = "Clear cart";
+    button.addEventListener("click", () => {
+      void clearEntireCart();
+    });
+    wrap.appendChild(button);
+    anchor.prepend(wrap);
+  }
+
   async function removeLines(keys) {
     if (!keys.length) {
       return null;
@@ -460,12 +531,15 @@
     publishCartUpdate(cart);
     await enhanceCartUi();
     if (
+      cart.item_count > 0 &&
       typeof window.__gkDrobeScheduleBackupPricing === "function" &&
       !window.__gkDrobeBackupPricingMutating &&
-      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0)
+      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0) &&
+      Date.now() >= (window.__gkDrobePauseBackupPricingUntil || 0)
     ) {
       window.__gkDrobeScheduleBackupPricing();
     }
+    injectClearCartButton(cart);
   }
 
   let mutationChain = Promise.resolve();
@@ -813,6 +887,7 @@
         const row = findCartRow(item, index) || findCartRowFallback(item);
         hideVariantSummaryInRow(row, item);
       });
+      injectClearCartButton(cart);
     } catch {
       document
         .querySelectorAll(
@@ -850,12 +925,15 @@
     publishCartUpdate(cart);
     await enhanceCartUi();
     if (
+      cart.item_count > 0 &&
       typeof window.__gkDrobeScheduleBackupPricing === "function" &&
       !window.__gkDrobeBackupPricingMutating &&
-      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0)
+      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0) &&
+      Date.now() >= (window.__gkDrobePauseBackupPricingUntil || 0)
     ) {
       window.__gkDrobeScheduleBackupPricing();
     }
+    injectClearCartButton(cart);
   }
 
   function shouldIgnoreCartMutationHandling() {
@@ -953,7 +1031,8 @@
             'a[href*="/cart/change"], cart-remove-button, [data-cart-remove], button[name="remove"], .cart-remove-button, .cart-item__remove, [data-index], .quantity__button',
           )
         ) {
-          scheduleRefresh(120);
+          pauseBackupForUserAction();
+          scheduleRefresh(300);
         }
       },
       true,

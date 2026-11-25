@@ -170,29 +170,32 @@
 
   async function fetchVariantMap(cartItems) {
     const ids = [...new Set((cartItems ?? []).map((item) => String(item.variant_id)).filter(Boolean))];
-    if (!ids.length) {
-      return { enabled: true, variants: {} };
-    }
+    const query = ids.length
+      ? `variantIds=${encodeURIComponent(ids.join(","))}`
+      : "variantIds=";
 
     const now = Date.now();
     if (variantMapCache && now - variantMapFetchedAt < 60_000) {
-      const missing = ids.some((id) => !variantMapCache.variants[id]);
+      const missing = ids.length ? ids.some((id) => !variantMapCache.variants?.[id]) : false;
       if (!missing) {
         return variantMapCache;
       }
     }
 
-    const response = await fetch(
-      `${PROXY_BASE}/api/backup-variant-map?variantIds=${encodeURIComponent(ids.join(","))}`,
-      { credentials: "same-origin" },
-    );
+    const response = await fetch(`${PROXY_BASE}/api/backup-variant-map?${query}`, {
+      credentials: "same-origin",
+    });
     if (!response.ok) {
       return variantMapCache ?? { enabled: true, variants: {} };
     }
     const data = await response.json();
-    variantMapCache = data;
+    const normalized = {
+      enabled: data?.enabled !== false,
+      variants: data?.variants ?? {},
+    };
+    variantMapCache = normalized;
     variantMapFetchedAt = now;
-    return data;
+    return normalized;
   }
 
   function targetVariantId(item, tier, variantMap) {
@@ -703,11 +706,22 @@
     }, PRICING_MUTATION_GAP_MS);
   }
 
+  function pauseBackupPricing(ms = 180_000) {
+    window.__gkDrobePauseBackupPricingUntil = Date.now() + ms;
+    pricingFollowUpsLeft = 0;
+    window.clearTimeout(pricingScheduleTimer);
+    window.clearTimeout(pricingFollowUpTimer);
+  }
+
+  function isBackupPricingPaused() {
+    return Date.now() < (window.__gkDrobePauseBackupPricingUntil || 0);
+  }
+
   function scheduleBackupPricingRun(delay = PRICING_DEBOUNCE_MS) {
     if (!isCartPage()) {
       return;
     }
-    if (isRateLimited()) {
+    if (isBackupPricingPaused() || isRateLimited()) {
       return;
     }
     window.clearTimeout(pricingScheduleTimer);
@@ -722,11 +736,13 @@
         return null;
       }
     }
-    if (isRateLimited() && !options.uiOnly) {
-      enhanceBackupDressUi(
-        options.cart ?? null,
-        variantMapCache ?? { enabled: true, variants: {} },
-      );
+    if ((isRateLimited() || isBackupPricingPaused()) && !options.uiOnly) {
+      if (options.cart || isCartPage()) {
+        enhanceBackupDressUi(
+          options.cart ?? null,
+          variantMapCache ?? { enabled: true, variants: {} },
+        );
+      }
       return null;
     }
     if (pricingRunLock || window.__gkDrobeBackupPricingMutating) {
@@ -762,26 +778,20 @@
       const discountOn = variantMap.enabled !== false;
       let didChange = false;
 
-      if (!options.uiOnly) {
-        if (!discountOn) {
-          const revert = await revertAllBackupPricing(cart, variantMap);
-          synced = revert.cart;
-          didChange = revert.changed;
-        } else if ((cart.items ?? []).length > 0) {
-          const syncResult = await syncBackupDressCart(synced, variantMap);
-          synced = syncResult.cart;
-          didChange = syncResult.changed;
-        }
+      if (!options.uiOnly && discountOn && (cart.items ?? []).length > 0) {
+        const syncResult = await syncBackupDressCart(synced, variantMap);
+        synced = syncResult.cart;
+        didChange = syncResult.changed;
+      }
 
-        if (didChange) {
-          variantMapCache = null;
-          synced = await refreshCartState(synced);
-          variantMap = await fetchVariantMap(synced.items ?? []);
-          pricingFollowUpsLeft = MAX_PRICING_FOLLOW_UPS;
-          schedulePricingFollowUp();
-        } else if (options.fromFollowUp) {
-          pricingFollowUpsLeft = 0;
-        }
+      if (!options.uiOnly && didChange) {
+        variantMapCache = null;
+        synced = await refreshCartState(synced);
+        variantMap = await fetchVariantMap(synced.items ?? []);
+        pricingFollowUpsLeft = MAX_PRICING_FOLLOW_UPS;
+        schedulePricingFollowUp();
+      } else if (options.fromFollowUp) {
+        pricingFollowUpsLeft = 0;
       }
 
       enhanceBackupDressUi(synced, variantMap);
@@ -797,6 +807,7 @@
 
   window.__gkRunBackupDressPricing = executeBackupPricingRun;
   window.__gkDrobeScheduleBackupPricing = scheduleBackupPricingRun;
+  window.__gkDrobePauseBackupPricing = pauseBackupPricing;
 
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", () => scheduleBackupPricingRun(400));
