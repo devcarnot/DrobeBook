@@ -510,12 +510,15 @@ async function ensureBackupVariantForMain(
       variant.sku,
     );
   } catch (error) {
-    console.warn("[backup-dress-variant] create failed:", error);
-    return null;
+    const message = error instanceof Error ? error.message : String(error);
+    const accessHint = /access|permission|denied|scope/i.test(message)
+      ? " Approve DrobeBook “Edit products” in Shopify admin (Apps → DrobeBook), then sync again."
+      : "";
+    throw new Error(`Create backup variant failed: ${message}${accessHint}`);
   }
 
   if (!backupNumericId) {
-    return null;
+    throw new Error("Create backup variant returned no variant id.");
   }
   await prisma.rentalProductVariant.update({
     where: { id: row.id },
@@ -678,6 +681,7 @@ export async function ensureAllBackupVariantsForShop(
 ): Promise<{
   ok: boolean;
   productsProcessed: number;
+  variantsAttempted: number;
   errors: string[];
   coverage: BackupVariantCoverage;
 }> {
@@ -690,14 +694,50 @@ export async function ensureAllBackupVariantsForShop(
     select: { id: true },
   });
 
+  const variantRows = await prisma.rentalProductVariant.findMany({
+    where: {
+      shop,
+      availableInShopify: true,
+      rentalProduct: {
+        rentalEnabled: true,
+        removedAt: null,
+      },
+    },
+    select: {
+      shopifyVariantId: true,
+      title: true,
+      rentalProduct: { select: { title: true } },
+    },
+  });
+
   const errors: string[] = [];
-  for (const product of products) {
+  const maxErrors = 8;
+
+  for (const row of variantRows) {
+    const label =
+      row.rentalProduct?.title && row.title
+        ? `${row.rentalProduct.title} — ${row.title}`
+        : row.shopifyVariantId;
     try {
-      await ensureBackupVariantsForRentalProduct(admin, shop, product.id);
+      const backupId = await ensureBackupVariantForMain(
+        admin,
+        shop,
+        row.shopifyVariantId,
+      );
+      if (!backupId) {
+        errors.push(`${label}: backup variant not created.`);
+      }
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Unknown error";
-      errors.push(message);
+      errors.push(`${label}: ${message}`);
+    }
+
+    if (errors.length >= maxErrors) {
+      errors.push(
+        `…and ${variantRows.length - maxErrors} more. Fix the errors above, then sync again.`,
+      );
+      break;
     }
   }
 
@@ -706,6 +746,7 @@ export async function ensureAllBackupVariantsForShop(
   return {
     ok: errors.length === 0 && coverage.missingBackupVariant === 0,
     productsProcessed: products.length,
+    variantsAttempted: variantRows.length,
     errors,
     coverage,
   };

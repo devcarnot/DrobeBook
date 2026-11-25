@@ -36,6 +36,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       intent,
       ok: result.ok,
       productsProcessed: result.productsProcessed,
+      variantsAttempted: result.variantsAttempted,
       errors: result.errors,
       coverage,
       ready: coverage.variantRows > 0 && coverage.missingBackupVariant === 0,
@@ -62,12 +63,16 @@ export default function BackupDressDiscountPage() {
     navigation.state === "submitting" &&
     navigation.formData?.get("intent") === "sync-backup-variants";
 
+  const syncErrors =
+    actionData?.intent === "sync-backup-variants" ? actionData.errors ?? [] : [];
+
   const syncMessage =
     actionData?.intent === "sync-backup-variants"
       ? actionData.ok
-        ? `Backup pricing variants synced for ${actionData.productsProcessed} rental product(s).`
-        : actionData.errors?.join(" ") ||
-          "Some products could not be synced. Check server logs."
+        ? `Ready — ${coverage.withBackupVariant} / ${coverage.variantRows} hire variants have backup pricing in Shopify.`
+        : syncErrors.length
+          ? null
+          : `${coverage.withBackupVariant} / ${coverage.variantRows} variants have backup pricing. ${coverage.missingBackupVariant} still missing — click Sync again or check errors below.`
       : null;
 
   return (
@@ -96,6 +101,24 @@ export default function BackupDressDiscountPage() {
 
       <s-section heading="Backup variant status">
         <s-stack direction="block" gap="base">
+          <s-banner tone="info" heading="How to sync">
+            <s-stack direction="block" gap="small">
+              <s-text>1. Open this page in Shopify admin (DrobeBook → Backup dress discount).</s-text>
+              <s-text>
+                2. If Shopify asks to <s-text type="strong">approve updated permissions</s-text>{" "}
+                (edit products), accept — sync needs that to create backup variants.
+              </s-text>
+              <s-text>
+                3. Click <s-text type="strong">Sync backup variants for all rental products</s-text>{" "}
+                and wait until the button finishes (up to ~1 minute).
+              </s-text>
+              <s-text>
+                4. Coverage should show <s-text type="strong">11 / 11</s-text> (or your full count).
+                Then hard-refresh the storefront cart and test again.
+              </s-text>
+            </s-stack>
+          </s-banner>
+
           <s-box padding="base" border="base" borderRadius="base" background="base">
             <s-stack direction="block" gap="small">
               <s-text type="strong">Coverage</s-text>
@@ -132,9 +155,19 @@ export default function BackupDressDiscountPage() {
           {syncMessage ? (
             <s-banner
               tone={actionData?.ok ? "success" : "critical"}
-              heading={actionData?.ok ? "Sync complete" : "Sync issues"}
+              heading={actionData?.ok ? "Sync complete" : "Sync incomplete"}
             >
               {syncMessage}
+            </s-banner>
+          ) : null}
+
+          {syncErrors.length ? (
+            <s-banner tone="critical" heading="Sync errors">
+              <s-stack direction="block" gap="small">
+                {syncErrors.map((line) => (
+                  <s-text key={line}>{line}</s-text>
+                ))}
+              </s-stack>
             </s-banner>
           ) : null}
 
