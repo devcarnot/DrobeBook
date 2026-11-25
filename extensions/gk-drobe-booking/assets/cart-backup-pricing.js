@@ -23,13 +23,31 @@
   let pricingScheduleTimer = 0;
   let pricingFollowUpTimer = 0;
   let pricingFollowUpsLeft = 0;
-  const PRICING_DEBOUNCE_MS = 500;
-  const PRICING_MUTATION_GAP_MS = 750;
-  const MAX_PRICING_FOLLOW_UPS = 4;
+  const PRICING_DEBOUNCE_MS = 1800;
+  const PRICING_MUTATION_GAP_MS = 2800;
+  const MAX_PRICING_FOLLOW_UPS = 2;
+  const IGNORE_MUTATION_MS = 3200;
+  const RATE_LIMIT_PAUSE_MS = 90_000;
   let lastPricingMutationAt = 0;
+  let pricingPausedUntil = 0;
+
+  function isCartPage() {
+    return /\/cart(\/|$|\?)/i.test(`${window.location.pathname}${window.location.search}`);
+  }
 
   function setPricingMutating(active) {
     window.__gkDrobeBackupPricingMutating = Boolean(active);
+  }
+
+  function markIgnoreStorefrontCartHandlers(ms = IGNORE_MUTATION_MS) {
+    const until = Date.now() + ms;
+    window.__gkDrobeIgnoreCartMutationsUntil = until;
+    window.__gkDrobeLastPricingMutationAt = Date.now();
+    lastPricingMutationAt = Date.now();
+  }
+
+  function isRateLimited() {
+    return Date.now() < pricingPausedUntil;
   }
 
   function sleep(ms) {
@@ -37,15 +55,29 @@
   }
 
   async function postCartChange(payload, attempt = 0) {
+    if (isRateLimited()) {
+      throw new Error("Cart rate limit — wait a minute and refresh.");
+    }
+    markIgnoreStorefrontCartHandlers();
+    setPricingMutating(true);
     const response = await fetch(`${ROOT}cart/change.js`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Gk-Drobe-Backup": "1",
+      },
       credentials: "same-origin",
       body: JSON.stringify(payload),
     });
-    if (response.status === 429 && attempt < 3) {
-      await sleep(900 * (attempt + 1));
-      return postCartChange(payload, attempt + 1);
+    if (response.status === 429) {
+      pricingPausedUntil = Date.now() + RATE_LIMIT_PAUSE_MS;
+      pricingFollowUpsLeft = 0;
+      if (attempt < 1) {
+        await sleep(4000);
+        setPricingMutating(false);
+        return postCartChange(payload, attempt + 1);
+      }
+      throw new Error("Please try again in a few minutes");
     }
     if (!response.ok) {
       const body = await response.json().catch(() => ({}));
@@ -53,7 +85,9 @@
         body?.description || body?.message || `cart change failed (${response.status})`;
       throw new Error(message);
     }
-    return response.json();
+    const json = await response.json();
+    window.setTimeout(() => setPricingMutating(false), IGNORE_MUTATION_MS);
+    return json;
   }
 
   function normalizeProperties(properties) {
@@ -282,11 +316,19 @@
   }
 
   async function swapLineVariant(item, targetVariantId, properties) {
+    if (isRateLimited()) {
+      throw new Error("Cart rate limit — wait a minute and refresh.");
+    }
+    markIgnoreStorefrontCartHandlers();
+    setPricingMutating(true);
     const quantity = item.quantity ?? 1;
     const variantId = Number.parseInt(String(targetVariantId), 10);
     const addResponse = await fetch(`${ROOT}cart/add.js`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        "X-Gk-Drobe-Backup": "1",
+      },
       credentials: "same-origin",
       body: JSON.stringify({
         items: [
@@ -305,7 +347,11 @@
       throw new Error(message);
     }
 
-    return postCartChange({ id: item.key, quantity: 0 });
+    try {
+      return await postCartChange({ id: item.key, quantity: 0 });
+    } finally {
+      window.setTimeout(() => setPricingMutating(false), IGNORE_MUTATION_MS);
+    }
   }
 
   async function changeLineProperties(key, quantity, properties) {
@@ -357,24 +403,18 @@
         }
 
         changed = true;
-        setPricingMutating(true);
-        try {
-          if (needsVariantSwap) {
-            cart = await swapLineVariant(
-              current.raw,
-              assignment.targetVariantId,
-              assignment.properties,
-            );
-          } else {
-            cart = await changeLineProperties(
-              assignment.key,
-              current.quantity,
-              assignment.properties,
-            );
-          }
-          lastPricingMutationAt = Date.now();
-        } finally {
-          setPricingMutating(false);
+        if (needsVariantSwap) {
+          cart = await swapLineVariant(
+            current.raw,
+            assignment.targetVariantId,
+            assignment.properties,
+          );
+        } else {
+          cart = await changeLineProperties(
+            assignment.key,
+            current.quantity,
+            assignment.properties,
+          );
         }
         return { cart, changed: true };
       }
@@ -406,16 +446,10 @@
         }
 
         changed = true;
-        setPricingMutating(true);
-        try {
-          if (onBackupVariant && mainVariantId) {
-            cart = await swapLineVariant(item, mainVariantId, cleaned);
-          } else {
-            cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
-          }
-          lastPricingMutationAt = Date.now();
-        } finally {
-          setPricingMutating(false);
+        if (onBackupVariant && mainVariantId) {
+          cart = await swapLineVariant(item, mainVariantId, cleaned);
+        } else {
+          cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
         }
         return { cart, changed: true };
       }
@@ -644,17 +678,11 @@
         ) {
           continue;
         }
-        setPricingMutating(true);
-        try {
-          changed = true;
-          if (onBackupVariant && mainVariantId) {
-            cart = await swapLineVariant(item, mainVariantId, cleaned);
-          } else {
-            cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
-          }
-          lastPricingMutationAt = Date.now();
-        } finally {
-          setPricingMutating(false);
+        changed = true;
+        if (onBackupVariant && mainVariantId) {
+          cart = await swapLineVariant(item, mainVariantId, cleaned);
+        } else {
+          cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
         }
         return { cart, changed: true };
       }
@@ -676,6 +704,12 @@
   }
 
   function scheduleBackupPricingRun(delay = PRICING_DEBOUNCE_MS) {
+    if (!isCartPage()) {
+      return;
+    }
+    if (isRateLimited()) {
+      return;
+    }
     window.clearTimeout(pricingScheduleTimer);
     pricingScheduleTimer = window.setTimeout(() => {
       void executeBackupPricingRun({ uiOnly: false });
@@ -683,6 +717,18 @@
   }
 
   async function executeBackupPricingRun(options = {}) {
+    if (!isCartPage() && !options.cart) {
+      if (!options.uiOnly) {
+        return null;
+      }
+    }
+    if (isRateLimited() && !options.uiOnly) {
+      enhanceBackupDressUi(
+        options.cart ?? null,
+        variantMapCache ?? { enabled: true, variants: {} },
+      );
+      return null;
+    }
     if (pricingRunLock || window.__gkDrobeBackupPricingMutating) {
       if (!options.uiOnly) {
         scheduleBackupPricingRun(PRICING_DEBOUNCE_MS);
@@ -733,6 +779,8 @@
           variantMap = await fetchVariantMap(synced.items ?? []);
           pricingFollowUpsLeft = MAX_PRICING_FOLLOW_UPS;
           schedulePricingFollowUp();
+        } else if (options.fromFollowUp) {
+          pricingFollowUpsLeft = 0;
         }
       }
 
@@ -748,24 +796,11 @@
   }
 
   window.__gkRunBackupDressPricing = executeBackupPricingRun;
-
-  document.addEventListener("cart:updated", (event) => {
-    if (event.detail?.__gkDrobeInternal || window.__gkDrobeBackupPricingMutating) {
-      return;
-    }
-    scheduleBackupPricingRun();
-  });
-
-  document.addEventListener("cart:change", (event) => {
-    if (event.detail?.__gkDrobeInternal || window.__gkDrobeBackupPricingMutating) {
-      return;
-    }
-    scheduleBackupPricingRun();
-  });
+  window.__gkDrobeScheduleBackupPricing = scheduleBackupPricingRun;
 
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => scheduleBackupPricingRun(200));
-  } else {
-    scheduleBackupPricingRun(200);
+    document.addEventListener("DOMContentLoaded", () => scheduleBackupPricingRun(400));
+  } else if (isCartPage()) {
+    scheduleBackupPricingRun(400);
   }
 })();

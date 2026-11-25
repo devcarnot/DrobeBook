@@ -459,8 +459,12 @@
     updateCartCount(cart.item_count);
     publishCartUpdate(cart);
     await enhanceCartUi();
-    if (typeof window.__gkRunBackupDressPricing === "function" && !window.__gkDrobeBackupPricingMutating) {
-      await window.__gkRunBackupDressPricing(cart, { uiOnly: false }).catch(() => undefined);
+    if (
+      typeof window.__gkDrobeScheduleBackupPricing === "function" &&
+      !window.__gkDrobeBackupPricingMutating &&
+      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0)
+    ) {
+      window.__gkDrobeScheduleBackupPricing();
     }
   }
 
@@ -845,9 +849,21 @@
     updateCartCount(cart.item_count);
     publishCartUpdate(cart);
     await enhanceCartUi();
-    if (typeof window.__gkRunBackupDressPricing === "function" && !window.__gkDrobeBackupPricingMutating) {
-      await window.__gkRunBackupDressPricing(cart, { uiOnly: false }).catch(() => undefined);
+    if (
+      typeof window.__gkDrobeScheduleBackupPricing === "function" &&
+      !window.__gkDrobeBackupPricingMutating &&
+      Date.now() >= (window.__gkDrobeIgnoreCartMutationsUntil || 0)
+    ) {
+      window.__gkDrobeScheduleBackupPricing();
     }
+  }
+
+  function shouldIgnoreCartMutationHandling() {
+    return (
+      syncing ||
+      window.__gkDrobeBackupPricingMutating ||
+      Date.now() < (window.__gkDrobeIgnoreCartMutationsUntil || 0)
+    );
   }
 
   function handleCartMutationResponse(response) {
@@ -882,7 +898,12 @@
             ? request.url
             : "";
 
-      if (isCartMutationUrl(url) && !syncing && !window.__gkDrobeBackupPricingMutating) {
+      const requestInit = args[1];
+      const backupHeader =
+        requestInit?.headers &&
+        (requestInit.headers["X-Gk-Drobe-Backup"] === "1" ||
+          requestInit.headers.get?.("X-Gk-Drobe-Backup") === "1");
+      if (isCartMutationUrl(url) && !backupHeader && !shouldIgnoreCartMutationHandling()) {
         handleCartMutationResponse(response);
       }
 
@@ -892,12 +913,7 @@
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function open(method, url, ...rest) {
       this.addEventListener("loadend", () => {
-        if (
-          typeof url !== "string" ||
-          !isCartMutationUrl(url) ||
-          syncing ||
-          window.__gkDrobeBackupPricingMutating
-        ) {
+        if (typeof url !== "string" || !isCartMutationUrl(url) || shouldIgnoreCartMutationHandling()) {
           return;
         }
 
