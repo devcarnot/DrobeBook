@@ -28,6 +28,32 @@
     }
   }
 
+  async function postCartAddJson(items) {
+    const root = window.Shopify?.routes?.root || "/";
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      const response = await fetch(`${root}cart/add.js`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ items }),
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 429 && attempt < 2) {
+        await new Promise((resolve) => window.setTimeout(resolve, 3000 * (attempt + 1)));
+        continue;
+      }
+      if (!response.ok) {
+        if (response.status === 429) {
+          throw new Error(
+            "Shopify cart is busy (too many updates in the last few minutes). Wait 2–3 minutes, then try again — or open the store in a private/incognito window.",
+          );
+        }
+        throw new Error(data.description || data.message || "Could not add to cart");
+      }
+      return data;
+    }
+    throw new Error("Could not add to cart");
+  }
+
   function formatIso(date) {
     const y = date.getUTCFullYear();
     const m = String(date.getUTCMonth() + 1).padStart(2, "0");
@@ -1337,18 +1363,7 @@
       }
 
       try {
-        const response = await fetch(`${window.Shopify?.routes?.root || "/"}cart/add.js`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ items }),
-        });
-
-        const data = await response.json();
-        if (!response.ok) {
-          throw new Error(data.description || data.message || "Could not add to cart");
-        }
+        await postCartAddJson(items);
 
         window.location.href = `${window.Shopify?.routes?.root || "/"}cart`;
       } catch (error) {
