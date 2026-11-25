@@ -26,6 +26,32 @@ export type BackupVariantMapResponse = {
   variants: Record<string, BackupVariantMapEntry>;
 };
 
+const PRODUCT_VARIANTS_QUERY = `#graphql
+  query ProductVariantsForBackup($id: ID!) {
+    product(id: $id) {
+      id
+      options {
+        id
+        name
+        position
+        optionValues {
+          name
+        }
+      }
+      variants(first: 250) {
+        nodes {
+          id
+          price
+          selectedOptions {
+            name
+            value
+          }
+        }
+      }
+    }
+  }
+`;
+
 const VARIANT_DETAIL_QUERY = `#graphql
   query BackupVariantDetail($id: ID!) {
     productVariant(id: $id) {
@@ -166,17 +192,34 @@ function backupDurationLabel(mainValue: string): string {
   return `${trimmed}${BACKUP_DURATION_SUFFIX}`;
 }
 
+function nonHireProductOptions(productOptions: ProductOptionRow[]): ProductOptionRow[] {
+  return productOptions.filter((option) => !isHirePricingOption(option.name));
+}
+
+function shouldUseHirePricingBackupPath(productOptions: ProductOptionRow[]): boolean {
+  if (productOptions.some((option) => isHirePricingOption(option.name))) {
+    return true;
+  }
+  const nonHire = nonHireProductOptions(productOptions);
+  return nonHire.length < 3 && productOptions.length < 3;
+}
+
 function pickAlterationOption(
   selectedOptions: Array<{ name: string; value: string }>,
   productOptions: ProductOptionRow[],
 ): { option: ProductOptionRow; mainValue: string } | null {
-  if (!productOptions.length) {
+  const eligibleOptions = nonHireProductOptions(productOptions);
+  if (!eligibleOptions.length) {
     return null;
   }
 
-  const durationPick = selectedOptions.find((row) => /duration/i.test(row.name));
+  const eligibleSelected = selectedOptions.filter(
+    (row) => !isHirePricingOption(row.name),
+  );
+
+  const durationPick = eligibleSelected.find((row) => /duration/i.test(row.name));
   if (durationPick) {
-    const option = productOptions.find(
+    const option = eligibleOptions.find(
       (row) => row.name.trim().toLowerCase() === durationPick.name.trim().toLowerCase(),
     );
     if (option?.id) {
@@ -184,11 +227,11 @@ function pickAlterationOption(
     }
   }
 
-  const sorted = [...productOptions].sort(
+  const sorted = [...eligibleOptions].sort(
     (a, b) => (a.position ?? 0) - (b.position ?? 0),
   );
   const fallback = sorted[sorted.length - 1];
-  const selected = selectedOptions.find(
+  const selected = eligibleSelected.find(
     (row) => row.name.trim().toLowerCase() === fallback.name.trim().toLowerCase(),
   );
   if (fallback?.id && selected?.value) {
@@ -286,15 +329,84 @@ async function createBackupProductVariant(
   return createdId ? extractNumericId(createdId) : null;
 }
 
+async function ensureHirePricingValuesOnProduct(
+  admin: AdminGraphql,
+  productGid: string,
+  productOptions: ProductOptionRow[],
+): Promise<void> {
+  const hireOption = productOptions.find((option) => isHirePricingOption(option.name));
+  if (!hireOption?.id) {
+    return;
+  }
+
+  const existing = hireOption.optionValues?.map((row) => row.name) ?? [];
+  await ensureOptionValueOnProduct(
+    admin,
+    productGid,
+    hireOption.id,
+    HIRE_PRICING_STANDARD,
+    existing,
+  );
+  await ensureOptionValueOnProduct(
+    admin,
+    productGid,
+    hireOption.id,
+    HIRE_PRICING_BACKUP,
+    [...existing, HIRE_PRICING_STANDARD],
+  );
+}
+
+async function refreshProductOptions(
+  admin: AdminGraphql,
+  productGid: string,
+): Promise<ProductOptionRow[]> {
+  const response = await admin.graphql(PRODUCT_VARIANTS_QUERY, {
+    variables: { id: productGid },
+  });
+  const json = (await response.json()) as {
+    data?: { product?: { options?: ProductOptionRow[] } };
+  };
+  return (json.data?.product?.options ?? []) as ProductOptionRow[];
+}
+
+function findExistingBackupVariantId(
+  variants: Array<{
+    id: string;
+    selectedOptions?: Array<{ name: string; value: string }>;
+  }>,
+  optionValues: Array<{ optionName: string; name: string }>,
+  mainVariantId: string,
+): string | null {
+  const mainGid = toVariantGid(mainVariantId);
+  for (const variant of variants) {
+    if (variant.id === mainGid) {
+      continue;
+    }
+    const selected = variant.selectedOptions ?? [];
+    if (!isBackupSelectedOption(selected)) {
+      continue;
+    }
+    const matches = optionValues.every((target) =>
+      selected.some(
+        (row) =>
+          row.name.trim().toLowerCase() === target.optionName.trim().toLowerCase() &&
+          row.value.trim().toLowerCase() === target.name.trim().toLowerCase(),
+      ),
+    );
+    if (matches) {
+      return extractNumericId(variant.id);
+    }
+  }
+  return null;
+}
+
 function buildBackupOptionValues(
   selectedOptions: Array<{ name: string; value: string }>,
   productOptions: ProductOptionRow[],
 ): Array<{ optionName: string; name: string }> | null {
-  const optionCount = productOptions.length;
-  const hasHirePricing = productOptions.some((option) => isHirePricingOption(option.name));
   const baseOptions = selectedOptions.filter((option) => !isHirePricingOption(option.name));
 
-  if (optionCount < 3 && !hasHirePricing) {
+  if (shouldUseHirePricingBackupPath(productOptions)) {
     return [
       ...baseOptions.map((option) => ({
         optionName: option.name,
@@ -440,22 +552,18 @@ async function ensureBackupVariantForMain(
     }
   }
 
-  const productOptions = (variant.product.options ?? []) as ProductOptionRow[];
-  const optionCount = productOptions.length;
-  const hasHirePricing = productOptions.some((option) => isHirePricingOption(option.name));
+  let productOptions = (variant.product.options ?? []) as ProductOptionRow[];
 
-  let optionValues = buildBackupOptionValues(selectedOptions, productOptions);
-
-  if (optionCount < 3 && !hasHirePricing) {
+  if (shouldUseHirePricingBackupPath(productOptions) && !productOptions.some(isHirePricingOption)) {
     try {
       await ensureHirePricingOption(
         admin,
         variant.product.id,
         productOptions.map((option) => option.name),
       );
+      productOptions = await refreshProductOptions(admin, variant.product.id);
     } catch (error) {
       console.warn("[backup-dress-variant] hire pricing option failed:", error);
-      optionValues = buildBackupOptionValues(selectedOptions, productOptions);
     }
   }
 
@@ -471,14 +579,23 @@ async function ensureBackupVariantForMain(
     };
   }).data?.productVariant;
 
-  const refreshedOptions = (refreshedVariant?.product?.options ??
+  let refreshedOptions = (refreshedVariant?.product?.options ??
     productOptions) as ProductOptionRow[];
   const refreshedSelected = refreshedVariant?.selectedOptions ?? selectedOptions;
-  optionValues = buildBackupOptionValues(refreshedSelected, refreshedOptions);
+
+  if (shouldUseHirePricingBackupPath(refreshedOptions)) {
+    await ensureHirePricingValuesOnProduct(
+      admin,
+      variant.product.id,
+      refreshedOptions,
+    );
+    refreshedOptions = await refreshProductOptions(admin, variant.product.id);
+  }
+
+  const optionValues = buildBackupOptionValues(refreshedSelected, refreshedOptions);
 
   if (!optionValues?.length) {
-    console.warn("[backup-dress-variant] could not build backup option values");
-    return null;
+    throw new Error("Could not determine backup variant options for this product.");
   }
 
   const alteration = pickAlterationOption(refreshedSelected, refreshedOptions);
@@ -487,34 +604,77 @@ async function ensureBackupVariantForMain(
     const existingValues =
       alteration.option.optionValues?.map((row) => row.name) ?? [];
     const backupValue = backupDurationLabel(alteration.mainValue);
-    try {
-      await ensureOptionValueOnProduct(
-        admin,
-        variant.product.id,
-        alteration.option.id,
-        backupValue,
-        existingValues,
-      );
-    } catch (error) {
-      console.warn("[backup-dress-variant] option value add failed:", error);
-    }
-  }
-
-  let backupNumericId: string | null = null;
-  try {
-    backupNumericId = await createBackupProductVariant(
+    await ensureOptionValueOnProduct(
       admin,
       variant.product.id,
-      optionValues,
-      backupPriceCents,
-      variant.sku,
+      alteration.option.id,
+      backupValue,
+      existingValues,
     );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const accessHint = /access|permission|denied|scope/i.test(message)
-      ? " Approve DrobeBook “Edit products” in Shopify admin (Apps → DrobeBook), then sync again."
-      : "";
-    throw new Error(`Create backup variant failed: ${message}${accessHint}`);
+    refreshedOptions = await refreshProductOptions(admin, variant.product.id);
+  }
+
+  const productSnapshot = await admin.graphql(PRODUCT_VARIANTS_QUERY, {
+    variables: { id: variant.product.id },
+  });
+  const productJson = (await productSnapshot.json()) as {
+    data?: {
+      product?: {
+        variants?: {
+          nodes?: Array<{
+            id: string;
+            selectedOptions?: Array<{ name: string; value: string }>;
+          }>;
+        };
+      };
+    };
+  };
+  const existingNodes = productJson.data?.product?.variants?.nodes ?? [];
+
+  let backupNumericId = findExistingBackupVariantId(
+    existingNodes,
+    optionValues,
+    mainShopifyVariantId,
+  );
+
+  if (!backupNumericId) {
+    try {
+      backupNumericId = await createBackupProductVariant(
+        admin,
+        variant.product.id,
+        optionValues,
+        backupPriceCents,
+        variant.sku,
+      );
+    } catch (error) {
+      const refetch = await admin.graphql(PRODUCT_VARIANTS_QUERY, {
+        variables: { id: variant.product.id },
+      });
+      const refetchJson = (await refetch.json()) as {
+        data?: {
+          product?: {
+            variants?: {
+              nodes?: Array<{
+                id: string;
+                selectedOptions?: Array<{ name: string; value: string }>;
+              }>;
+            };
+          };
+        };
+      };
+      backupNumericId = findExistingBackupVariantId(
+        refetchJson.data?.product?.variants?.nodes ?? [],
+        optionValues,
+        mainShopifyVariantId,
+      );
+      if (!backupNumericId) {
+        const message = error instanceof Error ? error.message : String(error);
+        const accessHint = /access|permission|denied|scope/i.test(message)
+          ? " Approve DrobeBook “Edit products” in Shopify admin (Apps → DrobeBook), then sync again."
+          : "";
+        throw new Error(`Create backup variant failed: ${message}${accessHint}`);
+      }
+    }
   }
 
   if (!backupNumericId) {

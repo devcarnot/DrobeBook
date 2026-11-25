@@ -113,8 +113,11 @@ export default function BackupDressDiscountPage() {
                 and wait until the button finishes (up to ~1 minute).
               </s-text>
               <s-text>
-                4. Coverage should show <s-text type="strong">11 / 11</s-text> (or your full count).
-                Then hard-refresh the storefront cart and test again.
+                4. Coverage should show{" "}
+                <s-text type="strong">
+                  {coverage.variantRows} / {coverage.variantRows}
+                </s-text>{" "}
+                (all variants). Then hard-refresh the storefront cart and test again.
               </s-text>
             </s-stack>
           </s-banner>
