@@ -1,3 +1,10 @@
+.shopify-payment-button,
+.additional-checkout-buttons,
+dynamic-checkout,
+[data-shopify="payment-button"] {
+  display: none !important;
+}
+
 .gk-drobe-booking-card {
   width: 100%;
   max-width: 100%;

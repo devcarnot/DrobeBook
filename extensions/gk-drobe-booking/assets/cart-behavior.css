@@ -648,6 +648,15 @@ html.gk-clutch-modal-open {
   }
 }
 
+.shopify-payment-button,
+.additional-checkout-buttons,
+dynamic-checkout,
+[data-shopify="payment-button"],
+cart-payment-methods,
+.gk-drobe-hide-dynamic-checkout {
+  display: none !important;
+}
+
 .gk-clear-cart-wrap {
   margin: 0 0 1rem;
   width: 100%;

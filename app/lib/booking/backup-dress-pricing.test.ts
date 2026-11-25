@@ -13,10 +13,13 @@ function gownLine(
   key: string,
   priceCents: number,
   overrides: Record<string, string> = {},
+  meta: { variantId?: string; createdAt?: number } = {},
 ) {
   return {
     key,
     priceCents,
+    variantId: meta.variantId,
+    createdAt: meta.createdAt,
     properties: {
       _Size: "6",
       _Duration: "4 Day Hire",
@@ -57,19 +60,60 @@ describe("computeBackupDressAssignments", () => {
     expect(computeBackupDressSummary(assignments).chargedSubtotalCents).toBe(18_680);
   });
 
+  it("allocates 3 gowns as 2 main + 1 backup", () => {
+    const assignments = computeBackupDressAssignments(
+      [gownLine("a", 12_000), gownLine("b", 11_000), gownLine("c", 10_000)],
+      { expandQuantity: false },
+    );
+
+    expect(assignments).toHaveLength(3);
+    expect(assignments.filter((row) => row.tier === MAIN_HIRE_TIER)).toHaveLength(2);
+    expect(assignments.filter((row) => row.tier === BACKUP_HIRE_TIER)).toHaveLength(1);
+  });
+
+  it("expands quantity 2 into two group units", () => {
+    const assignments = computeBackupDressAssignments(
+      [
+        gownLine("only", 10_000, {}, { variantId: "1", createdAt: 1 }),
+        {
+          key: "pair",
+          priceCents: 9_000,
+          variantId: "2",
+          createdAt: 2,
+          quantity: 2,
+          properties: gownLine("x", 0).properties,
+        },
+      ],
+      { expandQuantity: true },
+    );
+
+    expect(assignments).toHaveLength(3);
+    expect(assignments.filter((row) => row.tier === BACKUP_HIRE_TIER)).toHaveLength(1);
+  });
+
   it("groups only matching hire periods", () => {
     const assignments = computeBackupDressAssignments([
       gownLine("a", 10_000),
       gownLine("b", 9_000, { "Return Date": "5 December 2026" }),
     ]);
 
-    expect(assignments).toHaveLength(2);
-    expect(assignments.every((row) => row.tier === MAIN_HIRE_TIER)).toBe(true);
+    expect(assignments).toHaveLength(0);
+  });
+
+  it("ties break on creation time then variant id", () => {
+    const assignments = computeBackupDressAssignments([
+      gownLine("a", 10_000, {}, { variantId: "2", createdAt: 200 }),
+      gownLine("b", 10_000, {}, { variantId: "1", createdAt: 100 }),
+    ]);
+
+    expect(assignments.find((row) => row.key === "b")?.tier).toBe(MAIN_HIRE_TIER);
+    expect(assignments.find((row) => row.key === "a")?.tier).toBe(BACKUP_HIRE_TIER);
   });
 
   it("ignores clutches and linked add-ons", () => {
     const assignments = computeBackupDressAssignments([
-      gownLine("gown", 10_000),
+      gownLine("gown-a", 11_000),
+      gownLine("gown-b", 9_000),
       {
         key: "clutch",
         priceCents: 4500,
@@ -91,8 +135,8 @@ describe("computeBackupDressAssignments", () => {
       },
     ]);
 
-    expect(assignments).toHaveLength(1);
-    expect(assignments[0].key).toBe("gown");
+    expect(assignments).toHaveLength(2);
+    expect(assignments.map((row) => row.key).sort()).toEqual(["gown-a", "gown-b"]);
   });
 });
 

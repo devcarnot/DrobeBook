@@ -361,12 +361,55 @@
     return postCartChange({ id: key, quantity, properties });
   }
 
+  async function fetchServerCartPlan(cart, variantMap) {
+    if (variantMap?.enabled === false) {
+      return [];
+    }
+    const lines = (cart.items ?? [])
+      .filter((item) => isGownHireLine(normalizeProperties(item.properties)))
+      .map((item, index) => ({
+        key: item.key,
+        variantId: String(item.variant_id),
+        quantity: Math.min(1, item.quantity ?? 1),
+        priceCents: catalogPriceCents(item, variantMap),
+        createdAt: index,
+        properties: normalizeProperties(item.properties),
+      }));
+    if (!lines.length) {
+      return [];
+    }
+    try {
+      const response = await fetch(`${PROXY_BASE}/api/backup-cart-plan`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lines }),
+      });
+      if (!response.ok) {
+        return null;
+      }
+      const plan = await response.json();
+      return (plan.actions ?? []).map((action) => ({
+        key: action.lineKey,
+        tier: action.tier,
+        targetVariantId: action.targetVariantId,
+        properties: action.displayProperties ?? {},
+      }));
+    } catch {
+      return null;
+    }
+  }
+
   async function syncBackupDressCart(cart, variantMap) {
     if (syncing) {
       return { cart, changed: false };
     }
 
-    const assignments = computeAssignments(cart.items ?? [], variantMap);
+    const serverPlan = await fetchServerCartPlan(cart, variantMap);
+    const assignments =
+      serverPlan === null
+        ? computeAssignments(cart.items ?? [], variantMap)
+        : serverPlan;
     if (!assignments.length) {
       return { cart, changed: false };
     }

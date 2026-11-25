@@ -299,6 +299,9 @@ export default function BackupDressDiscountPage() {
 
       <s-section heading="Shortcuts">
         <s-stack direction="inline" gap="small">
+          <s-button href="/app/backup-flagged-orders" variant="secondary">
+            Flagged orders
+          </s-button>
           <s-button href="/app/products" variant="secondary">
             Rental products
           </s-button>

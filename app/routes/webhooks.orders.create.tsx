@@ -6,6 +6,7 @@ import {
   processOrderBookings,
   type OrderWebhookPayload,
 } from "../lib/order-booking.server";
+import { processBackupDressOrderWebhook } from "../lib/booking/backup-dress-order-process.server";
 import { authenticate, unauthenticated } from "../shopify.server";
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -30,6 +31,22 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     email: orderPayload.email,
   });
 
+  let backupViolations = 0;
+  try {
+    const { admin } = await unauthenticated.admin(shop);
+    const backup = await processBackupDressOrderWebhook({
+      shop,
+      topic,
+      orderId,
+      orderName: orderPayload.name ?? null,
+      lineItems,
+      admin,
+    });
+    backupViolations = backup.violations;
+  } catch (error) {
+    console.warn(`[backup-order-verify] ${shop} order ${orderId}:`, error);
+  }
+
   let creditsIssued = 0;
   try {
     const { admin } = await unauthenticated.admin(shop);
@@ -50,7 +67,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 
   console.log(
-    `Processed ${topic} webhook for ${shop}: ${bookings.confirmed} booking line(s) confirmed (${bookings.skipped} skipped), ${appointments.confirmed} appointment(s) confirmed (${appointments.skipped} skipped), ${creditsIssued} try-on credit(s) issued`,
+    `Processed ${topic} webhook for ${shop}: ${bookings.confirmed} booking line(s) confirmed (${bookings.skipped} skipped), ${appointments.confirmed} appointment(s) confirmed (${appointments.skipped} skipped), ${creditsIssued} try-on credit(s) issued, ${backupViolations} backup violation(s)`,
   );
 
   return new Response();

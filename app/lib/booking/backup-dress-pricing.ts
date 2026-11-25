@@ -4,8 +4,11 @@ export const HIRE_TYPE_PROPERTY = "Hire type";
 export const ORIGINAL_HIRE_PRICE_PROPERTY = "Original hire price";
 export const BACKUP_DISCOUNT_PROPERTY = "Backup discount";
 
-export const MAIN_HIRE_LABEL = "Main Hire — Full Price";
-export const BACKUP_HIRE_LABEL = "Backup Dress — 80% Discount";
+/** Storefront display (cart line properties). */
+export const MAIN_HIRE_LABEL = "Main Hire";
+export const BACKUP_HIRE_LABEL = "Backup Dress · 80% OFF";
+
+export const MIN_BACKUP_GROUP_SIZE = 2;
 
 export const MAIN_HIRE_TIER = "main";
 export const BACKUP_HIRE_TIER = "backup";
@@ -16,9 +19,17 @@ export const BACKUP_DISCOUNT_PERCENT = 80;
 
 export type BackupDressLineInput = {
   key: string;
+  variantId?: string;
+  quantity?: number;
+  /** Unix ms or ISO string — used for stable tie-break. */
+  createdAt?: number | string;
   priceCents: number;
   properties: Record<string, string>;
 };
+
+export function roundBackupPriceCents(standardCents: number): number {
+  return Math.round(standardCents * BACKUP_PAY_FRACTION);
+}
 
 export type BackupDressAssignment = {
   key: string;
@@ -112,10 +123,68 @@ function buildTierProperties(input: {
   return next;
 }
 
+function parseCreatedAtMs(value: number | string | undefined): number {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "string" && value.trim()) {
+    const ms = Date.parse(value);
+    if (Number.isFinite(ms)) {
+      return ms;
+    }
+  }
+  return 0;
+}
+
+export function compareLinesForAllocation(
+  a: BackupDressLineInput,
+  b: BackupDressLineInput,
+): number {
+  if (b.priceCents !== a.priceCents) {
+    return b.priceCents - a.priceCents;
+  }
+  const aCreated = parseCreatedAtMs(a.createdAt);
+  const bCreated = parseCreatedAtMs(b.createdAt);
+  if (aCreated !== bCreated) {
+    return aCreated - bCreated;
+  }
+  const aVariant = String(a.variantId ?? "");
+  const bVariant = String(b.variantId ?? "");
+  if (aVariant !== bVariant) {
+    return aVariant.localeCompare(bVariant);
+  }
+  return String(a.key).localeCompare(String(b.key));
+}
+
+/** Each unit in qty counts as one gown in the group (synthetic keys). */
+export function expandLinesByQuantity(lines: BackupDressLineInput[]): BackupDressLineInput[] {
+  const expanded: BackupDressLineInput[] = [];
+  for (const line of lines) {
+    const qty = Math.max(1, Math.min(99, Math.floor(line.quantity ?? 1)));
+    for (let unit = 0; unit < qty; unit += 1) {
+      expanded.push({
+        ...line,
+        key: qty > 1 ? `${line.key}#unit=${unit + 1}` : line.key,
+        quantity: 1,
+      });
+    }
+  }
+  return expanded;
+}
+
+export type ComputeBackupDressOptions = {
+  /** Order webhooks: count each qty unit separately. Storefront cart: false (qty 1 per line). */
+  expandQuantity?: boolean;
+};
+
 export function computeBackupDressAssignments(
   lines: BackupDressLineInput[],
+  options?: ComputeBackupDressOptions,
 ): BackupDressAssignment[] {
-  const eligible = lines.filter((line) => isGownHireLine(line.properties));
+  const expanded = options?.expandQuantity
+    ? expandLinesByQuantity(lines)
+    : lines.map((line) => ({ ...line, quantity: 1 }));
+  const eligible = expanded.filter((line) => isGownHireLine(line.properties));
   const byGroup = new Map<string, BackupDressLineInput[]>();
 
   for (const line of eligible) {
@@ -131,16 +200,17 @@ export function computeBackupDressAssignments(
   const assignments: BackupDressAssignment[] = [];
 
   for (const [groupKey, groupLines] of byGroup) {
-    const sorted = [...groupLines].sort((a, b) => b.priceCents - a.priceCents);
+    if (groupLines.length < MIN_BACKUP_GROUP_SIZE) {
+      continue;
+    }
+    const sorted = [...groupLines].sort(compareLinesForAllocation);
     const { fullPriceCount, backupCount } = allocateHireTierCounts(sorted.length);
 
     sorted.forEach((line, index) => {
       const isBackup = index >= fullPriceCount && backupCount > 0;
       const tier = isBackup ? BACKUP_HIRE_TIER : MAIN_HIRE_TIER;
       const originalCents = line.priceCents;
-      const chargedCents = isBackup
-        ? Math.round(originalCents * BACKUP_PAY_FRACTION)
-        : originalCents;
+      const chargedCents = isBackup ? roundBackupPriceCents(originalCents) : originalCents;
       const discountCents = isBackup ? originalCents - chargedCents : 0;
 
       const tierProperties = buildTierProperties({
@@ -151,8 +221,10 @@ export function computeBackupDressAssignments(
         discountCents,
       });
 
+      const baseKey = line.key.replace(/#unit=\d+$/, "");
+
       assignments.push({
-        key: line.key,
+        key: baseKey,
         tier,
         groupKey,
         originalCents,
@@ -167,6 +239,15 @@ export function computeBackupDressAssignments(
   }
 
   return assignments;
+}
+
+export function cleanupBackupDressProperties(
+  properties: Record<string, string>,
+): Record<string, string> {
+  const next = { ...properties };
+  delete next[HIRE_TIER_PROPERTY];
+  delete next[HIRE_GROUP_PROPERTY];
+  return next;
 }
 
 export function computeBackupDressSummary(assignments: BackupDressAssignment[]): {

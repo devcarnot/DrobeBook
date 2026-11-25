@@ -166,6 +166,7 @@
       this.updateDurationGroupVisibility();
       this.bindEvents();
       this.bootstrapUi();
+      this.hideNativeBackupHireChoices();
       this.loadConfig().then(async () => {
         this.applyUrlPrefill();
         this.loadWaitlistClaimFromUrl();
@@ -729,11 +730,63 @@
       this.state.durationDays = current.days;
     }
 
+    isStandardHireVariant(variant) {
+      const hireIndex = this.getOptionIndex("Hire pricing");
+      if (hireIndex < 0) {
+        return true;
+      }
+      const value = String(this.getVariantOptionValue(variant, hireIndex) ?? "")
+        .trim()
+        .toLowerCase();
+      if (!value) {
+        return true;
+      }
+      return !/backup|80%/.test(value);
+    }
+
+    hideNativeBackupHireChoices() {
+      const optionIndex = this.getOptionIndex("Hire pricing");
+      if (optionIndex < 0) {
+        return;
+      }
+      const pattern = /backup|80%/;
+      const removeMatchingOptions = (select) => {
+        if (!select || !select.options) {
+          return;
+        }
+        Array.from(select.options).forEach((option) => {
+          if (pattern.test(String(option.textContent ?? option.value ?? "").toLowerCase())) {
+            option.remove();
+          }
+        });
+      };
+
+      removeMatchingOptions(
+        this.root.querySelector(
+          `select[name="options[${this.options[optionIndex]?.name ?? "Hire pricing"}]"]`,
+        ),
+      );
+      const productForm =
+        this.root.closest("form[action*='/cart/add']") ??
+        document.querySelector("form[action*='/cart/add']");
+      productForm
+        ?.querySelectorAll("select")
+        .forEach((select) => {
+          const label = select.getAttribute("name") ?? "";
+          if (/hire\s*pricing/i.test(label) || select.id.toLowerCase().includes("hire")) {
+            removeMatchingOptions(select);
+          }
+        });
+    }
+
     findVariantForSizeAndDays(size, days) {
       const sizeIndex = this.getOptionIndex("Size");
       const durationIndex = this.getOptionIndex("Duration");
 
       return this.variants.find((variant) => {
+        if (!this.isStandardHireVariant(variant)) {
+          return false;
+        }
         const variantSize =
           sizeIndex >= 0 ? this.getVariantOptionValue(variant, sizeIndex) : null;
         const variantDuration =

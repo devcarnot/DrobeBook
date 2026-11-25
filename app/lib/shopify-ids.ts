@@ -9,6 +9,11 @@ export function toProductGid(productId: string): string {
     : `gid://shopify/Product/${productId}`;
 }
 
+export function toOrderGid(orderId: string): string {
+  const numeric = extractNumericId(orderId);
+  return `gid://shopify/Order/${numeric}`;
+}
+
 export function toVariantGid(variantId: string): string {
   return variantId.startsWith("gid://")
     ? variantId
