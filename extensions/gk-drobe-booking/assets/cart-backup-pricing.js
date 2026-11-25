@@ -14,13 +14,6 @@
   const MAIN_LABEL = "Main Hire";
   const BACKUP_LABEL = "Backup Dress · 80% OFF";
   const PAY_FRACTION = 0.2;
-  const HIDDEN_PROPS = new Set([
-    TIER_PROP,
-    GROUP_PROP,
-    TYPE_PROP,
-    "Original hire price",
-    "Backup discount",
-  ]);
 
   let syncing = false;
   let variantMapCache = null;
@@ -182,11 +175,10 @@
           [TYPE_PROP]: tier === BACKUP_TIER ? BACKUP_LABEL : MAIN_LABEL,
         };
 
-        Object.keys(merged).forEach((key) => {
-          if (HIDDEN_PROPS.has(key) || key === "Original hire price" || key === "Backup discount") {
-            delete merged[key];
-          }
-        });
+        delete merged["Original hire price"];
+        delete merged["Backup discount"];
+        delete merged[TIER_PROP];
+        delete merged[GROUP_PROP];
 
         assignments.push({
           key: line.key,
@@ -245,7 +237,6 @@
     if (!addResponse.ok) {
       throw new Error("cart add failed");
     }
-    let cart = await addResponse.json();
 
     const changeResponse = await fetch(`${ROOT}cart/change.js`, {
       method: "POST",
@@ -256,8 +247,7 @@
     if (!changeResponse.ok) {
       throw new Error("cart change failed");
     }
-    cart = await changeResponse.json();
-    return cart;
+    return changeResponse.json();
   }
 
   async function changeLineProperties(key, quantity, properties) {
@@ -275,12 +265,12 @@
 
   async function syncBackupDressCart(cart, variantMap) {
     if (syncing) {
-      return cart;
+      return { cart, changed: false };
     }
 
     const assignments = computeAssignments(cart.items ?? [], variantMap);
     if (!assignments.length) {
-      return cart;
+      return { cart, changed: false };
     }
 
     const itemsByKey = new Map(
@@ -344,7 +334,7 @@
       syncing = false;
     }
 
-    return changed ? cart : cart;
+    return { cart, changed };
   }
 
   function findCartRow(item, index) {
@@ -366,28 +356,27 @@
     return rows[index] ?? null;
   }
 
-  function findPriceHost(row) {
+  function findPillHost(row) {
+    const name =
+      row.querySelector(
+        ".cart-item__name, .cart-item__details > a, .cart-item__details > h2, .cart-item__details > h3",
+      ) ?? row.querySelector(".cart-item__details");
+    return name?.parentElement ?? name ?? row;
+  }
+
+  function findTotalsHost(row) {
     return (
-      row?.querySelector(
-        [
-          ".cart-item__price-wrapper",
-          ".cart-item__price",
-          ".cart-item__totals",
-          ".cart-items__price",
-          ".product-option",
-          "[data-cart-item-price]",
-          ".line-item__price",
-          ".price",
-        ].join(", "),
-      ) ?? row
+      row.querySelector(".cart-item__totals, .cart-items__totals, td:last-child") ??
+      row
     );
   }
 
-  function hideNativeLinePrice(row) {
-    const hosts = row?.querySelectorAll(
-      ".cart-item__price, .cart-item__totals .price, .price, .product-option--price, [data-cart-item-price]",
-    );
-    hosts?.forEach((node) => {
+  function hideStrayPricesInDetails(row) {
+    const details = row.querySelector(".cart-item__details, .cart-item__info");
+    if (!details) {
+      return;
+    }
+    details.querySelectorAll(".price, .product-option").forEach((node) => {
       if (node.closest(".gk-backup-dress-price-wrap")) {
         return;
       }
@@ -395,7 +384,81 @@
     });
   }
 
+  function pricingIsLive(assignment, item, variantMap) {
+    if (assignment.tier !== BACKUP_TIER) {
+      return true;
+    }
+    const mapEntry = variantMap?.variants?.[String(item.variant_id)];
+    if (mapEntry?.isBackupVariant) {
+      return true;
+    }
+    return (
+      assignment.targetVariantId &&
+      String(assignment.targetVariantId) === String(item.variant_id)
+    );
+  }
+
+  function clearBackupUiArtifacts() {
+    document
+      .querySelectorAll(".gk-backup-dress-subtotal-note, .gk-backup-dress-setup-note")
+      .forEach((node) => node.remove());
+  }
+
+  function patchThemeSubtotals(cart) {
+    if (!cart) {
+      return;
+    }
+    const subtotalCents = cart.items_subtotal_price ?? 0;
+    const totalCents = cart.total_price ?? subtotalCents;
+    const subtotalText = formatMoney(subtotalCents);
+    const totalText = formatMoney(totalCents);
+
+    const subtotalSelectors = [
+      ".totals__subtotal-value",
+      ".cart__subtotal .price",
+      "[data-cart-subtotal]",
+      "#main-cart-footer .totals .product-option",
+    ];
+    subtotalSelectors.forEach((selector) => {
+      document.querySelectorAll(selector).forEach((node) => {
+        node.textContent = subtotalText;
+      });
+    });
+
+    document.querySelectorAll(".totals__total-value, .cart__total .price").forEach((node) => {
+      node.textContent = totalText;
+    });
+  }
+
+  function showSetupNoticeIfNeeded(cart, variantMap) {
+    const assignments = computeAssignments(cart.items ?? [], variantMap);
+    const needsSetup = assignments.some((row) => {
+      if (row.tier !== BACKUP_TIER) {
+        return false;
+      }
+      const item = (cart.items ?? []).find((line) => line.key === row.key);
+      return item && !row.targetVariantId && !pricingIsLive(row, item, variantMap);
+    });
+
+    document.querySelector(".gk-backup-dress-setup-note")?.remove();
+    if (!needsSetup) {
+      return;
+    }
+
+    const note = document.createElement("div");
+    note.className = "gk-backup-dress-setup-note";
+    note.innerHTML =
+      '<p><strong>Backup pricing variants are still syncing.</strong> Open DrobeBook → Backup dress discount → “Sync backup variants”, then refresh this page.</p>';
+
+    const anchor =
+      document.querySelector(".cart__footer .totals, #main-cart-footer .totals, .cart__footer") ??
+      document.querySelector("form[action='/cart']");
+    anchor?.prepend(note);
+  }
+
   function enhanceBackupDressUi(cart, variantMap) {
+    clearBackupUiArtifacts();
+
     const assignments = new Map(
       computeAssignments(cart.items ?? [], variantMap).map((row) => [row.key, row]),
     );
@@ -413,119 +476,95 @@
 
       row.classList.add("gk-backup-dress-row");
       row.dataset.gkHireTier = assignment.tier;
-      hideNativeLinePrice(row);
+      hideStrayPricesInDetails(row);
 
-      let topHost =
-        row.querySelector(".cart-item__details, .cart-item__name, .cart-item__media") ||
-        row;
-      if (topHost === row && row.querySelector(".cart-item__details")) {
-        topHost = row.querySelector(".cart-item__details");
-      }
-
+      const pillHost = findPillHost(row);
       let pill = row.querySelector(".gk-backup-dress-pill");
       if (!pill) {
         pill = document.createElement("div");
         pill.className = "gk-backup-dress-pill";
         pill.setAttribute("data-gk-backup-pill", "true");
-        topHost.appendChild(pill);
+        pillHost.appendChild(pill);
       }
 
       const isBackup = assignment.tier === BACKUP_TIER;
-      pill.textContent = isBackup ? BACKUP_LABEL : "Main Hire";
+      const live = pricingIsLive(assignment, item, variantMap);
+      pill.textContent = isBackup ? BACKUP_LABEL : MAIN_LABEL;
       pill.classList.toggle("gk-backup-dress-pill--main", !isBackup);
       pill.classList.toggle("gk-backup-dress-pill--backup", isBackup);
 
-      let priceWrap = row.querySelector(".gk-backup-dress-price-wrap");
+      row.querySelector(".gk-backup-dress-price-wrap")?.remove();
+
+      const totalsHost = findTotalsHost(row);
+      let priceWrap = totalsHost.querySelector(".gk-backup-dress-price-wrap");
       if (!priceWrap) {
         priceWrap = document.createElement("div");
         priceWrap.className = "gk-backup-dress-price-wrap";
         priceWrap.setAttribute("data-gk-backup-price", "true");
-        findPriceHost(row).appendChild(priceWrap);
+        totalsHost.prepend(priceWrap);
       }
 
+      totalsHost
+        .querySelectorAll(".price, [data-cart-item-price]")
+        .forEach((node) => {
+          if (!node.closest(".gk-backup-dress-price-wrap")) {
+            node.classList.toggle("gk-backup-dress-price--hidden", isBackup && live);
+          }
+        });
+
       const unitCents = catalogPriceCents(item, variantMap);
-      const mapEntry = variantMap?.variants?.[String(item.variant_id)];
       const liveUnitCents = item.final_price ?? item.price ?? unitCents;
-      const onBackupVariant = Boolean(mapEntry?.isBackupVariant);
       const chargedCents = isBackup
-        ? onBackupVariant
+        ? live
           ? liveUnitCents
           : Math.round(unitCents * PAY_FRACTION)
         : liveUnitCents;
-      const savingCents = isBackup ? unitCents - chargedCents : 0;
 
-      if (isBackup) {
+      if (isBackup && live) {
         priceWrap.innerHTML = `
           <div class="gk-backup-dress-price">
             <span class="gk-backup-dress-price__current">${formatMoney(chargedCents)}</span>
             <span class="gk-backup-dress-price__compare">${formatMoney(unitCents)}</span>
             <span class="gk-backup-dress-price__off">80% OFF</span>
-            <span class="gk-backup-dress-price__saving">You save ${formatMoney(savingCents)}</span>
+          </div>
+        `;
+      } else if (isBackup) {
+        priceWrap.innerHTML = `
+          <div class="gk-backup-dress-price gk-backup-dress-price--pending">
+            <span class="gk-backup-dress-price__current">${formatMoney(liveUnitCents)}</span>
+            <span class="gk-backup-dress-price__pending">Discount pending sync</span>
           </div>
         `;
       } else {
         priceWrap.innerHTML = `
           <div class="gk-backup-dress-price gk-backup-dress-price--main">
-            <span class="gk-backup-dress-price__current">${formatMoney(unitCents)}</span>
+            <span class="gk-backup-dress-price__current">${formatMoney(liveUnitCents)}</span>
           </div>
         `;
       }
     });
 
-    updateCartSubtotalBanner(cart, variantMap);
-  }
+    showSetupNoticeIfNeeded(cart, variantMap);
 
-  function cartSubtotalCents(cart, variantMap) {
-    return (cart.items ?? []).reduce((sum, item) => {
-      const qty = item.quantity ?? 1;
-      const assignment = computeAssignments([item], variantMap)[0];
-      if (assignment) {
-        const unit =
-          assignment.tier === BACKUP_TIER
-            ? (item.final_price ?? assignment.chargedCents)
-            : (item.final_price ?? assignment.chargedCents);
-        return sum + unit * qty;
-      }
-      return sum + (item.final_line_price ?? item.line_price ?? 0);
-    }, 0);
-  }
-
-  function updateCartSubtotalBanner(cart, variantMap) {
-    const assignments = computeAssignments(cart.items ?? [], variantMap);
-    let banner = document.querySelector(".gk-backup-dress-subtotal-note");
-    if (!assignments.length) {
-      banner?.remove();
-      return;
-    }
-
-    const subtotalCents = cartSubtotalCents(cart, variantMap);
-
-    if (!banner) {
-      banner = document.createElement("div");
-      banner.className = "gk-backup-dress-subtotal-note";
-      const anchor =
-        document.querySelector(".cart__footer, .cart__blocks, #main-cart-footer, .totals") ||
-        document.querySelector("form[action='/cart']");
-      if (anchor) {
-        anchor.prepend(banner);
-      }
-    }
-
-    const pendingSwap = assignments.some((row) => {
+    const allLive = [...assignments.values()].every((row) => {
       const item = (cart.items ?? []).find((line) => line.key === row.key);
-      return (
-        item &&
-        row.targetVariantId &&
-        String(row.targetVariantId) !== String(item.variant_id)
-      );
+      return !item || pricingIsLive(row, item, variantMap);
     });
+    if (allLive) {
+      patchThemeSubtotals(cart);
+    }
+  }
 
-    banner.innerHTML = `
-      <p class="gk-backup-dress-subtotal-note__label">Estimated total</p>
-      <p class="gk-backup-dress-subtotal-note__amount">${formatMoney(subtotalCents)}</p>
-      ${pendingSwap ? '<p class="gk-backup-dress-subtotal-note__hint">Updating line prices…</p>' : ""}
-    `;
-    banner.classList.toggle("gk-backup-dress-subtotal-note--syncing", pendingSwap);
+  async function refreshCartState(cart) {
+    try {
+      const response = await fetch(`${ROOT}cart.js`, { credentials: "same-origin" });
+      if (response.ok) {
+        return response.json();
+      }
+    } catch {
+      /* ignore */
+    }
+    return cart;
   }
 
   async function runBackupDressPricing(cart, options = {}) {
@@ -542,18 +581,27 @@
     }
 
     try {
-      const variantMap = await fetchVariantMap(cart.items ?? []);
+      let variantMap = await fetchVariantMap(cart.items ?? []);
       let synced = cart;
+      let changed = false;
+
       if (!options.uiOnly) {
-        synced = await syncBackupDressCart(cart, variantMap);
-        if (synced !== cart) {
+        const syncResult = await syncBackupDressCart(cart, variantMap);
+        synced = syncResult.cart;
+        changed = syncResult.changed;
+
+        if (changed) {
           variantMapCache = null;
+          synced = await refreshCartState(synced);
+          variantMap = await fetchVariantMap(synced.items ?? []);
           window.dispatchEvent(new CustomEvent("cart:updated"));
         }
       }
+
       enhanceBackupDressUi(synced, variantMap);
       return synced;
     } catch (error) {
+      console.warn("[gk backup pricing]", error);
       enhanceBackupDressUi(cart, variantMapCache ?? { variants: {} });
     }
   }

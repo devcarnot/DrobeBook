@@ -5,6 +5,7 @@ import { extractNumericId, toProductGid, toVariantGid } from "../shopify-ids";
 export const HIRE_PRICING_OPTION_NAME = "Hire pricing";
 export const HIRE_PRICING_STANDARD = "Standard";
 export const HIRE_PRICING_BACKUP = "Backup (80% off)";
+export const BACKUP_DURATION_SUFFIX = " · Backup";
 
 type AdminGraphql = {
   graphql: (
@@ -38,7 +39,9 @@ const VARIANT_DETAIL_QUERY = `#graphql
       product {
         id
         options {
+          id
           name
+          position
           optionValues {
             name
           }
@@ -77,6 +80,25 @@ const VARIANTS_BULK_CREATE = `#graphql
   }
 `;
 
+const PRODUCT_OPTION_UPDATE = `#graphql
+  mutation AddProductOptionValue(
+    $productId: ID!
+    $option: OptionUpdateInput!
+    $optionValuesToAdd: [OptionValueCreateInput!]
+  ) {
+    productOptionUpdate(
+      productId: $productId
+      option: $option
+      optionValuesToAdd: $optionValuesToAdd
+    ) {
+      userErrors {
+        field
+        message
+      }
+    }
+  }
+`;
+
 const VARIANT_PRICE_UPDATE = `#graphql
   mutation UpdateBackupVariantPrice($productId: ID!, $variants: [ProductVariantsBulkInput!]!) {
     productVariantsBulkUpdate(productId: $productId, variants: $variants) {
@@ -107,12 +129,196 @@ function isHirePricingOption(name: string): boolean {
   return name.trim().toLowerCase() === HIRE_PRICING_OPTION_NAME.toLowerCase();
 }
 
-function isBackupSelectedOption(selectedOptions: Array<{ name: string; value: string }>): boolean {
-  return selectedOptions.some(
-    (row) =>
-      isHirePricingOption(row.name) &&
-      row.value.trim().toLowerCase() === HIRE_PRICING_BACKUP.toLowerCase(),
+function isBackupDurationValue(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return (
+    normalized.endsWith("· backup") ||
+    normalized.endsWith("(backup") ||
+    /backup.*80%/.test(normalized)
   );
+}
+
+function isBackupSelectedOption(selectedOptions: Array<{ name: string; value: string }>): boolean {
+  if (
+    selectedOptions.some(
+      (row) =>
+        isHirePricingOption(row.name) &&
+        row.value.trim().toLowerCase() === HIRE_PRICING_BACKUP.toLowerCase(),
+    )
+  ) {
+    return true;
+  }
+  return selectedOptions.some((row) => isBackupDurationValue(row.value));
+}
+
+type ProductOptionRow = {
+  id?: string | null;
+  name: string;
+  position?: number | null;
+  optionValues?: Array<{ name: string }> | null;
+};
+
+function backupDurationLabel(mainValue: string): string {
+  const trimmed = mainValue.trim();
+  if (isBackupDurationValue(trimmed)) {
+    return trimmed;
+  }
+  return `${trimmed}${BACKUP_DURATION_SUFFIX}`;
+}
+
+function pickAlterationOption(
+  selectedOptions: Array<{ name: string; value: string }>,
+  productOptions: ProductOptionRow[],
+): { option: ProductOptionRow; mainValue: string } | null {
+  if (!productOptions.length) {
+    return null;
+  }
+
+  const durationPick = selectedOptions.find((row) => /duration/i.test(row.name));
+  if (durationPick) {
+    const option = productOptions.find(
+      (row) => row.name.trim().toLowerCase() === durationPick.name.trim().toLowerCase(),
+    );
+    if (option?.id) {
+      return { option, mainValue: durationPick.value };
+    }
+  }
+
+  const sorted = [...productOptions].sort(
+    (a, b) => (a.position ?? 0) - (b.position ?? 0),
+  );
+  const fallback = sorted[sorted.length - 1];
+  const selected = selectedOptions.find(
+    (row) => row.name.trim().toLowerCase() === fallback.name.trim().toLowerCase(),
+  );
+  if (fallback?.id && selected?.value) {
+    return { option: fallback, mainValue: selected.value };
+  }
+
+  return null;
+}
+
+async function ensureOptionValueOnProduct(
+  admin: AdminGraphql,
+  productGid: string,
+  optionId: string,
+  valueName: string,
+  existingValues: string[],
+): Promise<void> {
+  const normalizedExisting = new Set(
+    existingValues.map((value) => value.trim().toLowerCase()),
+  );
+  if (normalizedExisting.has(valueName.trim().toLowerCase())) {
+    return;
+  }
+
+  const response = await admin.graphql(PRODUCT_OPTION_UPDATE, {
+    variables: {
+      productId: productGid,
+      option: { id: optionId },
+      optionValuesToAdd: [{ name: valueName }],
+    },
+  });
+
+  const json = (await response.json()) as {
+    data?: {
+      productOptionUpdate?: { userErrors?: Array<{ message: string }> };
+    };
+    errors?: Array<{ message: string }>;
+  };
+
+  const errors = [
+    ...(json.errors?.map((error) => error.message) ?? []),
+    ...(json.data?.productOptionUpdate?.userErrors?.map((error) => error.message) ?? []),
+  ];
+
+  if (errors.length) {
+    const ignorable = errors.every((message) =>
+      /already exists|duplicate|taken/i.test(message),
+    );
+    if (!ignorable) {
+      throw new Error(errors.join("; "));
+    }
+  }
+}
+
+async function createBackupProductVariant(
+  admin: AdminGraphql,
+  productGid: string,
+  optionValues: Array<{ optionName: string; name: string }>,
+  backupPriceCents: number,
+  sku?: string | null,
+): Promise<string | null> {
+  const createResponse = await admin.graphql(VARIANTS_BULK_CREATE, {
+    variables: {
+      productId: productGid,
+      variants: [
+        {
+          price: centsToPrice(backupPriceCents),
+          optionValues,
+          inventoryItem: sku ? { sku: `${sku}-BKP` } : undefined,
+        },
+      ],
+    },
+  });
+
+  const createJson = (await createResponse.json()) as {
+    data?: {
+      productVariantsBulkCreate?: {
+        productVariants?: Array<{ id: string }>;
+        userErrors?: Array<{ message: string }>;
+      };
+    };
+    errors?: Array<{ message: string }>;
+  };
+
+  const createErrors = [
+    ...(createJson.errors?.map((error) => error.message) ?? []),
+    ...(createJson.data?.productVariantsBulkCreate?.userErrors?.map(
+      (error) => error.message,
+    ) ?? []),
+  ];
+  if (createErrors.length) {
+    throw new Error(createErrors.join("; "));
+  }
+
+  const createdId = createJson.data?.productVariantsBulkCreate?.productVariants?.[0]?.id;
+  return createdId ? extractNumericId(createdId) : null;
+}
+
+function buildBackupOptionValues(
+  selectedOptions: Array<{ name: string; value: string }>,
+  productOptions: ProductOptionRow[],
+): Array<{ optionName: string; name: string }> | null {
+  const optionCount = productOptions.length;
+  const hasHirePricing = productOptions.some((option) => isHirePricingOption(option.name));
+  const baseOptions = selectedOptions.filter((option) => !isHirePricingOption(option.name));
+
+  if (optionCount < 3 && !hasHirePricing) {
+    return [
+      ...baseOptions.map((option) => ({
+        optionName: option.name,
+        name: option.value,
+      })),
+      { optionName: HIRE_PRICING_OPTION_NAME, name: HIRE_PRICING_BACKUP },
+    ];
+  }
+
+  const alteration = pickAlterationOption(selectedOptions, productOptions);
+  if (!alteration) {
+    return null;
+  }
+
+  const backupValue = backupDurationLabel(alteration.mainValue);
+  return selectedOptions
+    .filter((option) => !isHirePricingOption(option.name))
+    .map((option) => ({
+      optionName: option.name,
+      name:
+        option.name.trim().toLowerCase() === alteration.option.name.trim().toLowerCase()
+          ? backupValue
+          : option.value,
+    }));
 }
 
 async function ensureHirePricingOption(
@@ -234,71 +440,83 @@ async function ensureBackupVariantForMain(
     }
   }
 
-  await ensureHirePricingOption(
-    admin,
-    variant.product.id,
-    (variant.product.options ?? []).map((option) => option.name),
-  );
+  const productOptions = (variant.product.options ?? []) as ProductOptionRow[];
+  const optionCount = productOptions.length;
+  const hasHirePricing = productOptions.some((option) => isHirePricingOption(option.name));
+
+  let optionValues = buildBackupOptionValues(selectedOptions, productOptions);
+
+  if (optionCount < 3 && !hasHirePricing) {
+    try {
+      await ensureHirePricingOption(
+        admin,
+        variant.product.id,
+        productOptions.map((option) => option.name),
+      );
+    } catch (error) {
+      console.warn("[backup-dress-variant] hire pricing option failed:", error);
+      optionValues = buildBackupOptionValues(selectedOptions, productOptions);
+    }
+  }
 
   const refreshed = await admin.graphql(VARIANT_DETAIL_QUERY, {
     variables: { id: toVariantGid(mainShopifyVariantId) },
   });
   const refreshedVariant = ((await refreshed.json()) as {
-    data?: { productVariant?: { selectedOptions?: Array<{ name: string; value: string }> } };
-  }).data?.productVariant;
-
-  const baseOptions = (refreshedVariant?.selectedOptions ?? selectedOptions).filter(
-    (option) => !isHirePricingOption(option.name),
-  );
-
-  const optionValues = [
-    ...baseOptions.map((option) => ({
-      optionName: option.name,
-      name: option.value,
-    })),
-    { optionName: HIRE_PRICING_OPTION_NAME, name: HIRE_PRICING_BACKUP },
-  ];
-
-  const createResponse = await admin.graphql(VARIANTS_BULK_CREATE, {
-    variables: {
-      productId: variant.product.id,
-      variants: [
-        {
-          price: centsToPrice(backupPriceCents),
-          optionValues,
-          inventoryItem: variant.sku ? { sku: `${variant.sku}-BKP` } : undefined,
-        },
-      ],
-    },
-  });
-
-  const createJson = (await createResponse.json()) as {
     data?: {
-      productVariantsBulkCreate?: {
-        productVariants?: Array<{ id: string }>;
-        userErrors?: Array<{ message: string }>;
+      productVariant?: {
+        selectedOptions?: Array<{ name: string; value: string }>;
+        product?: { options?: ProductOptionRow[] };
       };
     };
-    errors?: Array<{ message: string }>;
-  };
+  }).data?.productVariant;
 
-  const createErrors = [
-    ...(createJson.errors?.map((error) => error.message) ?? []),
-    ...(createJson.data?.productVariantsBulkCreate?.userErrors?.map(
-      (error) => error.message,
-    ) ?? []),
-  ];
-  if (createErrors.length) {
-    console.warn("[backup-dress-variant] create failed:", createErrors.join("; "));
+  const refreshedOptions = (refreshedVariant?.product?.options ??
+    productOptions) as ProductOptionRow[];
+  const refreshedSelected = refreshedVariant?.selectedOptions ?? selectedOptions;
+  optionValues = buildBackupOptionValues(refreshedSelected, refreshedOptions);
+
+  if (!optionValues?.length) {
+    console.warn("[backup-dress-variant] could not build backup option values");
     return null;
   }
 
-  const createdId = createJson.data?.productVariantsBulkCreate?.productVariants?.[0]?.id;
-  if (!createdId) {
+  const alteration = pickAlterationOption(refreshedSelected, refreshedOptions);
+  const usesDurationSuffix = optionValues.some((row) => isBackupDurationValue(row.name));
+  if (alteration?.option.id && usesDurationSuffix) {
+    const existingValues =
+      alteration.option.optionValues?.map((row) => row.name) ?? [];
+    const backupValue = backupDurationLabel(alteration.mainValue);
+    try {
+      await ensureOptionValueOnProduct(
+        admin,
+        variant.product.id,
+        alteration.option.id,
+        backupValue,
+        existingValues,
+      );
+    } catch (error) {
+      console.warn("[backup-dress-variant] option value add failed:", error);
+    }
+  }
+
+  let backupNumericId: string | null = null;
+  try {
+    backupNumericId = await createBackupProductVariant(
+      admin,
+      variant.product.id,
+      optionValues,
+      backupPriceCents,
+      variant.sku,
+    );
+  } catch (error) {
+    console.warn("[backup-dress-variant] create failed:", error);
     return null;
   }
 
-  const backupNumericId = extractNumericId(createdId);
+  if (!backupNumericId) {
+    return null;
+  }
   await prisma.rentalProductVariant.update({
     where: { id: row.id },
     data: { backupShopifyVariantId: backupNumericId },
@@ -457,7 +675,12 @@ export async function getBackupVariantCoverageForShop(
 export async function ensureAllBackupVariantsForShop(
   admin: AdminGraphql,
   shop: string,
-): Promise<{ ok: boolean; productsProcessed: number; errors: string[] }> {
+): Promise<{
+  ok: boolean;
+  productsProcessed: number;
+  errors: string[];
+  coverage: BackupVariantCoverage;
+}> {
   const products = await prisma.rentalProduct.findMany({
     where: {
       shop,
@@ -478,10 +701,13 @@ export async function ensureAllBackupVariantsForShop(
     }
   }
 
+  const coverage = await getBackupVariantCoverageForShop(shop);
+
   return {
-    ok: errors.length === 0,
+    ok: errors.length === 0 && coverage.missingBackupVariant === 0,
     productsProcessed: products.length,
     errors,
+    coverage,
   };
 }
 

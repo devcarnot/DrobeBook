@@ -31,10 +31,12 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "sync-backup-variants") {
     const result = await ensureAllBackupVariantsForShop(admin, session.shop);
-    const coverage = await getBackupVariantCoverageForShop(session.shop);
+    const coverage = result.coverage;
     return {
       intent,
-      ...result,
+      ok: result.ok,
+      productsProcessed: result.productsProcessed,
+      errors: result.errors,
       coverage,
       ready: coverage.variantRows > 0 && coverage.missingBackupVariant === 0,
     };
