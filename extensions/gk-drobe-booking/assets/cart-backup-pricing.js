@@ -14,6 +14,7 @@
   const MAIN_LABEL = "Main Hire";
   const BACKUP_LABEL = "Backup Dress · 80% OFF";
   const PAY_FRACTION = 0.2;
+  const MIN_GROUP_FOR_BACKUP = 2;
 
   let syncing = false;
   let variantMapCache = null;
@@ -159,6 +160,9 @@
     const assignments = [];
 
     for (const [groupKey, groupLines] of byGroup) {
+      if (groupLines.length < MIN_GROUP_FOR_BACKUP) {
+        continue;
+      }
       const sorted = [...groupLines].sort((a, b) => b.priceCents - a.priceCents);
       const { fullPriceCount } = allocateHireTierCounts(sorted.length);
 
@@ -216,6 +220,25 @@
       }
     }
     return false;
+  }
+
+  function cleanupSoloGownProperties(properties) {
+    const next = { ...properties };
+    delete next[TIER_PROP];
+    delete next[GROUP_PROP];
+    delete next[TYPE_PROP];
+    delete next["Original hire price"];
+    delete next["Backup discount"];
+    return next;
+  }
+
+  function soloGownHasBackupArtifacts(properties, variantMap, variantId) {
+    const entry = variantMap?.variants?.[String(variantId)];
+    if (entry?.isBackupVariant) {
+      return true;
+    }
+    const cleaned = cleanupSoloGownProperties(properties);
+    return propertiesNeedUpdate(properties, cleaned);
   }
 
   async function swapLineVariant(item, targetVariantId, properties) {
@@ -285,6 +308,7 @@
       ]),
     );
 
+    const assignedKeys = new Set(assignments.map((row) => row.key));
     let changed = false;
     syncing = true;
     try {
@@ -328,6 +352,49 @@
             current.quantity,
             assignment.properties,
           );
+        }
+      }
+
+      for (const item of cart.items ?? []) {
+        if (assignedKeys.has(item.key)) {
+          continue;
+        }
+        const props = normalizeProperties(item.properties);
+        if (!isGownHireLine(props)) {
+          continue;
+        }
+
+        const current = itemsByKey.get(item.key);
+        if (!current) {
+          continue;
+        }
+
+        const cleaned = cleanupSoloGownProperties(props);
+        const entry = variantMap?.variants?.[String(item.variant_id)];
+        const onBackupVariant = Boolean(entry?.isBackupVariant);
+        const mainVariantId = onBackupVariant ? entry?.mainVariantId : null;
+
+        if (
+          !onBackupVariant &&
+          !soloGownHasBackupArtifacts(props, variantMap, item.variant_id)
+        ) {
+          continue;
+        }
+
+        changed = true;
+        if (onBackupVariant && mainVariantId) {
+          cart = await swapLineVariant(item, mainVariantId, cleaned);
+          itemsByKey.clear();
+          for (const row of cart.items ?? []) {
+            itemsByKey.set(row.key, {
+              properties: normalizeProperties(row.properties),
+              quantity: row.quantity ?? 1,
+              variantId: String(row.variant_id),
+              raw: row,
+            });
+          }
+        } else {
+          cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
         }
       }
     } finally {
@@ -404,6 +471,19 @@
       .forEach((node) => node.remove());
   }
 
+  function clearRowBackupDressUi(row) {
+    if (!row) {
+      return;
+    }
+    row.classList.remove("gk-backup-dress-row");
+    delete row.dataset.gkHireTier;
+    row.querySelector(".gk-backup-dress-pill")?.remove();
+    row.querySelector(".gk-backup-dress-price-wrap")?.remove();
+    row.querySelectorAll(".gk-backup-dress-price--hidden").forEach((node) => {
+      node.classList.remove("gk-backup-dress-price--hidden");
+    });
+  }
+
   function patchThemeSubtotals(cart) {
     if (!cart) {
       return;
@@ -458,6 +538,9 @@
 
   function enhanceBackupDressUi(cart, variantMap) {
     clearBackupUiArtifacts();
+    document
+      .querySelectorAll(".gk-backup-dress-row, [data-gk-hire-tier]")
+      .forEach((row) => clearRowBackupDressUi(row));
 
     const assignments = new Map(
       computeAssignments(cart.items ?? [], variantMap).map((row) => [row.key, row]),
@@ -465,11 +548,12 @@
 
     (cart.items ?? []).forEach((item, index) => {
       const assignment = assignments.get(item.key);
+      const row = findCartRow(item, index);
       if (!assignment) {
+        clearRowBackupDressUi(row);
         return;
       }
 
-      const row = findCartRow(item, index);
       if (!row) {
         return;
       }
@@ -550,8 +634,12 @@
       const item = (cart.items ?? []).find((line) => line.key === row.key);
       return !item || pricingIsLive(row, item, variantMap);
     });
-    if (allLive) {
+    if (allLive && assignments.size >= MIN_GROUP_FOR_BACKUP) {
       patchThemeSubtotals(cart);
+    }
+
+    if (typeof window.__gkDrobeEnhanceCartUi === "function") {
+      window.__gkDrobeEnhanceCartUi();
     }
   }
 

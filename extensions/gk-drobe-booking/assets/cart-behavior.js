@@ -614,6 +614,16 @@
         }
       }
 
+      if (/^Hire pricing:\s*/i.test(text) && text.length < 60) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
+          }
+        }
+      }
+
       if (
         /^(Hire type|Original hire price|Backup discount):/i.test(text) ||
         shouldHideLineProperty(text.split(":")[0])
@@ -877,9 +887,37 @@
     );
   }
 
+  let cartDomRefreshTimer = 0;
+
   function observeCartDom() {
-    const observer = new MutationObserver(() => {
-      enhanceCartUi();
+    const observer = new MutationObserver((records) => {
+      const onlyBackupTweaks = records.every((record) => {
+        const target = record.target;
+        if (!(target instanceof Element)) {
+          return false;
+        }
+        return Boolean(
+          target.closest?.(
+            ".gk-backup-dress-pill, .gk-backup-dress-price-wrap, [data-gk-backup-pill], [data-gk-backup-price]",
+          ),
+        );
+      });
+      if (onlyBackupTweaks) {
+        return;
+      }
+
+      window.clearTimeout(cartDomRefreshTimer);
+      cartDomRefreshTimer = window.setTimeout(() => {
+        void (async () => {
+          await enhanceCartUi();
+          if (typeof window.__gkRunBackupDressPricing === "function") {
+            const cart = await fetchCart().catch(() => null);
+            if (cart) {
+              await window.__gkRunBackupDressPricing(cart, { uiOnly: true }).catch(() => undefined);
+            }
+          }
+        })();
+      }, 80);
     });
 
     observer.observe(document.body, {
@@ -887,6 +925,8 @@
       subtree: true,
     });
   }
+
+  window.__gkDrobeEnhanceCartUi = enhanceCartUi;
 
   function init() {
     watchCartRequests();
