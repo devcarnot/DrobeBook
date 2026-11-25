@@ -435,14 +435,15 @@
   }
 
   function publishCartUpdate(cart) {
+    const detail = { cart, __gkDrobeInternal: true };
     document.documentElement.dispatchEvent(
       new CustomEvent("cart:refresh", { bubbles: true }),
     );
     document.dispatchEvent(
-      new CustomEvent("cart:updated", { bubbles: true, detail: { cart } }),
+      new CustomEvent("cart:updated", { bubbles: true, detail }),
     );
     document.dispatchEvent(
-      new CustomEvent("cart:change", { bubbles: true, detail: { cart } }),
+      new CustomEvent("cart:change", { bubbles: true, detail }),
     );
   }
 
@@ -458,6 +459,9 @@
     updateCartCount(cart.item_count);
     publishCartUpdate(cart);
     await enhanceCartUi();
+    if (typeof window.__gkRunBackupDressPricing === "function" && !window.__gkDrobeBackupPricingMutating) {
+      await window.__gkRunBackupDressPricing(cart, { uiOnly: false }).catch(() => undefined);
+    }
   }
 
   let mutationChain = Promise.resolve();
@@ -837,16 +841,12 @@
     }
 
     await refreshCartSections().catch(() => undefined);
-    if (typeof window.__gkRunBackupDressPricing === "function") {
-      await window.__gkRunBackupDressPricing(cart).catch(() => undefined);
-      cart = await fetchCart().catch(() => cart);
-    }
 
     updateCartCount(cart.item_count);
     publishCartUpdate(cart);
     await enhanceCartUi();
-    if (typeof window.__gkRunBackupDressPricing === "function") {
-      await window.__gkRunBackupDressPricing(cart).catch(() => undefined);
+    if (typeof window.__gkRunBackupDressPricing === "function" && !window.__gkDrobeBackupPricingMutating) {
+      await window.__gkRunBackupDressPricing(cart, { uiOnly: false }).catch(() => undefined);
     }
   }
 
@@ -882,7 +882,7 @@
             ? request.url
             : "";
 
-      if (isCartMutationUrl(url) && !syncing) {
+      if (isCartMutationUrl(url) && !syncing && !window.__gkDrobeBackupPricingMutating) {
         handleCartMutationResponse(response);
       }
 
@@ -892,7 +892,12 @@
     const originalOpen = XMLHttpRequest.prototype.open;
     XMLHttpRequest.prototype.open = function open(method, url, ...rest) {
       this.addEventListener("loadend", () => {
-        if (typeof url !== "string" || !isCartMutationUrl(url) || syncing) {
+        if (
+          typeof url !== "string" ||
+          !isCartMutationUrl(url) ||
+          syncing ||
+          window.__gkDrobeBackupPricingMutating
+        ) {
           return;
         }
 

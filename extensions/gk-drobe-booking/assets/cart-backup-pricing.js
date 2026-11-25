@@ -19,6 +19,42 @@
   let syncing = false;
   let variantMapCache = null;
   let variantMapFetchedAt = 0;
+  let pricingRunLock = false;
+  let pricingScheduleTimer = 0;
+  let pricingFollowUpTimer = 0;
+  let pricingFollowUpsLeft = 0;
+  const PRICING_DEBOUNCE_MS = 500;
+  const PRICING_MUTATION_GAP_MS = 750;
+  const MAX_PRICING_FOLLOW_UPS = 4;
+  let lastPricingMutationAt = 0;
+
+  function setPricingMutating(active) {
+    window.__gkDrobeBackupPricingMutating = Boolean(active);
+  }
+
+  function sleep(ms) {
+    return new Promise((resolve) => window.setTimeout(resolve, ms));
+  }
+
+  async function postCartChange(payload, attempt = 0) {
+    const response = await fetch(`${ROOT}cart/change.js`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify(payload),
+    });
+    if (response.status === 429 && attempt < 3) {
+      await sleep(900 * (attempt + 1));
+      return postCartChange(payload, attempt + 1);
+    }
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      const message =
+        body?.description || body?.message || `cart change failed (${response.status})`;
+      throw new Error(message);
+    }
+    return response.json();
+  }
 
   function normalizeProperties(properties) {
     if (!properties) {
@@ -269,29 +305,11 @@
       throw new Error(message);
     }
 
-    const changeResponse = await fetch(`${ROOT}cart/change.js`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ id: item.key, quantity: 0 }),
-    });
-    if (!changeResponse.ok) {
-      throw new Error("cart change failed");
-    }
-    return changeResponse.json();
+    return postCartChange({ id: item.key, quantity: 0 });
   }
 
   async function changeLineProperties(key, quantity, properties) {
-    const response = await fetch(`${ROOT}cart/change.js`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      body: JSON.stringify({ id: key, quantity, properties }),
-    });
-    if (!response.ok) {
-      throw new Error("cart change failed");
-    }
-    return response.json();
+    return postCartChange({ id: key, quantity, properties });
   }
 
   async function syncBackupDressCart(cart, variantMap) {
@@ -339,28 +357,26 @@
         }
 
         changed = true;
-        if (needsVariantSwap) {
-          cart = await swapLineVariant(
-            current.raw,
-            assignment.targetVariantId,
-            assignment.properties,
-          );
-          itemsByKey.clear();
-          for (const item of cart.items ?? []) {
-            itemsByKey.set(item.key, {
-              properties: normalizeProperties(item.properties),
-              quantity: item.quantity ?? 1,
-              variantId: String(item.variant_id),
-              raw: item,
-            });
+        setPricingMutating(true);
+        try {
+          if (needsVariantSwap) {
+            cart = await swapLineVariant(
+              current.raw,
+              assignment.targetVariantId,
+              assignment.properties,
+            );
+          } else {
+            cart = await changeLineProperties(
+              assignment.key,
+              current.quantity,
+              assignment.properties,
+            );
           }
-        } else if (needsProps) {
-          cart = await changeLineProperties(
-            assignment.key,
-            current.quantity,
-            assignment.properties,
-          );
+          lastPricingMutationAt = Date.now();
+        } finally {
+          setPricingMutating(false);
         }
+        return { cart, changed: true };
       }
 
       for (const item of cart.items ?? []) {
@@ -390,20 +406,18 @@
         }
 
         changed = true;
-        if (onBackupVariant && mainVariantId) {
-          cart = await swapLineVariant(item, mainVariantId, cleaned);
-          itemsByKey.clear();
-          for (const row of cart.items ?? []) {
-            itemsByKey.set(row.key, {
-              properties: normalizeProperties(row.properties),
-              quantity: row.quantity ?? 1,
-              variantId: String(row.variant_id),
-              raw: row,
-            });
+        setPricingMutating(true);
+        try {
+          if (onBackupVariant && mainVariantId) {
+            cart = await swapLineVariant(item, mainVariantId, cleaned);
+          } else {
+            cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
           }
-        } else {
-          cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
+          lastPricingMutationAt = Date.now();
+        } finally {
+          setPricingMutating(false);
         }
+        return { cart, changed: true };
       }
     } finally {
       syncing = false;
@@ -630,21 +644,19 @@
         ) {
           continue;
         }
-        changed = true;
-        if (onBackupVariant && mainVariantId) {
-          cart = await swapLineVariant(item, mainVariantId, cleaned);
-        } else {
-          cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
+        setPricingMutating(true);
+        try {
+          changed = true;
+          if (onBackupVariant && mainVariantId) {
+            cart = await swapLineVariant(item, mainVariantId, cleaned);
+          } else {
+            cart = await changeLineProperties(item.key, item.quantity ?? 1, cleaned);
+          }
+          lastPricingMutationAt = Date.now();
+        } finally {
+          setPricingMutating(false);
         }
-        itemsByKey.clear();
-        for (const row of cart.items ?? []) {
-          itemsByKey.set(row.key, {
-            properties: normalizeProperties(row.properties),
-            quantity: row.quantity ?? 1,
-            variantId: String(row.variant_id),
-            raw: row,
-          });
-        }
+        return { cart, changed: true };
       }
     } finally {
       syncing = false;
@@ -652,50 +664,75 @@
     return { cart, changed };
   }
 
-  async function runBackupDressPricing(cart, options = {}) {
-    if (!cart) {
-      try {
-        const response = await fetch(`${ROOT}cart.js`, { credentials: "same-origin" });
-        if (!response.ok) {
-          return;
-        }
-        cart = await response.json();
-      } catch {
-        return;
+  function schedulePricingFollowUp() {
+    if (pricingFollowUpsLeft <= 0) {
+      return;
+    }
+    window.clearTimeout(pricingFollowUpTimer);
+    pricingFollowUpTimer = window.setTimeout(() => {
+      pricingFollowUpsLeft -= 1;
+      void executeBackupPricingRun({ uiOnly: false, fromFollowUp: true });
+    }, PRICING_MUTATION_GAP_MS);
+  }
+
+  function scheduleBackupPricingRun(delay = PRICING_DEBOUNCE_MS) {
+    window.clearTimeout(pricingScheduleTimer);
+    pricingScheduleTimer = window.setTimeout(() => {
+      void executeBackupPricingRun({ uiOnly: false });
+    }, delay);
+  }
+
+  async function executeBackupPricingRun(options = {}) {
+    if (pricingRunLock || window.__gkDrobeBackupPricingMutating) {
+      if (!options.uiOnly) {
+        scheduleBackupPricingRun(PRICING_DEBOUNCE_MS);
       }
+      return null;
     }
 
-    try {
+    const sinceMutation = Date.now() - lastPricingMutationAt;
+    if (
+      !options.uiOnly &&
+      !options.fromFollowUp &&
+      sinceMutation < PRICING_MUTATION_GAP_MS
+    ) {
+      scheduleBackupPricingRun(PRICING_MUTATION_GAP_MS - sinceMutation);
+      return null;
+    }
+
+    pricingRunLock = true;
+  let cart = options.cart;
+  try {
+    if (!cart) {
+        const response = await fetch(`${ROOT}cart.js`, { credentials: "same-origin" });
+        if (!response.ok) {
+          return null;
+        }
+        cart = await response.json();
+      }
+
       let variantMap = await fetchVariantMap(cart.items ?? []);
       let synced = cart;
       const discountOn = variantMap.enabled !== false;
+      let didChange = false;
 
       if (!options.uiOnly) {
         if (!discountOn) {
           const revert = await revertAllBackupPricing(cart, variantMap);
           synced = revert.cart;
-          if (revert.changed) {
-            variantMapCache = null;
-            synced = await refreshCartState(synced);
-            variantMap = await fetchVariantMap(synced.items ?? []);
-          }
-        } else {
-          let passes = 0;
-          let changed = true;
-          while (changed && passes < 4) {
-            passes += 1;
-            const syncResult = await syncBackupDressCart(synced, variantMap);
-            synced = syncResult.cart;
-            changed = syncResult.changed;
-            if (changed) {
-              variantMapCache = null;
-              synced = await refreshCartState(synced);
-              variantMap = await fetchVariantMap(synced.items ?? []);
-            }
-          }
-          if (passes > 1 && changed) {
-            window.dispatchEvent(new CustomEvent("cart:updated"));
-          }
+          didChange = revert.changed;
+        } else if ((cart.items ?? []).length > 0) {
+          const syncResult = await syncBackupDressCart(synced, variantMap);
+          synced = syncResult.cart;
+          didChange = syncResult.changed;
+        }
+
+        if (didChange) {
+          variantMapCache = null;
+          synced = await refreshCartState(synced);
+          variantMap = await fetchVariantMap(synced.items ?? []);
+          pricingFollowUpsLeft = MAX_PRICING_FOLLOW_UPS;
+          schedulePricingFollowUp();
         }
       }
 
@@ -704,16 +741,31 @@
     } catch (error) {
       console.warn("[gk backup pricing]", error);
       enhanceBackupDressUi(cart, variantMapCache ?? { enabled: true, variants: {} });
+      return cart ?? null;
+    } finally {
+      pricingRunLock = false;
     }
   }
 
-  window.__gkRunBackupDressPricing = runBackupDressPricing;
+  window.__gkRunBackupDressPricing = executeBackupPricingRun;
 
-  document.addEventListener("cart:updated", () => runBackupDressPricing());
-  document.addEventListener("cart:change", () => runBackupDressPricing());
+  document.addEventListener("cart:updated", (event) => {
+    if (event.detail?.__gkDrobeInternal || window.__gkDrobeBackupPricingMutating) {
+      return;
+    }
+    scheduleBackupPricingRun();
+  });
+
+  document.addEventListener("cart:change", (event) => {
+    if (event.detail?.__gkDrobeInternal || window.__gkDrobeBackupPricingMutating) {
+      return;
+    }
+    scheduleBackupPricingRun();
+  });
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => runBackupDressPricing());
+    document.addEventListener("DOMContentLoaded", () => scheduleBackupPricingRun(200));
   } else {
-    runBackupDressPricing();
+    scheduleBackupPricingRun(200);
   }
 })();
