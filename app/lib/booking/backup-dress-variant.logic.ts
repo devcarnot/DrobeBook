@@ -211,15 +211,61 @@ export function buildHirePricingBackupOptionValues(
   ];
 }
 
+export function buildHirePricingSiblingOptionValues(
+  selectedOptions: SelectedOptionRow[],
+  productOptions: Array<ProductOptionRow & { name: string }>,
+): Array<{ optionName: string; name: string }> | null {
+  const hireOption = productOptions.find((row) => isHirePricingOption(row.name));
+  if (!hireOption || isLinkedMetafieldOption(hireOption)) {
+    return null;
+  }
+
+  const selectedByName = new Map(
+    selectedOptions.map((row) => [
+      safeText(row.name).toLowerCase(),
+      safeText(row.value),
+    ]),
+  );
+
+  const rows: Array<{ optionName: string; name: string }> = [];
+  for (const option of productOptions) {
+    const key = safeText(option.name).toLowerCase();
+    if (isHirePricingOption(option.name)) {
+      rows.push({ optionName: safeText(option.name), name: HIRE_PRICING_BACKUP });
+      continue;
+    }
+    const value = selectedByName.get(key);
+    if (value == null) {
+      throw new Error(`Option does not exist on variant: ${safeText(option.name)}`);
+    }
+    rows.push({ optionName: safeText(option.name), name: value });
+  }
+
+  return rows.length ? rows : null;
+}
+
 export function buildBackupOptionValuePlans(
   selectedOptions: SelectedOptionRow[],
   productOptions: Array<ProductOptionRow & { name: string }>,
 ): Array<Array<{ optionName: string; name: string }>> {
-  if (shouldUseHirePricingBackupPath(productOptions)) {
-    return [buildHirePricingBackupOptionValues(selectedOptions, productOptions)];
+  const plans: Array<Array<{ optionName: string; name: string }>> = [];
+
+  try {
+    const hireSibling = buildHirePricingSiblingOptionValues(
+      selectedOptions,
+      productOptions,
+    );
+    if (hireSibling) {
+      plans.push(hireSibling);
+    }
+  } catch {
+    /* fall back to suffix plans */
   }
 
-  const plans: Array<Array<{ optionName: string; name: string }>> = [];
+  if (shouldUseHirePricingBackupPath(productOptions)) {
+    plans.push(buildHirePricingBackupOptionValues(selectedOptions, productOptions));
+  }
+
   for (const alteration of listAlterationCandidates(selectedOptions, productOptions)) {
     try {
       plans.push(

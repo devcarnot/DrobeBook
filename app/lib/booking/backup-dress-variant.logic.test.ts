@@ -20,6 +20,22 @@ const sizeHireProduct = normalizeProductOptions([
   },
 ]);
 
+const judeWithHireBackupValues = normalizeProductOptions([
+  { id: "1", name: "Size", position: 1, optionValues: [{ name: "M" }] },
+  {
+    id: "2",
+    name: "Duration",
+    position: 2,
+    optionValues: [{ name: "4 Days" }, { name: "8 Days" }],
+  },
+  {
+    id: "3",
+    name: "Hire pricing",
+    position: 3,
+    optionValues: [{ name: "Standard" }, { name: "Backup (80% off)" }],
+  },
+]);
+
 const judeProduct = normalizeProductOptions([
   { id: "1", name: "Size", position: 1, optionValues: [{ name: "M" }] },
   {
@@ -58,6 +74,20 @@ describe("backup-dress-variant.logic", () => {
     expect(rows).toEqual([
       { optionName: "Size", name: "6 · Backup" },
       { optionName: "Hire pricing", name: "Standard" },
+    ]);
+  });
+
+  it("uses existing Hire pricing Backup option when present on product", () => {
+    const selected = [
+      { name: "Size", value: "M" },
+      { name: "Duration", value: "4 Days" },
+      { name: "Hire pricing", value: "Standard" },
+    ];
+    const plans = buildBackupOptionValuePlans(selected, judeWithHireBackupValues);
+    expect(plans[0]).toEqual([
+      { optionName: "Size", name: "M" },
+      { optionName: "Duration", name: "4 Days" },
+      { optionName: "Hire pricing", name: "Backup (80% off)" },
     ]);
   });
 
