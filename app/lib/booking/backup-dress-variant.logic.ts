@@ -8,7 +8,14 @@ export type ProductOptionRow = {
   name?: unknown;
   position?: number | null;
   optionValues?: Array<{ name?: unknown }> | null;
+  linkedMetafield?: { namespace?: string; key?: string } | null;
 };
+
+export function isCustomerFacingHireVariant(
+  selectedOptions: SelectedOptionRow[],
+): boolean {
+  return !isBackupSelectedOption(selectedOptions);
+}
 
 export type SelectedOptionRow = { name: string; value: string };
 
@@ -104,11 +111,17 @@ export function shouldUseHirePricingBackupPath(
   return nonHire.length > 0 && nonHire.length < 3 && productOptions.length < 3;
 }
 
+function isLinkedMetafieldOption(option: ProductOptionRow): boolean {
+  return Boolean(option.linkedMetafield?.namespace && option.linkedMetafield?.key);
+}
+
 export function listAlterationCandidates(
   selectedOptions: SelectedOptionRow[],
   productOptions: Array<ProductOptionRow & { name: string }>,
 ): Array<{ option: ProductOptionRow & { name: string }; mainValue: string }> {
-  const eligibleOptions = nonHireProductOptions(productOptions);
+  const eligibleOptions = nonHireProductOptions(productOptions).filter(
+    (option) => !isLinkedMetafieldOption(option),
+  );
   const eligibleSelected = selectedOptions.filter((row) => !isHirePricingOption(row.name));
   const candidates: Array<{
     option: ProductOptionRow & { name: string };

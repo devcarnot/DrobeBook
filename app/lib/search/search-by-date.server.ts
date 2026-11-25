@@ -11,6 +11,10 @@ import {
   loadShopAvailabilityData,
   parseIsoDate,
 } from "../booking/availability.server";
+import {
+  isCustomerFacingHireVariant,
+  normalizeSelectedOption,
+} from "../booking/backup-dress-variant.logic";
 import type { SearchConfig } from "../shop-config";
 
 export type SearchByDateParams = {
@@ -256,6 +260,13 @@ export async function searchProductsByDate(
         continue;
       }
 
+      const normalizedOptions = variant.selectedOptions.map((row) =>
+        normalizeSelectedOption(row),
+      );
+      if (!isCustomerFacingHireVariant(normalizedOptions)) {
+        continue;
+      }
+
       const sizeValue = extractVariantSize(variant);
       if (!sizeValue) {
         continue;
@@ -286,7 +297,19 @@ export async function searchProductsByDate(
         continue;
       }
 
-      if (!availableBySize.has(sizeValue)) {
+      const existing = availableBySize.get(sizeValue);
+      if (!existing) {
+        availableBySize.set(sizeValue, { variant, variantId });
+        continue;
+      }
+
+      const existingOptions = existing.variant.selectedOptions.map((row) =>
+        normalizeSelectedOption(row),
+      );
+      if (
+        !isCustomerFacingHireVariant(existingOptions) &&
+        isCustomerFacingHireVariant(normalizedOptions)
+      ) {
         availableBySize.set(sizeValue, { variant, variantId });
       }
     }

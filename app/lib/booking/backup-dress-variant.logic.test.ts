@@ -4,6 +4,7 @@ import {
   buildBackupOptionValuePlans,
   buildCompleteBackupOptionValues,
   HIRE_PRICING_BACKUP,
+  isCustomerFacingHireVariant,
   listAlterationCandidates,
   normalizeProductOptions,
   shouldUseHirePricingBackupPath,
@@ -72,6 +73,27 @@ describe("backup-dress-variant.logic", () => {
       { optionName: "Duration", name: "4 Days · Backup" },
       { optionName: "Hire pricing", name: "Standard" },
     ]);
+  });
+
+  it("flags backup catalog variants for search and checkout", () => {
+    expect(
+      isCustomerFacingHireVariant([
+        { name: "Size", value: "6" },
+        { name: "Hire pricing", value: "Standard" },
+      ]),
+    ).toBe(true);
+    expect(
+      isCustomerFacingHireVariant([
+        { name: "Size", value: "6" },
+        { name: "Hire pricing", value: "Backup (80% off)" },
+      ]),
+    ).toBe(false);
+    expect(
+      isCustomerFacingHireVariant([
+        { name: "Size", value: "6 · Backup" },
+        { name: "Hire pricing", value: "Standard" },
+      ]),
+    ).toBe(false);
   });
 
   it("uses hire pricing backup only on simple one-option products", () => {

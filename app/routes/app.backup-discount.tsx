@@ -189,10 +189,10 @@ export default function BackupDressDiscountPage() {
 
           <s-text tone="neutral" color="subdued">
             Sync creates backup variants at {PAY_PERCENT}% of hire price. Products that already
-            have <s-text type="strong">Hire pricing</s-text> keep that option as{" "}
-            <s-text type="strong">Standard</s-text> and get backup siblings via a{" "}
-            <s-text type="strong">· Backup</s-text> value on Size or Duration — you do not need to
-            add Backup under Hire pricing manually.
+            have <s-text type="strong">Hire pricing</s-text> keep{" "}
+            <s-text type="strong">Standard</s-text> and get siblings via{" "}
+            <s-text type="strong">· Backup</s-text> on Duration (not Size when Size is linked to a
+            metafield in Shopify — the blue database icon in the variant editor).
           </s-text>
         </s-stack>
       </s-section>

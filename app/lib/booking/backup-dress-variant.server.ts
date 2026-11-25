@@ -85,6 +85,10 @@ const VARIANT_DETAIL_QUERY = `#graphql
           id
           name
           position
+          linkedMetafield {
+            namespace
+            key
+          }
           optionValues {
             name
           }
@@ -420,7 +424,9 @@ async function ensureBackupVariantForMain(
   );
 
   if (!optionValuePlans.length) {
-    throw new Error("Could not determine backup variant options for this product.");
+    throw new Error(
+      "Could not determine backup variant options. If every option is metafield-linked in Shopify, unlink one option (e.g. Duration) or contact support.",
+    );
   }
 
   const productSnapshot = await admin.graphql(PRODUCT_VARIANTS_QUERY, {
