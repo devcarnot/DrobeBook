@@ -139,6 +139,22 @@ const VARIANT_PRICE_UPDATE = `#graphql
   }
 `;
 
+function safeText(value: unknown): string {
+  if (value == null) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value.trim();
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value).trim();
+  }
+  if (typeof value === "object" && "name" in (value as object)) {
+    return safeText((value as { name: unknown }).name);
+  }
+  return String(value).trim();
+}
+
 function priceToCents(price: string | null | undefined): number {
   const amount = Number.parseFloat(String(price ?? "0"));
   if (!Number.isFinite(amount)) {
@@ -151,12 +167,12 @@ function centsToPrice(cents: number): string {
   return (cents / 100).toFixed(2);
 }
 
-function isHirePricingOption(name: string): boolean {
-  return name.trim().toLowerCase() === HIRE_PRICING_OPTION_NAME.toLowerCase();
+function isHirePricingOption(name: unknown): boolean {
+  return safeText(name).toLowerCase() === HIRE_PRICING_OPTION_NAME.toLowerCase();
 }
 
-function isBackupDurationValue(value: string): boolean {
-  const normalized = value.trim().toLowerCase();
+function isBackupDurationValue(value: unknown): boolean {
+  const normalized = safeText(value).toLowerCase();
   return (
     normalized.endsWith("· backup") ||
     normalized.endsWith("(backup") ||
@@ -169,7 +185,7 @@ function isBackupSelectedOption(selectedOptions: Array<{ name: string; value: st
     selectedOptions.some(
       (row) =>
         isHirePricingOption(row.name) &&
-        row.value.trim().toLowerCase() === HIRE_PRICING_BACKUP.toLowerCase(),
+        safeText(row.value).toLowerCase() === HIRE_PRICING_BACKUP.toLowerCase(),
     )
   ) {
     return true;
@@ -177,15 +193,42 @@ function isBackupSelectedOption(selectedOptions: Array<{ name: string; value: st
   return selectedOptions.some((row) => isBackupDurationValue(row.value));
 }
 
+function normalizeSelectedOption(row: { name?: unknown; value?: unknown }): {
+  name: string;
+  value: string;
+} {
+  return {
+    name: safeText(row.name),
+    value: safeText(row.value),
+  };
+}
+
 type ProductOptionRow = {
   id?: string | null;
-  name: string;
+  name?: unknown;
   position?: number | null;
-  optionValues?: Array<{ name: string }> | null;
+  optionValues?: Array<{ name?: unknown }> | null;
 };
 
-function backupDurationLabel(mainValue: string): string {
-  const trimmed = mainValue.trim();
+function normalizeProductOption(option: ProductOptionRow): ProductOptionRow & {
+  name: string;
+  optionValues: Array<{ name: string }>;
+} {
+  return {
+    ...option,
+    name: safeText(option.name),
+    optionValues: (option.optionValues ?? []).map((row) => ({
+      name: safeText(row?.name),
+    })),
+  };
+}
+
+function normalizeProductOptions(options: ProductOptionRow[] | undefined | null) {
+  return (options ?? []).map((row) => normalizeProductOption(row));
+}
+
+function backupDurationLabel(mainValue: unknown): string {
+  const trimmed = safeText(mainValue);
   if (isBackupDurationValue(trimmed)) {
     return trimmed;
   }
@@ -217,10 +260,13 @@ function pickAlterationOption(
     (row) => !isHirePricingOption(row.name),
   );
 
-  const durationPick = eligibleSelected.find((row) => /duration/i.test(row.name));
+  const durationPick = eligibleSelected.find((row) =>
+    /duration/i.test(safeText(row.name)),
+  );
   if (durationPick) {
     const option = eligibleOptions.find(
-      (row) => row.name.trim().toLowerCase() === durationPick.name.trim().toLowerCase(),
+      (row) =>
+        safeText(row.name).toLowerCase() === safeText(durationPick.name).toLowerCase(),
     );
     if (option?.id) {
       return { option, mainValue: durationPick.value };
@@ -232,7 +278,8 @@ function pickAlterationOption(
   );
   const fallback = sorted[sorted.length - 1];
   const selected = eligibleSelected.find(
-    (row) => row.name.trim().toLowerCase() === fallback.name.trim().toLowerCase(),
+    (row) =>
+      safeText(row.name).toLowerCase() === safeText(fallback.name).toLowerCase(),
   );
   if (fallback?.id && selected?.value) {
     return { option: fallback, mainValue: selected.value };
@@ -249,9 +296,9 @@ async function ensureOptionValueOnProduct(
   existingValues: string[],
 ): Promise<void> {
   const normalizedExisting = new Set(
-    existingValues.map((value) => value.trim().toLowerCase()),
+    existingValues.map((value) => safeText(value).toLowerCase()),
   );
-  if (normalizedExisting.has(valueName.trim().toLowerCase())) {
+  if (normalizedExisting.has(safeText(valueName).toLowerCase())) {
     return;
   }
 
@@ -339,7 +386,8 @@ async function ensureHirePricingValuesOnProduct(
     return;
   }
 
-  const existing = hireOption.optionValues?.map((row) => row.name) ?? [];
+  const existing =
+    hireOption.optionValues?.map((row) => safeText(row?.name)) ?? [];
   await ensureOptionValueOnProduct(
     admin,
     productGid,
@@ -366,7 +414,7 @@ async function refreshProductOptions(
   const json = (await response.json()) as {
     data?: { product?: { options?: ProductOptionRow[] } };
   };
-  return (json.data?.product?.options ?? []) as ProductOptionRow[];
+  return normalizeProductOptions(json.data?.product?.options);
 }
 
 function findExistingBackupVariantId(
@@ -386,11 +434,12 @@ function findExistingBackupVariantId(
     if (!isBackupSelectedOption(selected)) {
       continue;
     }
+    const normalizedSelected = selected.map((row) => normalizeSelectedOption(row));
     const matches = optionValues.every((target) =>
-      selected.some(
+      normalizedSelected.some(
         (row) =>
-          row.name.trim().toLowerCase() === target.optionName.trim().toLowerCase() &&
-          row.value.trim().toLowerCase() === target.name.trim().toLowerCase(),
+          row.name.toLowerCase() === safeText(target.optionName).toLowerCase() &&
+          row.value.toLowerCase() === safeText(target.name).toLowerCase(),
       ),
     );
     if (matches) {
@@ -409,8 +458,8 @@ function buildBackupOptionValues(
   if (shouldUseHirePricingBackupPath(productOptions)) {
     return [
       ...baseOptions.map((option) => ({
-        optionName: option.name,
-        name: option.value,
+        optionName: safeText(option.name),
+        name: safeText(option.value),
       })),
       { optionName: HIRE_PRICING_OPTION_NAME, name: HIRE_PRICING_BACKUP },
     ];
@@ -427,7 +476,8 @@ function buildBackupOptionValues(
     .map((option) => ({
       optionName: option.name,
       name:
-        option.name.trim().toLowerCase() === alteration.option.name.trim().toLowerCase()
+        safeText(option.name).toLowerCase() ===
+          safeText(alteration.option.name).toLowerCase()
           ? backupValue
           : option.value,
     }));
@@ -518,7 +568,9 @@ async function ensureBackupVariantForMain(
     return null;
   }
 
-  const selectedOptions = variant.selectedOptions ?? [];
+  const selectedOptions = (variant.selectedOptions ?? []).map((row) =>
+    normalizeSelectedOption(row),
+  );
   if (isBackupSelectedOption(selectedOptions)) {
     return extractNumericId(variant.id);
   }
@@ -552,14 +604,16 @@ async function ensureBackupVariantForMain(
     }
   }
 
-  let productOptions = (variant.product.options ?? []) as ProductOptionRow[];
+  let productOptions = normalizeProductOptions(
+    variant.product.options as ProductOptionRow[] | undefined,
+  );
 
   if (shouldUseHirePricingBackupPath(productOptions) && !productOptions.some(isHirePricingOption)) {
     try {
       await ensureHirePricingOption(
         admin,
         variant.product.id,
-        productOptions.map((option) => option.name),
+        productOptions.map((option) => safeText(option.name)),
       );
       productOptions = await refreshProductOptions(admin, variant.product.id);
     } catch (error) {
@@ -579,9 +633,12 @@ async function ensureBackupVariantForMain(
     };
   }).data?.productVariant;
 
-  let refreshedOptions = (refreshedVariant?.product?.options ??
-    productOptions) as ProductOptionRow[];
-  const refreshedSelected = refreshedVariant?.selectedOptions ?? selectedOptions;
+  let refreshedOptions = normalizeProductOptions(
+    (refreshedVariant?.product?.options ?? productOptions) as ProductOptionRow[],
+  );
+  const refreshedSelected = (refreshedVariant?.selectedOptions ?? selectedOptions).map(
+    (row) => normalizeSelectedOption(row),
+  );
 
   if (shouldUseHirePricingBackupPath(refreshedOptions)) {
     await ensureHirePricingValuesOnProduct(
@@ -602,7 +659,7 @@ async function ensureBackupVariantForMain(
   const usesDurationSuffix = optionValues.some((row) => isBackupDurationValue(row.name));
   if (alteration?.option.id && usesDurationSuffix) {
     const existingValues =
-      alteration.option.optionValues?.map((row) => row.name) ?? [];
+      alteration.option.optionValues?.map((row) => safeText(row.name)) ?? [];
     const backupValue = backupDurationLabel(alteration.mainValue);
     await ensureOptionValueOnProduct(
       admin,
