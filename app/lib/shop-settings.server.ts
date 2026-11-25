@@ -14,6 +14,11 @@ import {
   type ClutchUpsellConfig,
 } from "./cart/clutch-upsell-config";
 import {
+  DEFAULT_BACKUP_DRESS_DISCOUNT_CONFIG,
+  normalizeBackupDressDiscountConfig,
+  type BackupDressDiscountConfig,
+} from "./booking/backup-dress-discount-config";
+import {
   DEFAULT_WIDGET_CONFIG,
   type WidgetConfig,
 } from "./shop-settings";
@@ -116,10 +121,31 @@ export async function saveShopClutchUpsellConfig(
   return clutchUpsell;
 }
 
+export async function getShopBackupDressDiscountConfig(
+  shop: string,
+): Promise<BackupDressDiscountConfig> {
+  const config = await getShopConfig(shop);
+  return normalizeBackupDressDiscountConfig(config.backupDressDiscount);
+}
+
+export async function saveShopBackupDressDiscountConfig(
+  shop: string,
+  backupDressDiscount: BackupDressDiscountConfig,
+): Promise<BackupDressDiscountConfig> {
+  const existing = await getShopConfig(shop);
+  const normalized = normalizeBackupDressDiscountConfig(backupDressDiscount);
+  await saveShopConfig(shop, {
+    ...existing,
+    backupDressDiscount: normalized,
+  });
+  return normalized;
+}
+
 export {
   DEFAULT_WIDGET_CONFIG,
   DEFAULT_SHOP_CONFIG,
   DEFAULT_APPOINTMENT_CONFIG,
   DEFAULT_SEARCH_CONFIG,
   DEFAULT_CLUTCH_UPSELL_CONFIG,
+  DEFAULT_BACKUP_DRESS_DISCOUNT_CONFIG,
 };

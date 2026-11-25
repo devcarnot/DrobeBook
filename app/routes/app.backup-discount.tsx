@@ -10,6 +10,10 @@ import {
   getBackupVariantCoverageForShop,
 } from "../lib/booking/backup-dress-variant.server";
 import { BACKUP_PAY_FRACTION } from "../lib/booking/backup-dress-pricing";
+import {
+  getShopBackupDressDiscountConfig,
+  saveShopBackupDressDiscountConfig,
+} from "../lib/shop-settings.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -19,9 +23,10 @@ const PAY_PERCENT = Math.round(BACKUP_PAY_FRACTION * 100);
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
   const coverage = await getBackupVariantCoverageForShop(session.shop);
+  const discountConfig = await getShopBackupDressDiscountConfig(session.shop);
   const ready =
     coverage.variantRows > 0 && coverage.missingBackupVariant === 0;
-  return { coverage, ready };
+  return { coverage, ready, discountEnabled: discountConfig.enabled };
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -40,6 +45,23 @@ export const action = async ({ request }: ActionFunctionArgs) => {
       errors: result.errors,
       coverage,
       ready: coverage.variantRows > 0 && coverage.missingBackupVariant === 0,
+      discountEnabled: (await getShopBackupDressDiscountConfig(session.shop)).enabled,
+    };
+  }
+
+  if (intent === "set-backup-discount-enabled") {
+    const enabled = formData.get("enabled") === "true";
+    await saveShopBackupDressDiscountConfig(session.shop, { enabled });
+    const coverage = await getBackupVariantCoverageForShop(session.shop);
+    return {
+      intent,
+      ok: true,
+      productsProcessed: 0,
+      variantsAttempted: 0,
+      errors: [] as string[],
+      coverage,
+      ready: coverage.variantRows > 0 && coverage.missingBackupVariant === 0,
+      discountEnabled: enabled,
     };
   }
 
@@ -50,6 +72,7 @@ export const action = async ({ request }: ActionFunctionArgs) => {
     errors: ["Unknown action."],
     coverage: await getBackupVariantCoverageForShop(session.shop),
     ready: false,
+    discountEnabled: (await getShopBackupDressDiscountConfig(session.shop)).enabled,
   };
 };
 
@@ -59,9 +82,13 @@ export default function BackupDressDiscountPage() {
   const navigation = useNavigation();
   const coverage = actionData?.coverage ?? loaderData.coverage;
   const ready = actionData?.ready ?? loaderData.ready;
+  const discountEnabled = actionData?.discountEnabled ?? loaderData.discountEnabled;
   const isSyncing =
     navigation.state === "submitting" &&
     navigation.formData?.get("intent") === "sync-backup-variants";
+  const isSavingDiscount =
+    navigation.state === "submitting" &&
+    navigation.formData?.get("intent") === "set-backup-discount-enabled";
 
   const syncErrors =
     actionData?.intent === "sync-backup-variants" ? actionData.errors ?? [] : [];
@@ -175,17 +202,51 @@ export default function BackupDressDiscountPage() {
           ) : null}
 
           <Form method="post">
+            <input type="hidden" name="intent" value="set-backup-discount-enabled" />
+            <label className="gk-toggle-row">
+              <input
+                type="checkbox"
+                name="enabled"
+                value="true"
+                aria-label="Enable backup dress discount on storefront"
+                defaultChecked={discountEnabled}
+                disabled={isSavingDiscount}
+                onChange={(event) => {
+                  event.currentTarget.form?.requestSubmit();
+                }}
+              />
+              <span className="gk-toggle-row__copy">
+                <span className="gk-toggle-row__title">Backup dress discount (storefront)</span>
+                <span className="gk-toggle-row__desc">
+                  When off, carts keep full hire prices and no Main / Backup hire labels are
+                  applied.
+                </span>
+              </span>
+            </label>
+          </Form>
+
+          <Form method="post">
             <input type="hidden" name="intent" value="sync-backup-variants" />
             <s-button
               type="submit"
               variant="primary"
-              disabled={isSyncing || coverage.enabledRentalProducts === 0}
+              disabled={
+                isSyncing ||
+                coverage.enabledRentalProducts === 0 ||
+                !discountEnabled
+              }
             >
               {isSyncing
                 ? "Syncing backup variants…"
                 : "Sync backup variants for all rental products"}
             </s-button>
           </Form>
+
+          {!discountEnabled ? (
+            <s-banner tone="warning" heading="Discount is off for customers">
+              Turn the toggle on when you are ready for carts to swap backup-priced variants.
+            </s-banner>
+          ) : null}
 
           <s-text tone="neutral" color="subdued">
             For <s-text type="strong">Size + Duration + Hire pricing</s-text>, sync first tries a
@@ -222,9 +283,9 @@ export default function BackupDressDiscountPage() {
             do not count).
           </s-text>
           <s-text>
-            2. Cart — one line shows <s-text type="strong">Main Hire</s-text> at full
-            price; backup lines show the pill, strikethrough compare price, and about{" "}
-            {PAY_PERCENT}% of hire.
+            2. Cart — each line shows a <s-text type="strong">Hire type</s-text> label
+            (Main Hire / Backup Dress); backup lines use the cheaper variant price (about{" "}
+            {PAY_PERCENT}% of hire).
           </s-text>
           <s-text>
             3. Checkout — totals should match the cart (backup lines use the cheaper

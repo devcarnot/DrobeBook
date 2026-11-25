@@ -656,6 +656,49 @@ html.gk-clutch-modal-open {
   display: none !important;
 }
 
+.gk-drobe-hire-type-dt {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.gk-drobe-hire-type-label,
+.gk-drobe-hire-type-line {
+  display: inline-flex !important;
+  align-items: center;
+  margin: 0.35rem 0 0.15rem;
+  padding: 0.28rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1.25;
+  max-width: 100%;
+}
+
+.gk-drobe-hire-type-label--main,
+.gk-drobe-hire-type-line.gk-drobe-hire-type-label--main {
+  color: #4f435d;
+  background: linear-gradient(135deg, rgba(90, 79, 107, 0.14), rgba(90, 79, 107, 0.06));
+  border: 1px solid rgba(90, 79, 107, 0.22);
+}
+
+.gk-drobe-hire-type-label--backup,
+.gk-drobe-hire-type-line.gk-drobe-hire-type-label--backup {
+  color: #8a2f4d;
+  background: linear-gradient(135deg, rgba(237, 209, 220, 0.92), rgba(249, 230, 237, 0.85));
+  border: 1px solid rgba(158, 61, 92, 0.28);
+}
+
+.gk-drobe-hire-compare-price {
+  font-size: 0.82rem;
+  color: #9a9a9a;
+  text-decoration: line-through;
+}
+
 .gk-backup-dress-pill {
   display: inline-flex;
   align-items: center;

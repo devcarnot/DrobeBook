@@ -41,6 +41,11 @@ import {
   normalizeClutchUpsellConfig,
   type ClutchUpsellConfig,
 } from "./cart/clutch-upsell-config";
+import {
+  DEFAULT_BACKUP_DRESS_DISCOUNT_CONFIG,
+  normalizeBackupDressDiscountConfig,
+  type BackupDressDiscountConfig,
+} from "./booking/backup-dress-discount-config";
 
 export type AppointmentConfig = {
   introText: string;
@@ -133,6 +138,7 @@ export type ShopConfig = {
   waitlist: WaitlistConfig;
   notifications: NotificationsConfig;
   clutchUpsell: ClutchUpsellConfig;
+  backupDressDiscount: BackupDressDiscountConfig;
 };
 
 export const DEFAULT_WAITLIST_CONFIG: WaitlistConfig = {
@@ -444,6 +450,7 @@ export const DEFAULT_SHOP_CONFIG: ShopConfig = {
   waitlist: { ...DEFAULT_WAITLIST_CONFIG },
   notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
   clutchUpsell: { ...DEFAULT_CLUTCH_UPSELL_CONFIG },
+  backupDressDiscount: { ...DEFAULT_BACKUP_DRESS_DISCOUNT_CONFIG },
 };
 
 export function parseShopConfig(raw: string | null | undefined): ShopConfig {
@@ -504,6 +511,7 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
         },
         notifications: normalizeNotificationsConfig(parsed.notifications),
         clutchUpsell: normalizeClutchUpsellConfig(parsed.clutchUpsell),
+        backupDressDiscount: normalizeBackupDressDiscountConfig(parsed.backupDressDiscount),
       };
     }
 
@@ -516,6 +524,7 @@ export function parseShopConfig(raw: string | null | undefined): ShopConfig {
       waitlist: { ...DEFAULT_WAITLIST_CONFIG },
       notifications: { ...DEFAULT_NOTIFICATIONS_CONFIG },
       clutchUpsell: { ...DEFAULT_CLUTCH_UPSELL_CONFIG },
+      backupDressDiscount: { ...DEFAULT_BACKUP_DRESS_DISCOUNT_CONFIG },
     };
   } catch {
     return structuredClone(DEFAULT_SHOP_CONFIG);

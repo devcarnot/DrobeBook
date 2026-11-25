@@ -1,7 +1,8 @@
 import type { LoaderFunctionArgs } from "react-router";
 
-import { getBackupVariantMapForShop } from "../lib/booking/backup-dress-variant.server";
-import { authenticate, unauthenticated } from "../shopify.server";
+import { getBackupVariantMapFromDatabase } from "../lib/booking/backup-dress-variant.server";
+import { getShopBackupDressDiscountConfig } from "../lib/shop-settings.server";
+import { authenticate } from "../shopify.server";
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.public.appProxy(request);
@@ -22,11 +23,16 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   }
 
   try {
-    const { admin } = await unauthenticated.admin(session.shop);
-    const map = await getBackupVariantMapForShop(admin, session.shop, variantIds);
-    return Response.json(map);
+    const [map, discountConfig] = await Promise.all([
+      getBackupVariantMapFromDatabase(session.shop, variantIds),
+      getShopBackupDressDiscountConfig(session.shop),
+    ]);
+    return Response.json({
+      enabled: discountConfig.enabled,
+      variants: map.variants,
+    });
   } catch (error) {
     console.warn("[backup-variant-map]", error);
-    return Response.json({ variants: {} });
+    return Response.json({ enabled: true, variants: {} });
   }
 };

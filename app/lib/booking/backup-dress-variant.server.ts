@@ -161,6 +161,35 @@ const VARIANT_PRICE_UPDATE = `#graphql
   }
 `;
 
+async function ensureBackupVariantSellable(
+  admin: AdminGraphql,
+  productGid: string,
+  backupVariantGid: string,
+): Promise<void> {
+  const response = await admin.graphql(VARIANT_PRICE_UPDATE, {
+    variables: {
+      productId: productGid,
+      variants: [
+        {
+          id: backupVariantGid,
+          inventoryPolicy: "CONTINUE",
+        },
+      ],
+    },
+  });
+  const json = (await response.json()) as {
+    data?: { productVariantsBulkUpdate?: { userErrors?: Array<{ message: string }> } };
+    errors?: Array<{ message: string }>;
+  };
+  const errors = [
+    ...(json.errors?.map((error) => error.message) ?? []),
+    ...(json.data?.productVariantsBulkUpdate?.userErrors?.map((error) => error.message) ?? []),
+  ];
+  if (errors.length) {
+    console.warn("[backup-dress-variant] inventory policy:", errors.join("; "));
+  }
+}
+
 function priceToCents(price: string | null | undefined): number {
   const amount = Number.parseFloat(String(price ?? "0"));
   if (!Number.isFinite(amount)) {
@@ -187,6 +216,7 @@ async function createBackupProductVariant(
         {
           price: centsToPrice(backupPriceCents),
           optionValues,
+          inventoryPolicy: "CONTINUE",
           inventoryItem: sku ? { sku: `${sku}-BKP` } : undefined,
         },
       ],
@@ -523,6 +553,12 @@ async function ensureBackupVariantForMain(
     data: { backupShopifyVariantId: backupNumericId },
   });
 
+  await ensureBackupVariantSellable(
+    admin,
+    variant.product.id,
+    toVariantGid(backupNumericId),
+  );
+
   return backupNumericId;
 }
 
@@ -543,8 +579,7 @@ function buildMapEntry(
   };
 }
 
-export async function getBackupVariantMapForShop(
-  admin: AdminGraphql,
+export async function getBackupVariantMapFromDatabase(
   shop: string,
   variantIds: string[],
 ): Promise<BackupVariantMapResponse> {
@@ -587,15 +622,7 @@ export async function getBackupVariantMapForShop(
       continue;
     }
 
-    let backupId = mainRow.backupShopifyVariantId;
-    if (!backupId && !isBackupVariant) {
-      try {
-        backupId = await ensureBackupVariantForMain(admin, shop, mainRow.shopifyVariantId);
-      } catch (error) {
-        console.warn("[backup-dress-variant]", error);
-      }
-    }
-
+    const backupId = mainRow.backupShopifyVariantId;
     const mainPriceCents = priceToCents(mainRow.price);
 
     variants[requestedId] = buildMapEntry(
@@ -622,6 +649,80 @@ export async function getBackupVariantMapForShop(
   }
 
   return { variants };
+}
+
+export async function getBackupVariantMapForShop(
+  admin: AdminGraphql,
+  shop: string,
+  variantIds: string[],
+): Promise<BackupVariantMapResponse> {
+  const map = await getBackupVariantMapFromDatabase(shop, variantIds);
+  const uniqueIds = [...new Set(variantIds.map((id) => extractNumericId(id)).filter(Boolean))];
+
+  for (const requestedId of uniqueIds) {
+    const entry = map.variants[requestedId];
+    if (!entry || entry.isBackupVariant || entry.backupVariantId) {
+      continue;
+    }
+
+    try {
+      const backupId = await ensureBackupVariantForMain(admin, shop, entry.mainVariantId);
+      if (!backupId) {
+        continue;
+      }
+      const mainPriceCents = entry.mainPriceCents;
+      map.variants[requestedId] = buildMapEntry(
+        entry.mainVariantId,
+        backupId,
+        mainPriceCents,
+        false,
+      );
+      map.variants[entry.mainVariantId] = buildMapEntry(
+        entry.mainVariantId,
+        backupId,
+        mainPriceCents,
+        false,
+      );
+      map.variants[backupId] = buildMapEntry(
+        entry.mainVariantId,
+        backupId,
+        mainPriceCents,
+        true,
+      );
+    } catch (error) {
+      console.warn("[backup-dress-variant]", error);
+    }
+  }
+
+  return map;
+}
+
+export async function ensureBackupVariantsSellableForShop(
+  admin: AdminGraphql,
+  shop: string,
+): Promise<void> {
+  const rows = await prisma.rentalProductVariant.findMany({
+    where: {
+      shop,
+      backupShopifyVariantId: { not: null },
+      rentalProduct: { rentalEnabled: true, removedAt: null },
+    },
+    select: {
+      backupShopifyVariantId: true,
+      rentalProduct: { select: { shopifyProductId: true } },
+    },
+  });
+
+  const seen = new Set<string>();
+  for (const row of rows) {
+    const backupId = row.backupShopifyVariantId;
+    const productId = row.rentalProduct?.shopifyProductId;
+    if (!backupId || !productId || seen.has(backupId)) {
+      continue;
+    }
+    seen.add(backupId);
+    await ensureBackupVariantSellable(admin, toProductGid(productId), toVariantGid(backupId));
+  }
 }
 
 export type BackupVariantCoverage = {
@@ -767,6 +868,10 @@ export async function ensureAllBackupVariantsForShop(
       break;
     }
   }
+
+  await ensureBackupVariantsSellableForShop(admin, shop).catch((error) => {
+    console.warn("[backup-dress-variant] sellable sync:", error);
+  });
 
   const coverage = await getBackupVariantCoverageForShop(shop);
 

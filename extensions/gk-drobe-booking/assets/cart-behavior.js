@@ -22,6 +22,12 @@
     return Boolean(getBookingSize(item.properties) && getBookingDuration(item.properties));
   }
 
+  function normalizeToken(value) {
+    return String(value ?? "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   function normalizeDescriptor(value) {
     return String(value || "")
       .replace(/\(\d+\)/g, "")
@@ -77,8 +83,6 @@
   const BACKUP_HIDDEN_PROPERTIES = new Set([
     "_gk_hire_tier",
     "_gk_hire_group",
-    "Hire type",
-    "Original hire price",
     "Backup discount",
   ]);
 
@@ -614,18 +618,8 @@
         }
       }
 
-      if (/^Hire pricing:\s*/i.test(text) && text.length < 60) {
-        hideNode(node);
-        if (node.matches("dt")) {
-          const next = node.nextElementSibling;
-          if (next?.matches("dd")) {
-            hideNode(next);
-          }
-        }
-      }
-
       if (
-        /^(Hire type|Original hire price|Backup discount):/i.test(text) ||
+        /^Backup discount:/i.test(text) ||
         shouldHideLineProperty(text.split(":")[0])
       ) {
         hideNode(node);
@@ -711,6 +705,64 @@
     }
 
     hideDuplicateBookingLabels(row);
+    styleHireTypeLabels(row, item.properties);
+  }
+
+  function styleHireTypeLabels(row, properties) {
+  const hireType = normalizeToken(
+    properties?.["Hire type"] ?? properties?.[String("Hire type")],
+  );
+  if (!hireType || !row) {
+    return;
+  }
+
+    const isBackup = /backup/i.test(hireType);
+    row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
+
+    row.querySelectorAll("dt").forEach((dt) => {
+      if (!/^Hire type$/i.test(normalizeToken(dt.textContent))) {
+        return;
+      }
+      const dd = dt.nextElementSibling;
+      if (!dd?.matches("dd")) {
+        return;
+      }
+      dt.classList.add("gk-drobe-hire-type-dt");
+      dd.classList.add("gk-drobe-hire-type-label");
+      dd.classList.toggle("gk-drobe-hire-type-label--backup", isBackup);
+      dd.classList.toggle("gk-drobe-hire-type-label--main", !isBackup);
+      dd.textContent = hireType;
+    });
+
+    row.querySelectorAll("li, p, dd, span").forEach((node) => {
+      const match = String(node.textContent || "")
+        .replace(/\s+/g, " ")
+        .trim()
+        .match(/^Hire type:\s*(.+)$/i);
+      if (!match) {
+        return;
+      }
+      node.classList.add("gk-drobe-hire-type-line");
+      node.classList.toggle("gk-drobe-hire-type-label--backup", isBackup);
+      node.classList.toggle("gk-drobe-hire-type-label--main", !isBackup);
+      node.textContent = `Hire type: ${hireType}`;
+    });
+
+    row.querySelectorAll("dt").forEach((dt) => {
+      if (!/^Original hire price$/i.test(normalizeToken(dt.textContent))) {
+        return;
+      }
+      const dd = dt.nextElementSibling;
+      if (dd?.matches("dd")) {
+        dd.classList.add("gk-drobe-hire-compare-price");
+      }
+    });
+
+    row.querySelectorAll("li, p, dd, span").forEach((node) => {
+      if (/^Original hire price:/i.test(String(node.textContent || "").trim())) {
+        node.classList.add("gk-drobe-hire-compare-price");
+      }
+    });
   }
 
   function findCartRowFallback(item) {
@@ -908,16 +960,8 @@
 
       window.clearTimeout(cartDomRefreshTimer);
       cartDomRefreshTimer = window.setTimeout(() => {
-        void (async () => {
-          await enhanceCartUi();
-          if (typeof window.__gkRunBackupDressPricing === "function") {
-            const cart = await fetchCart().catch(() => null);
-            if (cart) {
-              await window.__gkRunBackupDressPricing(cart, { uiOnly: true }).catch(() => undefined);
-            }
-          }
-        })();
-      }, 80);
+        void enhanceCartUi();
+      }, 120);
     });
 
     observer.observe(document.body, {
