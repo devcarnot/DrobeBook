@@ -102,6 +102,10 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
     throw new Error("Choose a try-on date to join the waitlist.");
   }
 
+  if (kind === "garment" && !eventDate) {
+    throw new Error("Choose the hire date you want to wait for.");
+  }
+
   const durationMinutes =
     input.durationMinutes && Number.isFinite(input.durationMinutes)
       ? Math.round(input.durationMinutes)

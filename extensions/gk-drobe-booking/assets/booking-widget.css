@@ -543,10 +543,106 @@ dynamic-checkout,
   margin-top: 0.85rem;
 }
 
+.gk-drobe-booking__waitlist-form.is-open {
+  animation: gk-waitlist-form-in 0.22s ease;
+}
+
+@keyframes gk-waitlist-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 .gk-drobe-booking__waitlist-copy {
   margin: 0;
   font-size: 0.875rem;
   color: var(--gk-muted-text);
+}
+
+.gk-drobe-booking__waitlist-message {
+  margin-top: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  line-height: 1.4;
+}
+
+.gk-drobe-booking__waitlist-date-trigger {
+  width: 100%;
+  margin-top: 0.35rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid var(--gk-choice-border);
+  background: #fff;
+  color: inherit;
+  font: inherit;
+  font-size: 0.9375rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gk-drobe-booking__waitlist-date-trigger:focus-visible {
+  outline: 2px solid var(--gk-button-bg);
+  outline-offset: 2px;
+}
+
+.gk-drobe-booking__waitlist-date-panel {
+  margin-top: 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.gk-drobe-booking__waitlist-date-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8125rem;
+  color: var(--gk-muted-text);
+  line-height: 1.35;
+}
+
+.gk-drobe-booking__waitlist-date-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.gk-drobe-booking__waitlist-date-option {
+  appearance: none;
+  width: 100%;
+  padding: 0.55rem 0.65rem;
+  border-radius: 6px;
+  border: 1px solid var(--gk-choice-border);
+  background: #fff;
+  font: inherit;
+  font-size: 0.875rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.gk-drobe-booking__waitlist-date-option:hover {
+  border-color: var(--gk-button-bg);
+}
+
+.gk-drobe-booking__waitlist-date-option--selected {
+  border-color: var(--gk-button-bg);
+  background: rgba(0, 0, 0, 0.04);
+  font-weight: 600;
+}
+
+.gk-drobe-booking__waitlist-date-empty,
+.gk-drobe-booking__waitlist-date-loading {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--gk-muted-text);
+  line-height: 1.35;
 }
 
 .gk-drobe-booking__submit--secondary {
