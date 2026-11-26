@@ -4,6 +4,11 @@
   }
   window.__gkDrobeStorefrontHirePricesInit = true;
 
+  const helpers = window.__gkDrobeStorefrontHireVariants;
+  if (!helpers) {
+    return;
+  }
+
   const ROOT = window.Shopify?.routes?.root || "/";
   const productCache = new Map();
 
@@ -14,34 +19,6 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(cents / 100);
-  }
-
-  function isBackupVariantOptions(options) {
-    if (!Array.isArray(options)) {
-      return false;
-    }
-    return options.some((value) => {
-      const normalized = String(value ?? "")
-        .trim()
-        .toLowerCase();
-      return (
-        normalized.includes("backup (80% off)") ||
-        normalized.endsWith("· backup") ||
-        normalized.endsWith("(backup") ||
-        /backup.*80%/.test(normalized)
-      );
-    });
-  }
-
-  function mainHireMinCents(variants) {
-    const hireable = (variants ?? []).filter(
-      (variant) => !isBackupVariantOptions(variant.options),
-    );
-  const source = hireable.length ? hireable : variants ?? [];
-    if (!source.length) {
-      return null;
-    }
-    return Math.min(...source.map((variant) => Number(variant.price)));
   }
 
   async function loadProduct(handle) {
@@ -77,66 +54,109 @@
     return match?.[1] ? decodeURIComponent(match[1]) : null;
   }
 
-  function priceNodesIn(root) {
-    return root.querySelectorAll(
+  function currentProductHandle() {
+    const match = window.location.pathname.match(/\/products\/([^/?#]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
+  }
+
+  function looksLikeDisplayedHirePrice(text) {
+    const normalized = String(text || "").replace(/\s+/g, " ").trim();
+    if (!normalized) {
+      return false;
+    }
+    return (
+      /A\$|\$|£|€/.test(normalized) &&
+      !/RRP/i.test(normalized) &&
+      !/sold out/i.test(normalized)
+    );
+  }
+
+  function applyHirePriceToNode(node, formatted) {
+    const text = node.textContent?.trim() ?? "";
+    if (!looksLikeDisplayedHirePrice(text)) {
+      return;
+    }
+    if (/day hire|\/\s*\d+\s*day/i.test(text)) {
+      node.textContent = text.replace(
+        /(?:A\$|\$)\s*[\d,]+\.?\d*/,
+        formatted.replace(/\s/g, ""),
+      );
+      return;
+    }
+    if (/^Hire\s/i.test(text)) {
+      node.textContent = `Hire ${formatted}`;
+      return;
+    }
+    node.textContent = formatted;
+  }
+
+  function patchPriceNodes(root, formatted) {
+    root.querySelectorAll(
       [
-        ".predictive-search__item .price",
-        ".predictive-search__result .price",
-        "[data-predictive-search-result] .price",
-        ".search-modal__content .price",
-        ".header__search .price",
-        ".product-card .price",
+        ".price",
+        ".money",
+        "[class*='price-item']",
+        "[data-gk-hire-cost]",
+        ".product-price",
+        ".price__regular",
       ].join(", "),
-    );
+    ).forEach((node) => {
+      if (node.closest(".cart-item, cart-items-component, .gk-drobe-booking")) {
+        return;
+      }
+      applyHirePriceToNode(node, formatted);
+    });
   }
 
-  function hirePriceLabelsIn(root) {
-    return root.querySelectorAll(
-      ".price, [class*='price']",
-    );
+  async function patchCard(card) {
+    const handle = productHandleFromNode(card);
+    if (!handle) {
+      return;
+    }
+    const product = await loadProduct(handle);
+    const minCents = helpers.mainHireMinCentsFromVariants(product?.variants);
+    if (minCents == null) {
+      return;
+    }
+    patchPriceNodes(card, formatMoney(minCents));
   }
 
-  async function patchPredictivePrices(root = document) {
+  async function patchPredictiveAndCards(root = document) {
     const cards = root.querySelectorAll(
       [
         ".predictive-search__item",
         ".predictive-search__result",
         "[data-predictive-search-result]",
         ".resource-card",
+        ".product-card",
+        ".card-wrapper",
+        "li.grid__item",
       ].join(", "),
     );
 
-    const jobs = [...cards].map(async (card) => {
-      const handle = productHandleFromNode(card);
-      if (!handle) {
-        return;
-      }
-      const product = await loadProduct(handle);
-      const minCents = mainHireMinCents(product?.variants);
-      if (minCents == null) {
-        return;
-      }
+    await Promise.all([...cards].map((card) => patchCard(card)));
+  }
 
-      const formatted = formatMoney(minCents);
-      const priceEls = card.querySelectorAll(
-        ".price, .money, [class*='price-item'], [class*='Price']",
-      );
-      priceEls.forEach((node) => {
-        const text = node.textContent?.trim() ?? "";
-        if (/A\$|\$|£|€|From/i.test(text)) {
-          node.textContent = text.match(/Hire/i)
-            ? `Hire ${formatted}`
-            : formatted;
-        }
-      });
-    });
-
-    await Promise.all(jobs);
+  async function patchProductPage() {
+    const handle = currentProductHandle();
+    if (!handle) {
+      return;
+    }
+    const product = await loadProduct(handle);
+    const minCents = helpers.mainHireMinCentsFromVariants(product?.variants);
+    if (minCents == null) {
+      return;
+    }
+    const formatted = formatMoney(minCents);
+    const scope =
+      document.querySelector(".product, .product__info-wrapper, main") ?? document;
+    patchPriceNodes(scope, formatted);
   }
 
   function schedulePatch() {
     window.requestAnimationFrame(() => {
-      patchPredictivePrices().catch(() => undefined);
+      patchPredictiveAndCards().catch(() => undefined);
+      patchProductPage().catch(() => undefined);
     });
   }
 

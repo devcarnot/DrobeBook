@@ -116,7 +116,17 @@
       this.productId = normalizeShopifyId(root.dataset.productId);
       this.calendarRequestId = 0;
       this.productTitle = root.dataset.productTitle || "Gown";
-      this.variants = parseJson(root.dataset.variants, []);
+      const allVariants = parseJson(root.dataset.variants, []);
+      const storefrontVariants = window.__gkDrobeStorefrontHireVariants;
+      this.variants = storefrontVariants
+        ? storefrontVariants.standardStorefrontVariants(allVariants)
+        : allVariants.filter((variant) => {
+            const text = [variant?.title, variant?.option1, variant?.option2, variant?.option3]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase();
+            return !/backup|80%/.test(text);
+          });
       this.options = parseJson(root.dataset.options, []);
       this.colorPattern = parseJson(root.dataset.colorPattern, null);
       this.proxyBase = root.dataset.proxyBase || "/apps/gk-drobe";
