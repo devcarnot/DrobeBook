@@ -232,22 +232,31 @@
         hidden
       >
         <p class="gk-drobe-booking__waitlist-copy">{{ 'booking.waitlist_copy' | t }}</p>
-        <div class="gk-drobe-booking__waitlist-date" data-gk-waitlist-date>
-          <span class="gk-drobe-booking__label" id="gk-waitlist-date-label-{{ block.id }}">{{ 'booking.waitlist_date' | t }}</span>
-          <button
-            type="button"
-            class="gk-drobe-booking__waitlist-date-trigger"
-            data-gk-waitlist-date-trigger
-            aria-expanded="false"
-            aria-labelledby="gk-waitlist-date-label-{{ block.id }}"
-          >
-            <span data-gk-waitlist-date-display>{{ 'booking.waitlist_date_placeholder' | t }}</span>
-          </button>
-          <div class="gk-drobe-booking__waitlist-date-panel" data-gk-waitlist-date-panel hidden>
-            <p class="gk-drobe-booking__waitlist-date-hint" data-gk-waitlist-date-hint></p>
-            <div class="gk-drobe-booking__waitlist-date-grid" data-gk-waitlist-date-grid role="listbox" aria-label="{{ 'booking.waitlist_date' | t }}"></div>
-            <p class="gk-drobe-booking__waitlist-date-empty" data-gk-waitlist-date-empty hidden>{{ 'booking.waitlist_date_empty' | t }}</p>
+        <label class="gk-drobe-booking__label" for="gk-waitlist-date-{{ block.id }}">{{ 'booking.waitlist_date' | t }}</label>
+        <input
+          id="gk-waitlist-date-{{ block.id }}"
+          class="gk-drobe-booking__event-input"
+          type="date"
+          data-gk-waitlist-date
+          required
+        >
+        <div class="gk-drobe-booking__calendar gk-drobe-booking__calendar--waitlist" data-gk-waitlist-calendar>
+          <div class="gk-drobe-booking__calendar-header">
+            <button type="button" class="gk-drobe-booking__nav" data-gk-waitlist-prev-month aria-label="Previous month">&larr;</button>
+            <strong data-gk-waitlist-calendar-label></strong>
+            <button type="button" class="gk-drobe-booking__nav" data-gk-waitlist-next-month aria-label="Next month">&rarr;</button>
           </div>
+          <div class="gk-drobe-booking__calendar-weekdays">
+            <div class="gk-drobe-booking__weekday">SU</div>
+            <div class="gk-drobe-booking__weekday">MO</div>
+            <div class="gk-drobe-booking__weekday">TU</div>
+            <div class="gk-drobe-booking__weekday">WE</div>
+            <div class="gk-drobe-booking__weekday">TH</div>
+            <div class="gk-drobe-booking__weekday">FR</div>
+            <div class="gk-drobe-booking__weekday">SA</div>
+          </div>
+          <div class="gk-drobe-booking__calendar-grid" data-gk-waitlist-calendar-grid></div>
+          <p class="gk-drobe-booking__waitlist-date-empty" data-gk-waitlist-calendar-empty hidden>{{ 'booking.waitlist_date_empty' | t }}</p>
         </div>
         <label class="gk-drobe-booking__label" for="gk-waitlist-email-{{ block.id }}">{{ 'booking.waitlist_email' | t }}</label>
         <input
