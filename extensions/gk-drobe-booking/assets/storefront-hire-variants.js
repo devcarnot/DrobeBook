@@ -56,17 +56,30 @@
     return (variants ?? []).filter((variant) => !isBackupStorefrontVariant(variant));
   }
 
+  function variantPriceCents(variant) {
+    const text = String(variant?.price ?? "").trim();
+    const raw = Number.parseFloat(text);
+    if (!Number.isFinite(raw)) {
+      return 0;
+    }
+    if (/\.\d{1,2}$/.test(text)) {
+      return Math.round(raw * 100);
+    }
+    if (raw >= 1000) {
+      return Math.round(raw);
+    }
+    return Math.round(raw * 100);
+  }
+
   function mainHireMinCentsFromVariants(variants) {
     const standard = standardStorefrontVariants(variants);
     if (standard.length) {
-      return Math.min(...standard.map((variant) => Number(variant.price)));
+      return Math.min(...standard.map((variant) => variantPriceCents(variant)));
     }
 
     const backups = (variants ?? []).filter(isBackupStorefrontVariant);
     if (backups.length) {
-      return Math.min(
-        ...backups.map((variant) => Math.round(Number(variant.price) * 5)),
-      );
+      return Math.min(...backups.map((variant) => variantPriceCents(variant) * 5));
     }
 
     return null;
@@ -76,6 +89,7 @@
     isBackupStorefrontVariant,
     standardStorefrontVariants,
     mainHireMinCentsFromVariants,
+    variantPriceCents,
     isBackupHireText,
     optionValues,
   };

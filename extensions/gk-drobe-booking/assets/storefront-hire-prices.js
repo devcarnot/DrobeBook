@@ -11,6 +11,7 @@
 
   const ROOT = window.Shopify?.routes?.root || "/";
   const productCache = new Map();
+  let patchTimer = 0;
 
   function formatMoney(cents) {
     return new Intl.NumberFormat("en-AU", {
@@ -19,6 +20,11 @@
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(cents / 100);
+  }
+
+  function handleFromHref(href) {
+    const match = String(href || "").match(/\/products\/([^/?#]+)/i);
+    return match?.[1] ? decodeURIComponent(match[1]) : null;
   }
 
   async function loadProduct(handle) {
@@ -44,19 +50,17 @@
   }
 
   function productHandleFromNode(node) {
-    const href =
-      node.getAttribute?.("href") ??
-      node.querySelector?.("a[href*='/products/']")?.getAttribute("href");
-    if (!href) {
+    const link = node.matches?.('a[href*="/products/"]')
+      ? node
+      : node.querySelector?.('a[href*="/products/"]');
+    if (!link) {
       return null;
     }
-    const match = href.match(/\/products\/([^/?#]+)/i);
-    return match?.[1] ? decodeURIComponent(match[1]) : null;
+    return handleFromHref(link.getAttribute("href"));
   }
 
   function currentProductHandle() {
-    const match = window.location.pathname.match(/\/products\/([^/?#]+)/i);
-    return match?.[1] ? decodeURIComponent(match[1]) : null;
+    return handleFromHref(window.location.pathname);
   }
 
   function looksLikeDisplayedHirePrice(text) {
@@ -74,20 +78,52 @@
   function applyHirePriceToNode(node, formatted) {
     const text = node.textContent?.trim() ?? "";
     if (!looksLikeDisplayedHirePrice(text)) {
-      return;
+      return false;
     }
     if (/day hire|\/\s*\d+\s*day/i.test(text)) {
       node.textContent = text.replace(
         /(?:A\$|\$)\s*[\d,]+\.?\d*/,
         formatted.replace(/\s/g, ""),
       );
-      return;
+      return true;
     }
     if (/^Hire\s/i.test(text)) {
       node.textContent = `Hire ${formatted}`;
-      return;
+      return true;
     }
     node.textContent = formatted;
+    return true;
+  }
+
+  function hirePriceNodesIn(container) {
+    const nodes = [];
+    container.querySelectorAll("span, p, div, small, strong, .price, .money").forEach((node) => {
+      if (node.children.length > 2) {
+        return;
+      }
+      const text = node.textContent?.trim() ?? "";
+      if (/^Hire\s/i.test(text) && looksLikeDisplayedHirePrice(text)) {
+        nodes.push(node);
+      }
+    });
+    return nodes;
+  }
+
+  function patchHirePriceNodes(container, formatted) {
+    let changed = false;
+    hirePriceNodesIn(container).forEach((node) => {
+      if (applyHirePriceToNode(node, formatted)) {
+        changed = true;
+      }
+    });
+    if (!changed) {
+      container.querySelectorAll(".price, .money, [class*='price']").forEach((node) => {
+        if (applyHirePriceToNode(node, formatted)) {
+          changed = true;
+        }
+      });
+    }
+    return changed;
   }
 
   function patchPriceNodes(root, formatted) {
@@ -106,6 +142,61 @@
       }
       applyHirePriceToNode(node, formatted);
     });
+    patchHirePriceNodes(root, formatted);
+  }
+
+  function isSearchOverlayContext(node) {
+    return Boolean(
+      node?.closest?.(
+        [
+          "predictive-search",
+          ".predictive-search",
+          ".predictive-search-results",
+          ".search-modal",
+          ".search-drawer",
+          ".header__search",
+          ".header__search-details",
+          "details-modal",
+          "dialog[open]",
+          "[class*='PredictiveSearch']",
+          "[class*='predictive-search']",
+          "[class*='SearchModal']",
+        ].join(", "),
+      ),
+    );
+  }
+
+  function resultRowForLink(link) {
+    return (
+      link.closest(
+        'li, article, [class*="item"], [class*="result"], [class*="card"], [class*="product"]',
+      ) ?? link.parentElement
+    );
+  }
+
+  async function patchSearchOverlayPrices() {
+    const links = [...document.querySelectorAll('a[href*="/products/"]')].filter((link) =>
+      isSearchOverlayContext(link),
+    );
+
+    const jobs = links.map(async (link) => {
+      const handle = handleFromHref(link.getAttribute("href"));
+      if (!handle) {
+        return;
+      }
+      const row = resultRowForLink(link);
+      if (!row) {
+        return;
+      }
+      const product = await loadProduct(handle);
+      const minCents = helpers.mainHireMinCentsFromVariants(product?.variants);
+      if (minCents == null) {
+        return;
+      }
+      patchHirePriceNodes(row, formatMoney(minCents));
+    });
+
+    await Promise.all(jobs);
   }
 
   async function patchCard(card) {
@@ -135,6 +226,7 @@
     );
 
     await Promise.all([...cards].map((card) => patchCard(card)));
+    await patchSearchOverlayPrices();
   }
 
   async function patchProductPage() {
@@ -154,22 +246,38 @@
   }
 
   function schedulePatch() {
-    window.requestAnimationFrame(() => {
+    window.clearTimeout(patchTimer);
+    patchTimer = window.setTimeout(() => {
       patchPredictiveAndCards().catch(() => undefined);
       patchProductPage().catch(() => undefined);
-    });
+    }, 80);
   }
 
   const observer = new MutationObserver((records) => {
     for (const record of records) {
-      if (record.addedNodes?.length) {
+      if (record.addedNodes?.length || record.type === "characterData") {
         schedulePatch();
         break;
       }
     }
   });
 
-  observer.observe(document.body, { childList: true, subtree: true });
+  observer.observe(document.body, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+
+  document.addEventListener("input", (event) => {
+    const target = event.target;
+    if (
+      target instanceof HTMLInputElement &&
+      (target.type === "search" || /search/i.test(target.name || "") || /search/i.test(target.id || ""))
+    ) {
+      schedulePatch();
+    }
+  });
+
   document.addEventListener("shopify:section:load", schedulePatch);
   if (document.readyState === "loading") {
     document.addEventListener("DOMContentLoaded", schedulePatch);
