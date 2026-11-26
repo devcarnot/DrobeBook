@@ -232,14 +232,16 @@
         hidden
       >
         <p class="gk-drobe-booking__waitlist-copy">{{ 'booking.waitlist_copy' | t }}</p>
-        <label class="gk-drobe-booking__label" for="gk-waitlist-date-{{ block.id }}">{{ 'booking.waitlist_date' | t }}</label>
-        <input
-          id="gk-waitlist-date-{{ block.id }}"
-          class="gk-drobe-booking__event-input"
-          type="date"
-          data-gk-waitlist-date
-          required
-        >
+        <div class="gk-drobe-booking__group">
+          <span class="gk-drobe-booking__label" id="gk-waitlist-date-label-{{ block.id }}">{{ 'booking.waitlist_date' | t }}</span>
+          <p
+            class="gk-drobe-booking__waitlist-date-display"
+            data-gk-waitlist-date-display
+            aria-labelledby="gk-waitlist-date-label-{{ block.id }}"
+          >
+            {{ 'booking.waitlist_date_placeholder' | t }}
+          </p>
+        </div>
         <div class="gk-drobe-booking__calendar gk-drobe-booking__calendar--waitlist" data-gk-waitlist-calendar>
           <div class="gk-drobe-booking__calendar-header">
             <button type="button" class="gk-drobe-booking__nav" data-gk-waitlist-prev-month aria-label="Previous month">&larr;</button>

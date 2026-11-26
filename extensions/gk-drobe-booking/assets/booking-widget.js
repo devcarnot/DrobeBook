@@ -254,7 +254,7 @@
       this.waitlistSubmitButton = this.root.querySelector("[data-gk-waitlist-submit]");
       this.waitlistMessageEl = this.root.querySelector("[data-gk-waitlist-message]");
       this.waitlistClaimEl = this.root.querySelector("[data-gk-waitlist-claim]");
-      this.waitlistDateInput = this.root.querySelector("[data-gk-waitlist-date]");
+      this.waitlistDateDisplay = this.root.querySelector("[data-gk-waitlist-date-display]");
       this.waitlistCalendarLabel = this.root.querySelector("[data-gk-waitlist-calendar-label]");
       this.waitlistCalendarGrid = this.root.querySelector("[data-gk-waitlist-calendar-grid]");
       this.waitlistCalendarEmpty = this.root.querySelector("[data-gk-waitlist-calendar-empty]");
@@ -346,10 +346,6 @@
 
       this.waitlistNextMonthButton?.addEventListener("click", () => {
         this.shiftMonth(1);
-      });
-
-      this.waitlistDateInput?.addEventListener("change", () => {
-        this.applyWaitlistDateFromInput();
       });
 
       this.waitlistSubmitButton?.addEventListener("click", () => {
@@ -586,7 +582,6 @@
           "Please choose a booked hire date from the waitlist calendar.",
           true,
         );
-        this.waitlistDateInput?.focus();
         return;
       }
 
@@ -687,51 +682,32 @@
     }
 
     setWaitlistDeliveryDate(deliveryIso) {
-      if (!deliveryIso) {
-        this.state.waitlistDeliveryDate = "";
-        if (this.waitlistDateInput) {
-          this.waitlistDateInput.value = "";
-        }
-        return;
-      }
-
-      this.state.waitlistDeliveryDate = deliveryIso;
-      if (this.waitlistDateInput) {
-        this.waitlistDateInput.value = eventDateFromDeliveryDate(deliveryIso);
-      }
+      this.state.waitlistDeliveryDate = deliveryIso || "";
+      this.syncWaitlistDateDisplay();
     }
 
-    applyWaitlistDateFromInput() {
-      const eventIso = this.waitlistDateInput?.value?.trim() || "";
-      if (!eventIso) {
-        this.state.waitlistDeliveryDate = "";
-        this.renderWaitlistCalendar();
+    syncWaitlistDateDisplay() {
+      if (!this.waitlistDateDisplay) {
         return;
       }
 
-      const deliveryIso = deliveryDateFromEventDate(eventIso);
-      if (!this.state.unavailableDates.has(deliveryIso)) {
-        this.state.waitlistDeliveryDate = "";
-        if (this.waitlistDateInput) {
-          this.waitlistDateInput.value = "";
-        }
-        this.showWaitlistMessage(
-          "That event date is still available for hire. Select a date that is already booked.",
-          true,
-        );
-        this.renderWaitlistCalendar();
-        return;
+      if (this.state.waitlistDeliveryDate) {
+        const eventIso = eventDateFromDeliveryDate(this.state.waitlistDeliveryDate);
+        this.waitlistDateDisplay.textContent = `${formatDisplayDate(
+          this.state.waitlistDeliveryDate,
+        )} delivery (${formatDisplayDate(eventIso)} event)`;
+      } else {
+        this.waitlistDateDisplay.textContent =
+          this.config.waitlistDatePlaceholder || "Tap a booked date below";
       }
-
-      this.state.waitlistDeliveryDate = deliveryIso;
-      this.clearWaitlistMessage();
-      this.renderWaitlistCalendar();
     }
 
     renderWaitlistCalendar() {
       if (!this.waitlistCalendarGrid) {
         return;
       }
+
+      this.syncWaitlistDateDisplay();
 
       const calendar = window.GkCalendarMonth;
       if (!calendar) {
