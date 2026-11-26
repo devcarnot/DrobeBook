@@ -576,40 +576,6 @@ dynamic-checkout,
   line-height: 1.4;
 }
 
-.gk-drobe-booking__waitlist-date-display {
-  margin: 0.35rem 0 0;
-  padding: 0.65rem 0.75rem;
-  border-radius: 8px;
-  border: 1px solid var(--gk-choice-border);
-  background: rgba(0, 0, 0, 0.02);
-  font-size: 0.9375rem;
-  line-height: 1.35;
-  color: var(--gk-muted-text);
-}
-
-.gk-drobe-booking__calendar--waitlist {
-  margin-top: 0.35rem;
-}
-
-.gk-drobe-booking__calendar--waitlist .gk-drobe-booking__calendar-grid {
-  margin-top: 0.35rem;
-}
-
-.gk-drobe-booking__day--waitlist-booked {
-  cursor: pointer;
-}
-
-.gk-drobe-booking__day--waitlist-booked:hover {
-  border-color: var(--gk-button-bg);
-}
-
-.gk-drobe-booking__waitlist-date-empty {
-  margin: 0.65rem 0 0;
-  font-size: 0.8125rem;
-  color: var(--gk-muted-text);
-  line-height: 1.35;
-}
-
 .gk-drobe-booking__submit--secondary {
   background: transparent;
   color: var(--gk-button-bg);

@@ -254,12 +254,7 @@
       this.waitlistSubmitButton = this.root.querySelector("[data-gk-waitlist-submit]");
       this.waitlistMessageEl = this.root.querySelector("[data-gk-waitlist-message]");
       this.waitlistClaimEl = this.root.querySelector("[data-gk-waitlist-claim]");
-      this.waitlistDateDisplay = this.root.querySelector("[data-gk-waitlist-date-display]");
-      this.waitlistCalendarLabel = this.root.querySelector("[data-gk-waitlist-calendar-label]");
-      this.waitlistCalendarGrid = this.root.querySelector("[data-gk-waitlist-calendar-grid]");
-      this.waitlistCalendarEmpty = this.root.querySelector("[data-gk-waitlist-calendar-empty]");
-      this.waitlistPrevMonthButton = this.root.querySelector("[data-gk-waitlist-prev-month]");
-      this.waitlistNextMonthButton = this.root.querySelector("[data-gk-waitlist-next-month]");
+      this.waitlistDateInput = this.root.querySelector("[data-gk-waitlist-date]");
     }
 
     resolveColors() {
@@ -340,12 +335,8 @@
         this.toggleWaitlistForm();
       });
 
-      this.waitlistPrevMonthButton?.addEventListener("click", () => {
-        this.shiftMonth(-1);
-      });
-
-      this.waitlistNextMonthButton?.addEventListener("click", () => {
-        this.shiftMonth(1);
+      this.waitlistDateInput?.addEventListener("change", () => {
+        this.applyWaitlistDateFromInput();
       });
 
       this.waitlistSubmitButton?.addEventListener("click", () => {
@@ -579,9 +570,10 @@
 
       if (!waitlistDelivery) {
         this.showWaitlistMessage(
-          "Please choose a booked hire date from the waitlist calendar.",
+          "Please enter your event date for a booked hire period.",
           true,
         );
+        this.waitlistDateInput?.focus();
         return;
       }
 
@@ -652,9 +644,6 @@
       }
 
       this.waitlistEl.hidden = false;
-      if (this.waitlistForm && !this.waitlistForm.hidden) {
-        this.renderWaitlistCalendar();
-      }
     }
 
     toggleWaitlistForm(forceOpen) {
@@ -667,10 +656,6 @@
       this.waitlistForm.hidden = !opening;
       this.waitlistToggle.setAttribute("aria-expanded", String(opening));
       this.waitlistForm.classList.toggle("is-open", opening);
-
-      if (opening) {
-        this.renderWaitlistCalendar();
-      }
     }
 
     openWaitlistForm() {
@@ -682,112 +667,42 @@
     }
 
     setWaitlistDeliveryDate(deliveryIso) {
-      this.state.waitlistDeliveryDate = deliveryIso || "";
-      this.syncWaitlistDateDisplay();
-    }
-
-    syncWaitlistDateDisplay() {
-      if (!this.waitlistDateDisplay) {
+      if (!deliveryIso) {
+        this.state.waitlistDeliveryDate = "";
+        if (this.waitlistDateInput) {
+          this.waitlistDateInput.value = "";
+        }
         return;
       }
 
-      if (this.state.waitlistDeliveryDate) {
-        const eventIso = eventDateFromDeliveryDate(this.state.waitlistDeliveryDate);
-        this.waitlistDateDisplay.textContent = `${formatDisplayDate(
-          this.state.waitlistDeliveryDate,
-        )} delivery (${formatDisplayDate(eventIso)} event)`;
-      } else {
-        this.waitlistDateDisplay.textContent =
-          this.config.waitlistDatePlaceholder || "Tap a booked date below";
+      this.state.waitlistDeliveryDate = deliveryIso;
+      if (this.waitlistDateInput) {
+        this.waitlistDateInput.value = eventDateFromDeliveryDate(deliveryIso);
       }
     }
 
-    renderWaitlistCalendar() {
-      if (!this.waitlistCalendarGrid) {
+    applyWaitlistDateFromInput() {
+      const eventIso = this.waitlistDateInput?.value?.trim() || "";
+      if (!eventIso) {
+        this.state.waitlistDeliveryDate = "";
         return;
       }
 
-      this.syncWaitlistDateDisplay();
-
-      const calendar = window.GkCalendarMonth;
-      if (!calendar) {
+      const deliveryIso = deliveryDateFromEventDate(eventIso);
+      if (!this.state.unavailableDates.has(deliveryIso)) {
+        this.state.waitlistDeliveryDate = "";
+        if (this.waitlistDateInput) {
+          this.waitlistDateInput.value = "";
+        }
+        this.showWaitlistMessage(
+          "That event date is still available for hire. Choose a date when delivery is already booked — use the hire calendar above for booked (grey) days.",
+          true,
+        );
         return;
       }
 
-      const year = Number(this.state.calendarYear);
-      const month = Number(this.state.calendarMonth);
-      const monthLabel = new Date(Date.UTC(year, month - 1, 1)).toLocaleString(
-        "en-AU",
-        { month: "long", year: "numeric", timeZone: "UTC" },
-      );
-
-      if (this.waitlistCalendarLabel) {
-        this.waitlistCalendarLabel.textContent = monthLabel;
-      }
-
-      const { leadingDays, daysInMonth } = calendar.buildSundayStartMonthCells(
-        year,
-        month,
-      );
-
-      this.waitlistCalendarGrid.innerHTML = "";
-      this.waitlistCalendarGrid.dataset.gkMonthStartDow = String(leadingDays);
-
-      let bookedCount = 0;
-
-      for (let cellDay = 1; cellDay <= daysInMonth; cellDay += 1) {
-        const iso = calendar.formatCalendarIso(year, month, cellDay);
-        const weekdayName = calendar.weekdayNameForDay(year, month, cellDay);
-        const booked = this.state.unavailableDates.has(iso);
-        if (booked) {
-          bookedCount += 1;
-        }
-
-        const button = document.createElement("button");
-        button.type = "button";
-        button.className = "gk-drobe-booking__day";
-        button.dataset.gkDate = iso;
-        button.dataset.gkWeekday = weekdayName;
-        button.setAttribute("aria-label", `${weekdayName} ${cellDay}`);
-        button.textContent = String(cellDay);
-
-        if (cellDay === 1 && leadingDays > 0) {
-          button.style.gridColumnStart = String(leadingDays + 1);
-        }
-
-        if (!booked) {
-          button.classList.add("gk-drobe-booking__day--unavailable");
-          button.setAttribute("aria-disabled", "true");
-          button.title = "This delivery start date is still available.";
-        } else {
-          const reason =
-            this.state.unavailableReasons[iso] ||
-            "This delivery start date is already booked.";
-          button.title = reason;
-          button.classList.add("gk-drobe-booking__day--waitlist-booked");
-          if (iso === this.state.waitlistDeliveryDate) {
-            button.classList.add(
-              "gk-drobe-booking__day--selected-range",
-              "gk-drobe-booking__day--range-start",
-              "gk-drobe-booking__day--range-end",
-            );
-          }
-
-          button.addEventListener("click", () => {
-            this.setWaitlistDeliveryDate(iso);
-            this.renderWaitlistCalendar();
-            this.clearWaitlistMessage();
-          });
-        }
-
-        this.waitlistCalendarGrid.appendChild(button);
-      }
-
-      if (this.waitlistCalendarEmpty) {
-        const showEmpty =
-          !this.state.loadingCalendar && bookedCount === 0 && daysInMonth > 0;
-        this.waitlistCalendarEmpty.hidden = !showEmpty;
-      }
+      this.state.waitlistDeliveryDate = deliveryIso;
+      this.clearWaitlistMessage();
     }
 
     clearWaitlistMessage() {
@@ -1271,7 +1186,6 @@
           }
           this.updateWaitlistVisibility();
           this.renderCalendar();
-          this.renderWaitlistCalendar();
         }
       }
     }
@@ -1406,7 +1320,6 @@
           if (unavailable) {
             this.setWaitlistDeliveryDate(iso);
             this.openWaitlistForm();
-            this.renderWaitlistCalendar();
             this.clearWaitlistMessage();
             return;
           }
