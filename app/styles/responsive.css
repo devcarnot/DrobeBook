@@ -1734,6 +1734,53 @@
   color: #616161;
 }
 
+.gk-backup-admin-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  .gk-backup-admin-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
+.gk-backup-admin-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1rem 1.1rem;
+  border: 1px solid #e3e5e7;
+  border-radius: 12px;
+  background: #fafbfb;
+}
+
+.gk-backup-admin-stat__label {
+  font-size: 12px;
+  font-weight: 500;
+  color: #616161;
+  letter-spacing: 0.01em;
+}
+
+.gk-backup-admin-stat__value {
+  font-size: 1.35rem;
+  font-weight: 650;
+  line-height: 1.2;
+  color: #202223;
+}
+
+.gk-backup-admin-steps {
+  margin: 0;
+  padding-left: 1.15rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #303030;
+}
+
 .gk-delivery-chips {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

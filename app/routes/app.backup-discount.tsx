@@ -18,7 +18,6 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
 const BACKUP_PERCENT = Math.round((1 - BACKUP_PAY_FRACTION) * 100);
-const PAY_PERCENT = Math.round(BACKUP_PAY_FRACTION * 100);
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -93,223 +92,158 @@ export default function BackupDressDiscountPage() {
   const syncErrors =
     actionData?.intent === "sync-backup-variants" ? actionData.errors ?? [] : [];
 
-  const syncMessage =
-    actionData?.intent === "sync-backup-variants"
-      ? actionData.ok
-        ? `Ready — ${coverage.withBackupVariant} / ${coverage.variantRows} hire variants have backup pricing in Shopify.`
-        : syncErrors.length
-          ? null
-          : `${coverage.withBackupVariant} / ${coverage.variantRows} variants have backup pricing. ${coverage.missingBackupVariant} still missing — click Sync again or check errors below.`
-      : null;
+  const storeLive = discountEnabled && ready;
+  const statusTone = storeLive ? "success" : !discountEnabled ? "neutral" : "warning";
+  const statusLabel = storeLive
+    ? "Live on storefront"
+    : !discountEnabled
+      ? "Off"
+      : coverage.variantRows === 0
+        ? "No rental products"
+        : "Sync required";
 
   return (
-    <s-page heading="Backup dress hire discount">
-      <s-section heading="Active pricing (cart & checkout)">
-        <s-stack direction="block" gap="base">
-          <s-banner tone="success" heading="No checkout discount setup required">
-            Backup gown hires are priced at <s-text type="strong">{PAY_PERCENT}%</s-text>{" "}
-            of the hire rate ({BACKUP_PERCENT}% off) using matching{" "}
-            <s-text type="strong">Shopify product variants</s-text>. Cart and checkout
-            totals use those variant prices automatically — you do not need Shopify Plus or
-            an automatic checkout discount.
-          </s-banner>
-
-          <s-text>
-            When a customer hires multiple gowns for the{" "}
-            <s-text type="strong">same delivery & return period</s-text>, about half the
-            lines stay at full hire price (<s-text type="strong">Main Hire</s-text>) and
-            the rest use the cheaper backup variant (
-            <s-text type="strong">Backup Dress · {BACKUP_PERCENT}% OFF</s-text>). The{" "}
-            <s-text type="strong">GK.Drobe Cart</s-text> theme embed assigns tiers and
-            swaps lines to the correct variant.
-          </s-text>
-        </s-stack>
-      </s-section>
-
-      <s-section heading="Backup variant status">
-        <s-stack direction="block" gap="base">
-          <s-banner tone="info" heading="How to sync">
-            <s-stack direction="block" gap="small">
-              <s-text>1. Open this page in Shopify admin (DrobeBook → Backup dress discount).</s-text>
-              <s-text>
-                2. If Shopify asks to <s-text type="strong">approve updated permissions</s-text>{" "}
-                (edit products), accept — sync needs that to create backup variants.
-              </s-text>
-              <s-text>
-                3. Click <s-text type="strong">Sync backup variants for all rental products</s-text>{" "}
-                and wait until the button finishes (up to ~1 minute).
-              </s-text>
-              <s-text>
-                4. Coverage should show{" "}
-                <s-text type="strong">
-                  {coverage.variantRows} / {coverage.variantRows}
-                </s-text>{" "}
-                (all variants). Then hard-refresh the storefront cart and test again.
-              </s-text>
-            </s-stack>
-          </s-banner>
-
-          <s-box padding="base" border="base" borderRadius="base" background="base">
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">Coverage</s-text>
-              <s-text>
-                Rental products enabled:{" "}
-                <s-text type="strong">{coverage.enabledRentalProducts}</s-text>
-              </s-text>
-              <s-text>
-                Hire variants with backup pricing:{" "}
-                <s-text type="strong">
-                  {coverage.withBackupVariant} / {coverage.variantRows}
+    <s-page heading="Backup dress discount" inlineSize="large">
+      <s-stack direction="block" gap="large">
+        <s-box padding="large" border="base" borderRadius="large" background="base">
+          <s-stack direction="block" gap="base">
+            <s-stack direction="inline" gap="small" alignItems="center">
+              <s-badge tone={statusTone}>{statusLabel}</s-badge>
+              {ready ? (
+                <s-text tone="neutral" color="subdued">
+                  Variants ready · cart updates automatically
                 </s-text>
-              </s-text>
-
-              {coverage.variantRows === 0 ? (
-                <s-banner tone="warning" heading="No rental variants yet">
-                  Enable rental on products in{" "}
-                  <s-link href="/app/products">Rental products</s-link>, then sync below.
-                </s-banner>
-              ) : ready ? (
-                <s-banner tone="success" heading="Ready for storefront">
-                  Every enabled hire variant has a backup-priced sibling in Shopify.
-                </s-banner>
-              ) : (
-                <s-banner tone="warning" heading="Sync recommended">
-                  {coverage.missingBackupVariant} variant
-                  {coverage.missingBackupVariant === 1 ? "" : "s"} still need backup
-                  pricing. Run sync — cart discounts will not apply until variants exist.
-                </s-banner>
-              )}
+              ) : null}
             </s-stack>
-          </s-box>
 
-          {syncMessage ? (
-            <s-banner
-              tone={actionData?.ok ? "success" : "critical"}
-              heading={actionData?.ok ? "Sync complete" : "Sync incomplete"}
-            >
-              {syncMessage}
-            </s-banner>
-          ) : null}
+            <s-text tone="neutral" color="subdued">
+              Two or more gowns with the same hire dates → about half at full price (Main Hire),
+              the rest at {BACKUP_PERCENT}% off (Backup dress). No Shopify Plus needed.
+            </s-text>
 
-          {syncErrors.length ? (
-            <s-banner tone="critical" heading="Sync errors">
-              <s-stack direction="block" gap="small">
-                {syncErrors.map((line) => (
-                  <s-text key={line}>{line}</s-text>
-                ))}
-              </s-stack>
-            </s-banner>
-          ) : null}
-
-          <Form method="post">
-            <input type="hidden" name="intent" value="set-backup-discount-enabled" />
-            <label className="gk-toggle-row">
-              <input
-                type="checkbox"
-                name="enabled"
-                value="true"
-                aria-label="Enable backup dress discount on storefront"
-                defaultChecked={discountEnabled}
-                disabled={isSavingDiscount}
-                onChange={(event) => {
-                  event.currentTarget.form?.requestSubmit();
-                }}
-              />
-              <span className="gk-toggle-row__copy">
-                <span className="gk-toggle-row__title">Backup dress discount (storefront)</span>
-                <span className="gk-toggle-row__desc">
-                  When off, carts keep full hire prices and no Main / Backup hire labels are
-                  applied.
+            <div className="gk-backup-admin-stats">
+              <div className="gk-backup-admin-stat">
+                <span className="gk-backup-admin-stat__label">Storefront</span>
+                <span className="gk-backup-admin-stat__value">
+                  {discountEnabled ? "On" : "Off"}
                 </span>
-              </span>
-            </label>
-          </Form>
+              </div>
+              <div className="gk-backup-admin-stat">
+                <span className="gk-backup-admin-stat__label">Backup pricing</span>
+                <span className="gk-backup-admin-stat__value">
+                  {coverage.withBackupVariant}/{coverage.variantRows || "—"}
+                </span>
+              </div>
+              <div className="gk-backup-admin-stat">
+                <span className="gk-backup-admin-stat__label">Rental products</span>
+                <span className="gk-backup-admin-stat__value">
+                  {coverage.enabledRentalProducts}
+                </span>
+              </div>
+            </div>
+          </s-stack>
+        </s-box>
 
-          <Form method="post">
-            <input type="hidden" name="intent" value="sync-backup-variants" />
-            <s-button
-              type="submit"
-              variant="primary"
-              disabled={
-                isSyncing ||
-                coverage.enabledRentalProducts === 0 ||
-                !discountEnabled
-              }
-            >
-              {isSyncing
-                ? "Syncing backup variants…"
-                : "Sync backup variants for all rental products"}
-            </s-button>
-          </Form>
+        {actionData?.intent === "sync-backup-variants" ? (
+          <s-banner tone={actionData.ok ? "success" : "critical"}>
+            {actionData.ok
+              ? `Synced — ${coverage.withBackupVariant} of ${coverage.variantRows} hire variants have backup pricing.`
+              : syncErrors.length
+                ? "Sync finished with errors (see below)."
+                : `${coverage.missingBackupVariant} variant(s) still need backup pricing — try Sync again.`}
+          </s-banner>
+        ) : null}
 
-          {!discountEnabled ? (
-            <s-banner tone="warning" heading="Discount is off for customers">
-              Turn the toggle on when you are ready for carts to swap backup-priced variants.
-            </s-banner>
-          ) : null}
+        {syncErrors.length ? (
+          <s-banner tone="critical" heading="Sync errors">
+            <s-stack direction="block" gap="small">
+              {syncErrors.map((line) => (
+                <s-text key={line}>{line}</s-text>
+              ))}
+            </s-stack>
+          </s-banner>
+        ) : null}
 
-          <s-text tone="neutral" color="subdued">
-            For <s-text type="strong">Size + Duration + Hire pricing</s-text>, sync first tries a
-            sibling with <s-text type="strong">Hire pricing = Backup (80% off)</s-text> (same size
-            and duration). Only if that fails does it try a <s-text type="strong">· Backup</s-text>{" "}
-            value on Duration. Ensure{" "}
-            <s-text type="strong">Backup (80% off)</s-text> exists under Hire pricing in Shopify —
-            you do not need a separate discount under Hire pricing.
-          </s-text>
-        </s-stack>
-      </s-section>
+        {coverage.variantRows === 0 ? (
+          <s-banner tone="warning">
+            Enable rentals on at least one product in{" "}
+            <s-link href="/app/products">Rental products</s-link>, then run Sync.
+          </s-banner>
+        ) : !ready && discountEnabled ? (
+          <s-banner tone="warning">
+            {coverage.missingBackupVariant} hire variant(s) still missing backup pricing — run Sync
+            before testing the cart.
+          </s-banner>
+        ) : null}
 
-      <s-section heading="Storefront checklist">
-        <s-stack direction="block" gap="small">
-          <s-text>
-            1. Theme editor → <s-text type="strong">App embeds</s-text> → enable{" "}
-            <s-text type="strong">GK.Drobe Cart</s-text>.
-          </s-text>
-          <s-text>
-            2. Run <s-text type="strong">Sync backup variants</s-text> above (once after
-            deploy or when you add new rental SKUs).
-          </s-text>
-          <s-text>
-            3. Hard-refresh the cart page after testing.
-          </s-text>
-        </s-stack>
-      </s-section>
+        <s-section heading="Controls">
+          <s-stack direction="block" gap="base">
+            <Form method="post">
+              <input type="hidden" name="intent" value="set-backup-discount-enabled" />
+              <label className="gk-toggle-row">
+                <input
+                  type="checkbox"
+                  name="enabled"
+                  value="true"
+                  aria-label="Enable backup dress discount on storefront"
+                  defaultChecked={discountEnabled}
+                  disabled={isSavingDiscount}
+                  onChange={(event) => {
+                    event.currentTarget.form?.requestSubmit();
+                  }}
+                />
+                <span className="gk-toggle-row__copy">
+                  <span className="gk-toggle-row__title">Enable on storefront</span>
+                  <span className="gk-toggle-row__desc">
+                    Cart assigns Main / Backup tiers and swaps to the correct variant price.
+                  </span>
+                </span>
+              </label>
+            </Form>
 
-      <s-section heading="How to test">
-        <s-stack direction="block" gap="small">
-          <s-text>
-            1. Add <s-text type="strong">two or more gowns</s-text> with the{" "}
-            <s-text type="strong">same delivery & return dates</s-text> (clutch-only lines
-            do not count).
-          </s-text>
-          <s-text>
-            2. Cart — each line shows a <s-text type="strong">Hire type</s-text> label
-            (Main Hire / Backup Dress); backup lines use the cheaper variant price (about{" "}
-            {PAY_PERCENT}% of hire).
-          </s-text>
-          <s-text>
-            3. Checkout — totals should match the cart (backup lines use the cheaper
-            variant; no extra discount code).
-          </s-text>
-          <s-text tone="neutral" color="subdued">
-            One gown only → no backup discount. Different hire dates → priced per group.
-          </s-text>
-        </s-stack>
-      </s-section>
+            <Form method="post">
+              <input type="hidden" name="intent" value="sync-backup-variants" />
+              <s-stack direction="inline" gap="small" alignItems="center">
+                <s-button
+                  type="submit"
+                  variant="primary"
+                  disabled={
+                    isSyncing ||
+                    coverage.enabledRentalProducts === 0
+                  }
+                  {...(isSyncing ? { loading: true } : {})}
+                >
+                  Sync backup variants
+                </s-button>
+                <s-text tone="neutral" color="subdued">
+                  Creates {BACKUP_PERCENT}% off siblings in Shopify. Run after new rental SKUs.
+                </s-text>
+              </s-stack>
+            </Form>
+          </s-stack>
+        </s-section>
 
-      <s-section heading="Shortcuts">
+        <s-section heading="First-time setup">
+          <ol className="gk-backup-admin-steps">
+            <li>Theme editor → App embeds → turn on GK.Drobe Cart.</li>
+            <li>
+              Run Sync backup variants until every hire variant shows backup pricing (
+              {coverage.variantRows > 0 ? `${coverage.variantRows}/${coverage.variantRows}` : "full"}
+              ).
+            </li>
+            <li>Turn Enable on storefront on, then add two gowns with the same hire dates to test.</li>
+          </ol>
+        </s-section>
+
         <s-stack direction="inline" gap="small">
           <s-button href="/app/backup-flagged-orders" variant="secondary">
             Flagged orders
           </s-button>
-          <s-button href="/app/products" variant="secondary">
+          <s-button href="/app/products" variant="tertiary">
             Rental products
           </s-button>
-          <s-button href="/app" variant="tertiary">
-            Back to dashboard
-          </s-button>
         </s-stack>
-      </s-section>
+      </s-stack>
     </s-page>
   );
 }
