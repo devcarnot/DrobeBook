@@ -23,9 +23,10 @@
   let pricingScheduleTimer = 0;
   let pricingFollowUpTimer = 0;
   let pricingFollowUpsLeft = 0;
-  const PRICING_DEBOUNCE_MS = 1800;
-  const PRICING_MUTATION_GAP_MS = 2800;
-  const MAX_PRICING_FOLLOW_UPS = 2;
+  const PRICING_DEBOUNCE_MS = 350;
+  const PRICING_MUTATION_GAP_MS = 900;
+  const MAX_PRICING_FOLLOW_UPS = 5;
+  const PRIORITY_STORAGE_KEY = "gkDrobeCartBackupPricing";
   const IGNORE_MUTATION_MS = 3200;
   const RATE_LIMIT_PAUSE_MS = 90_000;
   let lastPricingMutationAt = 0;
@@ -612,30 +613,20 @@
     });
   }
 
-  function showSetupNoticeIfNeeded(cart, variantMap) {
-    const assignments = computeAssignments(cart.items ?? [], variantMap);
-    const needsSetup = assignments.some((row) => {
-      if (row.tier !== BACKUP_TIER) {
+  function setCartPricingBusy(active) {
+    document.documentElement.classList.toggle("gk-backup-pricing-busy", Boolean(active));
+  }
+
+  function consumePriorityPricingRun() {
+    try {
+      if (!sessionStorage.getItem(PRIORITY_STORAGE_KEY)) {
         return false;
       }
-      const item = (cart.items ?? []).find((line) => line.key === row.key);
-      return item && !row.targetVariantId && !pricingIsLive(row, item, variantMap);
-    });
-
-    document.querySelector(".gk-backup-dress-setup-note")?.remove();
-    if (!needsSetup) {
-      return;
+      sessionStorage.removeItem(PRIORITY_STORAGE_KEY);
+      return true;
+    } catch {
+      return false;
     }
-
-    const note = document.createElement("div");
-    note.className = "gk-backup-dress-setup-note";
-    note.innerHTML =
-      '<p><strong>Backup pricing variants are still syncing.</strong> Open DrobeBook → Backup dress discount → “Sync backup variants”, then refresh this page.</p>';
-
-    const anchor =
-      document.querySelector(".cart__footer .totals, #main-cart-footer .totals, .cart__footer") ??
-      document.querySelector("form[action='/cart']");
-    anchor?.prepend(note);
   }
 
   function enhanceBackupDressUi(cart, variantMap) {
@@ -666,7 +657,6 @@
       row.dataset.gkHireTier = assignment.tier;
     });
 
-    showSetupNoticeIfNeeded(cart, variantMap);
     patchThemeSubtotals(cart);
 
     if (typeof window.__gkDrobeEnhanceCartUi === "function") {
@@ -760,7 +750,7 @@
     return Date.now() < (window.__gkDrobePauseBackupPricingUntil || 0);
   }
 
-  function scheduleBackupPricingRun(delay = PRICING_DEBOUNCE_MS) {
+  function scheduleBackupPricingRun(delay = PRICING_DEBOUNCE_MS, priority = false) {
     if (!isCartPage()) {
       return;
     }
@@ -769,7 +759,7 @@
     }
     window.clearTimeout(pricingScheduleTimer);
     pricingScheduleTimer = window.setTimeout(() => {
-      void executeBackupPricingRun({ uiOnly: false });
+      void executeBackupPricingRun({ uiOnly: false, priority });
     }, delay);
   }
 
@@ -799,6 +789,7 @@
     if (
       !options.uiOnly &&
       !options.fromFollowUp &&
+      !options.priority &&
       sinceMutation < PRICING_MUTATION_GAP_MS
     ) {
       scheduleBackupPricingRun(PRICING_MUTATION_GAP_MS - sinceMutation);
@@ -806,8 +797,11 @@
     }
 
     pricingRunLock = true;
-  let cart = options.cart;
-  try {
+    if (!options.uiOnly) {
+      setCartPricingBusy(true);
+    }
+    let cart = options.cart;
+    try {
     if (!cart) {
         const response = await fetch(`${ROOT}cart.js`, { credentials: "same-origin" });
         if (!response.ok) {
@@ -831,8 +825,16 @@
         variantMapCache = null;
         synced = await refreshCartState(synced);
         variantMap = await fetchVariantMap(synced.items ?? []);
+        if (typeof window.__gkDrobeRefreshCartAfterBackupPricing === "function") {
+          await window.__gkDrobeRefreshCartAfterBackupPricing(synced);
+          synced = await refreshCartState(synced);
+          variantMap = await fetchVariantMap(synced.items ?? []);
+        }
         pricingFollowUpsLeft = MAX_PRICING_FOLLOW_UPS;
         schedulePricingFollowUp();
+        if (options.priority || options.fromFollowUp) {
+          scheduleBackupPricingRun(PRICING_DEBOUNCE_MS, true);
+        }
       } else if (options.fromFollowUp) {
         pricingFollowUpsLeft = 0;
       }
@@ -845,16 +847,29 @@
       return cart ?? null;
     } finally {
       pricingRunLock = false;
+      setCartPricingBusy(false);
     }
   }
 
   window.__gkRunBackupDressPricing = executeBackupPricingRun;
-  window.__gkDrobeScheduleBackupPricing = scheduleBackupPricingRun;
+  window.__gkDrobeScheduleBackupPricing = () => scheduleBackupPricingRun(PRICING_DEBOUNCE_MS);
   window.__gkDrobePauseBackupPricing = pauseBackupPricing;
 
+  function bootBackupPricingOnCart() {
+    if (!isCartPage()) {
+      return;
+    }
+    const priority = consumePriorityPricingRun();
+    if (priority) {
+      void executeBackupPricingRun({ priority: true });
+      return;
+    }
+    scheduleBackupPricingRun(120);
+  }
+
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", () => scheduleBackupPricingRun(400));
-  } else if (isCartPage()) {
-    scheduleBackupPricingRun(400);
+    document.addEventListener("DOMContentLoaded", bootBackupPricingOnCart);
+  } else {
+    bootBackupPricingOnCart();
   }
 })();

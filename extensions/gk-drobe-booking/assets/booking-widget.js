@@ -1418,6 +1418,11 @@
       try {
         await postCartAddJson(items);
 
+        try {
+          sessionStorage.setItem("gkDrobeCartBackupPricing", String(Date.now()));
+        } catch {
+          /* ignore */
+        }
         window.location.href = `${window.Shopify?.routes?.root || "/"}cart`;
       } catch (error) {
         this.showError(error.message);
