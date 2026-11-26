@@ -661,19 +661,16 @@ cart-payment-methods,
   position: relative;
 }
 
-.gk-backup-dress-row--backup {
-  border-radius: 10px;
-  box-shadow: inset 3px 0 0 rgba(158, 61, 92, 0.42);
-}
-
-.gk-backup-dress-row--main {
-  border-radius: 10px;
-  box-shadow: inset 3px 0 0 rgba(90, 79, 107, 0.22);
-}
-
 .gk-drobe-hire-tier-badge {
   text-transform: none;
   letter-spacing: 0.02em;
+  font-weight: 700;
+}
+
+.gk-drobe-hide-line-detail-price,
+.gk-drobe-cart-item--booking .cart-item__details .price-item--regular,
+.gk-drobe-cart-item--booking .cart-item__details > .product-option:first-of-type .price {
+  display: none !important;
 }
 
 html.gk-backup-pricing-busy cart-items-component,
@@ -700,15 +697,19 @@ html.gk-backup-pricing-busy .cart-items {
   white-space: nowrap;
 }
 
+.gk-drobe-hire-type-wrap {
+  margin: 0.35rem 0 0.1rem;
+}
+
 .gk-drobe-hire-type-label,
 .gk-drobe-hire-type-line {
   display: inline-flex !important;
   align-items: center;
-  margin: 0.35rem 0 0.15rem;
-  padding: 0.28rem 0.75rem;
+  margin: 0.2rem 0 0.1rem;
+  padding: 0.32rem 0.82rem;
   border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 600;
+  font-size: 0.72rem;
+  font-weight: 700;
   letter-spacing: 0.03em;
   line-height: 1.25;
   max-width: 100%;
@@ -717,15 +718,15 @@ html.gk-backup-pricing-busy .cart-items {
 .gk-drobe-hire-type-label--main,
 .gk-drobe-hire-type-line.gk-drobe-hire-type-label--main {
   color: #4f435d;
-  background: linear-gradient(135deg, rgba(90, 79, 107, 0.14), rgba(90, 79, 107, 0.06));
-  border: 1px solid rgba(90, 79, 107, 0.22);
+  background: rgba(90, 79, 107, 0.1);
+  border: 1px solid rgba(90, 79, 107, 0.18);
 }
 
 .gk-drobe-hire-type-label--backup,
 .gk-drobe-hire-type-line.gk-drobe-hire-type-label--backup {
   color: #8a2f4d;
-  background: linear-gradient(135deg, rgba(237, 209, 220, 0.92), rgba(249, 230, 237, 0.85));
-  border: 1px solid rgba(158, 61, 92, 0.28);
+  background: rgba(237, 209, 220, 0.75);
+  border: 1px solid rgba(158, 61, 92, 0.22);
 }
 
 .gk-drobe-hire-compare-price {

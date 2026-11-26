@@ -610,6 +610,65 @@
     node.classList.add("gk-drobe-hide-variant-summary");
   }
 
+  function looksLikeMoneyOnly(text) {
+    return /^\$[\d,]+(\.\d{2})?$/.test(String(text || "").replace(/\s+/g, " ").trim());
+  }
+
+  /** Hide unit price under the title in line details (totals column keeps line price). */
+  function hideInlineListPrice(row) {
+    if (!row) {
+      return;
+    }
+
+    const details = row.querySelector(
+      ".cart-item__details, .cart-items__details, .cart-item__info, .cart-items__info",
+    );
+    if (!details) {
+      return;
+    }
+
+    details.querySelectorAll(".price, .price-item, .cart-item__discounted-prices").forEach((node) => {
+      if (node.closest(".cart-item__totals, .cart-items__totals")) {
+        return;
+      }
+      node.classList.add("gk-drobe-hide-line-detail-price");
+      hideNode(node);
+    });
+
+    const title =
+      details.querySelector(
+        'a[href*="/products/"], .cart-item__name, .cart-item__title, .cart-items__title',
+      ) ?? null;
+
+    let sibling = title?.nextElementSibling ?? null;
+    while (sibling && sibling.parentElement === details) {
+      if (sibling.matches("dl, ul, [class*='properties']")) {
+        break;
+      }
+      const text = sibling.textContent.replace(/\s+/g, " ").trim();
+      if (looksLikeMoneyOnly(text) && sibling.childElementCount <= 2) {
+        sibling.classList.add("gk-drobe-hide-line-detail-price");
+        hideNode(sibling);
+        break;
+      }
+      sibling = sibling.nextElementSibling;
+    }
+
+    details.querySelectorAll("div, p, span").forEach((node) => {
+      if (node.closest("dl, ul, .cart-item__totals, .cart-items__totals")) {
+        return;
+      }
+      if (node.querySelector("dl, ul, table")) {
+        return;
+      }
+      const text = node.textContent.replace(/\s+/g, " ").trim();
+      if (looksLikeMoneyOnly(text) && node.children.length === 0) {
+        node.classList.add("gk-drobe-hide-line-detail-price");
+        hideNode(node);
+      }
+    });
+  }
+
   function hideDuplicateBookingLabels(row) {
     if (!row) {
       return;
@@ -632,6 +691,16 @@
       }
 
       if (/^Duration:\s*.+$/i.test(text) && text.length < 50) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
+          }
+        }
+      }
+
+      if (/^Hire pricing:\s*standard\s*$/i.test(text)) {
         hideNode(node);
         if (node.matches("dt")) {
           const next = node.nextElementSibling;
@@ -728,11 +797,16 @@
     }
 
     hideDuplicateBookingLabels(row);
+    hideInlineListPrice(row);
     styleHireTypeLabels(row, item.properties);
     styleHirePricingLabels(row, item);
   }
 
   function applyHireTierBadge(node, label, isBackup) {
+    const wrap = node.closest("dd, li, div.product-option, .product-option");
+    if (wrap && wrap !== node) {
+      wrap.classList.add("gk-drobe-hire-type-wrap");
+    }
     node.classList.add("gk-drobe-hire-type-line", "gk-drobe-hire-tier-badge");
     node.classList.toggle("gk-drobe-hire-type-label--backup", isBackup);
     node.classList.toggle("gk-drobe-hire-type-label--main", !isBackup);
@@ -775,8 +849,6 @@
       dt.classList.add("gk-drobe-hire-type-dt");
       applyHireTierBadge(dd, label, isBackup);
       row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
-      row.classList.toggle("gk-backup-dress-row--backup", isBackup);
-      row.classList.toggle("gk-backup-dress-row--main", !isBackup);
     });
 
     row.querySelectorAll("li, p, dd, span").forEach((node) => {
@@ -792,8 +864,6 @@
           : "Main hire";
       applyHireTierBadge(node, label, isBackup);
       row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
-      row.classList.toggle("gk-backup-dress-row--backup", isBackup);
-      row.classList.toggle("gk-backup-dress-row--main", !isBackup);
     });
   }
 
@@ -807,8 +877,6 @@
 
     const isBackup = /backup/i.test(hireType);
     row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
-    row.classList.toggle("gk-backup-dress-row--backup", isBackup);
-    row.classList.toggle("gk-backup-dress-row--main", !isBackup);
 
     row.querySelectorAll("dt").forEach((dt) => {
       if (!/^Hire type$/i.test(normalizeToken(dt.textContent))) {
@@ -822,7 +890,7 @@
       applyHireTierBadge(dd, hireType, isBackup);
     });
 
-    row.querySelectorAll("li, p, dd, span").forEach((node) => {
+    row.querySelectorAll("li, p, span").forEach((node) => {
       const match = String(node.textContent || "")
         .replace(/\s+/g, " ")
         .trim()
@@ -833,21 +901,47 @@
       applyHireTierBadge(node, hireType, isBackup);
     });
 
-    row.querySelectorAll("dt").forEach((dt) => {
-      if (!/^Original hire price$/i.test(normalizeToken(dt.textContent))) {
-        return;
-      }
-      const dd = dt.nextElementSibling;
-      if (dd?.matches("dd")) {
-        dd.classList.add("gk-drobe-hire-compare-price");
+    row.querySelectorAll("dd").forEach((node) => {
+      const text = normalizeToken(node.textContent);
+      if (text === hireType || /^main hire$/i.test(text) || /^backup dress/i.test(text)) {
+        const dt = node.previousElementSibling;
+        if (dt?.matches("dt") && /^Hire type$/i.test(normalizeToken(dt.textContent))) {
+          dt.classList.add("gk-drobe-hire-type-dt");
+        }
+        applyHireTierBadge(node, hireType, isBackup);
       }
     });
 
-    row.querySelectorAll("li, p, dd, span").forEach((node) => {
-      if (/^Original hire price:/i.test(String(node.textContent || "").trim())) {
-        node.classList.add("gk-drobe-hire-compare-price");
-      }
-    });
+    if (isBackup) {
+      row.querySelectorAll("dt").forEach((dt) => {
+        if (!/^Original hire price$/i.test(normalizeToken(dt.textContent))) {
+          return;
+        }
+        const dd = dt.nextElementSibling;
+        if (dd?.matches("dd")) {
+          dd.classList.add("gk-drobe-hire-compare-price");
+        }
+      });
+
+      row.querySelectorAll("li, p, dd, span").forEach((node) => {
+        if (/^Original hire price:/i.test(String(node.textContent || "").trim())) {
+          node.classList.add("gk-drobe-hire-compare-price");
+        }
+      });
+    } else {
+      row.querySelectorAll("dt, li, p, span, dd").forEach((node) => {
+        const text = normalizeToken(node.textContent);
+        if (/^Original hire price:/i.test(text) || /^Original hire price$/i.test(text)) {
+          hideNode(node);
+          if (node.matches("dt")) {
+            const next = node.nextElementSibling;
+            if (next?.matches("dd")) {
+              hideNode(next);
+            }
+          }
+        }
+      });
+    }
   }
 
   function findCartRowFallback(item) {

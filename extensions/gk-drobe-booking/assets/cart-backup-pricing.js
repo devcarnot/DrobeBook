@@ -634,10 +634,6 @@
     document.querySelectorAll(".gk-backup-dress-pill, .gk-backup-dress-price-wrap").forEach((node) => {
       node.remove();
     });
-    document.querySelectorAll(".gk-backup-dress-price--hidden").forEach((node) => {
-      node.classList.remove("gk-backup-dress-price--hidden");
-    });
-
     const assignments = new Map(
       computeAssignments(cart.items ?? [], variantMap).map((row) => [row.key, row]),
     );
