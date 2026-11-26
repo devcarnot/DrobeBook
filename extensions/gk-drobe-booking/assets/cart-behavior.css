@@ -697,8 +697,16 @@ html.gk-backup-pricing-busy .cart-items {
   white-space: nowrap;
 }
 
-.gk-drobe-hire-type-wrap {
+.gk-drobe-hire-type-wrap,
+.gk-drobe-hire-tier-host {
   margin: 0.35rem 0 0.1rem;
+  display: block;
+}
+
+.gk-drobe-hire-tier-host.product-option {
+  border: none;
+  padding: 0;
+  background: transparent;
 }
 
 .gk-drobe-hire-type-label,
