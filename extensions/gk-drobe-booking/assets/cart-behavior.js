@@ -798,9 +798,7 @@
 
     hideDuplicateBookingLabels(row);
     hideInlineListPrice(row);
-    styleHireTypeLabels(row, item);
-    styleHirePricingLabels(row, item);
-    ensureHireTierPill(row, item);
+    syncHireTierPill(row, item);
   }
 
   function isHirePricingLabel(text) {
@@ -846,172 +844,55 @@
     node.textContent = label;
   }
 
-  function styleHirePricingLabels(row, item) {
-    if (!row || !item) {
-      return;
+  function resolveHireTierDisplay(row, item) {
+    if (!item || !isBookingItem(item)) {
+      return null;
     }
-
-    const parsePricingValue = (raw) => {
-      const match = String(raw || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .match(/^Hire pricing:\s*(.+)$/i);
-      return match ? match[1] : null;
-    };
-
-    const isBackupValue = (value) => /backup|80%/.test(String(value || "").toLowerCase());
-
-    const hireTypeProp = normalizeToken(item.properties?.["Hire type"]);
-    const fromPropBackup = /backup/i.test(hireTypeProp);
-
-    const backupLine = detectBackupHireItem(item, row) || fromPropBackup;
-
-    row.querySelectorAll("dt").forEach((dt) => {
-      if (!isHirePricingLabel(dt.textContent)) {
-        return;
-      }
-      const dd = dt.nextElementSibling;
-      if (!dd?.matches("dd")) {
-        return;
-      }
-      const value = normalizeToken(dd.textContent);
-      const isBackup = backupLine || isBackupValue(value);
-      const label = isBackup
-        ? "Backup dress · 80% off"
-        : hireTypeProp && !/backup/i.test(hireTypeProp)
-          ? hireTypeProp
-          : "Main hire";
-      dt.classList.add("gk-drobe-hire-type-dt");
-      applyHireTierBadge(dd, label, isBackup);
-      row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
-    });
-
-    row.querySelectorAll(".product-option, [class*='product-option']").forEach((block) => {
-      const text = block.textContent.replace(/\s+/g, " ").trim();
-      if (!/hire pricing/i.test(text)) {
-        return;
-      }
-      const valueMatch = text.match(/Hire pricing:\s*(.+)/i);
-      const value = valueMatch ? valueMatch[1] : text;
-      const isBackup = backupLine || isBackupValue(value);
-      if (!isBackup) {
-        return;
-      }
-      block.classList.add("gk-drobe-hire-type-wrap", "gk-drobe-hire-tier-host");
-      block.querySelectorAll("dt, dd, span, p").forEach((child) => {
-        if (!child.classList.contains("gk-drobe-hire-tier-badge")) {
-          hideNode(child);
-        }
-      });
-      let host = block.querySelector(".gk-drobe-hire-tier-badge");
-      if (!host) {
-        host = document.createElement("span");
-        block.appendChild(host);
-      }
-      applyHireTierBadge(host, "Backup dress · 80% off", true);
-      row.dataset.gkDrobeHireType = "backup";
-    });
-
-    row.querySelectorAll("li, p, dd, span").forEach((node) => {
-      const parsed = parsePricingValue(node.textContent);
-      if (!parsed) {
-        return;
-      }
-      const isBackup = backupLine || isBackupValue(parsed);
-      const label = isBackup
-        ? "Backup dress · 80% off"
-        : hireTypeProp && !/backup/i.test(hireTypeProp)
-          ? hireTypeProp
-          : "Main hire";
-      applyHireTierBadge(node, label, isBackup);
-      row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
-    });
-  }
-
-  function ensureHireTierPill(row, item) {
-    if (!row || !item || row.querySelector(".gk-drobe-hire-tier-badge")) {
-      return;
-    }
-
     const isBackup = detectBackupHireItem(item, row);
+    if (isBackup) {
+      return { label: "Backup dress · 80% off", isBackup: true };
+    }
     const hireType = normalizeToken(item.properties?.["Hire type"]);
-    const isMain =
-      !isBackup &&
-      (/main/i.test(hireType) ||
-        row.dataset.gkHireTier === "main" ||
-        String(item.properties?._gk_hire_tier ?? "") === "main");
-
-    if (!isBackup && !isMain) {
-      return;
-    }
-
-    const label = isBackup ? "Backup dress · 80% off" : hireType || "Main Hire";
-    const host =
-      row.querySelector("dl, .cart-item__properties, ul.discounts, .cart-items__properties") ??
-      row.querySelector(".cart-item__details");
-
-    if (!host) {
-      return;
-    }
-
-    const pill = document.createElement("div");
-    pill.className = "gk-drobe-hire-type-wrap gk-drobe-hire-tier-host";
-    applyHireTierBadge(pill, label, isBackup);
-    host.appendChild(pill);
-    row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
+    return {
+      label: hireType && !/backup/i.test(hireType) ? hireType : "Main Hire",
+      isBackup: false,
+    };
   }
 
-  function styleHireTypeLabels(row, item) {
+  function hideHireTierSourceLines(row) {
     if (!row) {
       return;
     }
-    const properties = item?.properties ?? item ?? {};
-    let hireType = normalizeToken(
-      properties?.["Hire type"] ?? properties?.[String("Hire type")],
-    );
-    if (!hireType && item && detectBackupHireItem(item, row)) {
-      hireType = "Backup dress · 80% off";
-    }
-    if (!hireType) {
-      return;
-    }
-
-    const isBackup = /backup/i.test(hireType);
-    row.dataset.gkDrobeHireType = isBackup ? "backup" : "main";
 
     row.querySelectorAll("dt").forEach((dt) => {
-      if (!/^Hire type:?\s*$/i.test(normalizeToken(dt.textContent).replace(/:$/, ""))) {
-        return;
+      const label = normalizeToken(dt.textContent).replace(/:$/, "");
+      if (/^Hire type$/i.test(label) || isHirePricingLabel(dt.textContent)) {
+        hideNode(dt);
+        const dd = dt.nextElementSibling;
+        if (dd?.matches("dd")) {
+          hideNode(dd);
+        }
       }
-      const dd = dt.nextElementSibling;
-      if (!dd?.matches("dd")) {
-        return;
-      }
-      dt.classList.add("gk-drobe-hire-type-dt");
-      applyHireTierBadge(dd, hireType, isBackup);
     });
 
     row.querySelectorAll("li, p, span").forEach((node) => {
-      const match = String(node.textContent || "")
-        .replace(/\s+/g, " ")
-        .trim()
-        .match(/^Hire type:\s*(.+)$/i);
-      if (!match) {
-        return;
+      const text = node.textContent.replace(/\s+/g, " ").trim();
+      if (/^Hire type:\s+/i.test(text) || /^Hire pricing:\s+/i.test(text)) {
+        hideNode(node);
       }
-      applyHireTierBadge(node, hireType, isBackup);
     });
 
-    row.querySelectorAll("dd").forEach((node) => {
-      const text = normalizeToken(node.textContent);
-      if (text === hireType || /^main hire$/i.test(text) || /^backup dress/i.test(text)) {
-        const dt = node.previousElementSibling;
-        if (dt?.matches("dt") && /^Hire type$/i.test(normalizeToken(dt.textContent))) {
-          dt.classList.add("gk-drobe-hire-type-dt");
-        }
-        applyHireTierBadge(node, hireType, isBackup);
+    row.querySelectorAll(".product-option, [class*='product-option']").forEach((block) => {
+      if (/hire pricing/i.test(block.textContent)) {
+        hideNode(block);
       }
     });
+  }
+
+  function styleOriginalHirePriceRow(row, isBackup) {
+    if (!row) {
+      return;
+    }
 
     if (isBackup) {
       row.querySelectorAll("dt").forEach((dt) => {
@@ -1029,20 +910,54 @@
           node.classList.add("gk-drobe-hire-compare-price");
         }
       });
-    } else {
-      row.querySelectorAll("dt, li, p, span, dd").forEach((node) => {
-        const text = normalizeToken(node.textContent);
-        if (/^Original hire price:/i.test(text) || /^Original hire price$/i.test(text)) {
-          hideNode(node);
-          if (node.matches("dt")) {
-            const next = node.nextElementSibling;
-            if (next?.matches("dd")) {
-              hideNode(next);
-            }
+      return;
+    }
+
+    row.querySelectorAll("dt, li, p, span, dd").forEach((node) => {
+      const text = normalizeToken(node.textContent);
+      if (/^Original hire price:/i.test(text) || /^Original hire price$/i.test(text)) {
+        hideNode(node);
+        if (node.matches("dt")) {
+          const next = node.nextElementSibling;
+          if (next?.matches("dd")) {
+            hideNode(next);
           }
         }
-      });
+      }
+    });
+  }
+
+  function syncHireTierPill(row, item) {
+    const tier = resolveHireTierDisplay(row, item);
+    if (!tier) {
+      return;
     }
+
+    row.querySelectorAll(".gk-drobe-hire-tier-foot").forEach((node) => node.remove());
+    row.querySelectorAll(".gk-drobe-hire-tier-badge").forEach((badge) => {
+      if (!badge.closest(".gk-drobe-hire-tier-foot")) {
+        badge.remove();
+      }
+    });
+
+    hideHireTierSourceLines(row);
+
+    const host =
+      row.querySelector("dl, .cart-item__properties, ul.discounts, .cart-items__properties") ??
+      row.querySelector(".cart-item__details");
+    if (!host) {
+      return;
+    }
+
+    const foot = document.createElement("div");
+    foot.className = "gk-drobe-hire-type-wrap gk-drobe-hire-tier-foot";
+    const pill = document.createElement("span");
+    foot.appendChild(pill);
+    applyHireTierBadge(pill, tier.label, tier.isBackup);
+    host.appendChild(foot);
+
+    row.dataset.gkDrobeHireType = tier.isBackup ? "backup" : "main";
+    styleOriginalHirePriceRow(row, tier.isBackup);
   }
 
   function findCartRowFallback(item) {

@@ -703,6 +703,11 @@ html.gk-backup-pricing-busy .cart-items {
   display: block;
 }
 
+.gk-drobe-hire-tier-foot {
+  margin: 0.5rem 0 0.15rem;
+  padding-top: 0.15rem;
+}
+
 .gk-drobe-hire-tier-host.product-option {
   border: none;
   padding: 0;
