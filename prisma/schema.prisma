@@ -186,6 +186,8 @@ model WaitlistEntry {
   durationMinutes Int?
   email          String
   name           String?
+  pronouns       String?
+  phone          String?
   notes          String?
   status         String    @default("waiting") // waiting | contacted | fulfilled | removed
   notifiedAt     DateTime?

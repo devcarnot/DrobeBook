@@ -30,6 +30,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         durationMinutes: Number.isFinite(durationRaw) ? durationRaw : null,
         email: String(formData.get("email") ?? ""),
         name: String(formData.get("name") ?? "") || null,
+        pronouns: String(formData.get("pronouns") ?? "") || null,
+        phone: String(formData.get("phone") ?? "") || null,
         notes: String(formData.get("notes") ?? "") || null,
       });
 

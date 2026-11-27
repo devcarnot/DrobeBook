@@ -1,0 +1,2 @@
+ALTER TABLE "WaitlistEntry" ADD COLUMN IF NOT EXISTS "pronouns" TEXT;
+ALTER TABLE "WaitlistEntry" ADD COLUMN IF NOT EXISTS "phone" TEXT;

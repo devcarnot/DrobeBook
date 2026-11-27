@@ -38,6 +38,8 @@ export type WaitlistCreateInput = {
   durationMinutes?: number | null;
   email: string;
   name?: string | null;
+  pronouns?: string | null;
+  phone?: string | null;
   notes?: string | null;
 };
 
@@ -54,6 +56,8 @@ export type WaitlistEntryView = {
   eventDate: Date | null;
   email: string;
   name: string | null;
+  pronouns: string | null;
+  phone: string | null;
   notes: string | null;
   status: WaitlistStatus;
   notifiedAt: Date | null;
@@ -79,6 +83,32 @@ export type WaitlistSummary = {
   removed: number;
   tryOn: number;
 };
+
+export function normalizeWaitlistPhone(
+  value: string | null | undefined,
+): string | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) {
+    return null;
+  }
+
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+
+  let national = digits;
+  if (national.startsWith("61")) {
+    national = national.slice(2);
+  }
+  national = national.replace(/^0+/, "");
+
+  if (national.length < 8 || national.length > 10) {
+    throw new Error("Enter a valid Australian mobile number.");
+  }
+
+  return `+61${national}`;
+}
 
 export async function createWaitlistEntry(input: WaitlistCreateInput) {
   const email = input.email.trim().toLowerCase();
@@ -111,6 +141,11 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
       ? Math.round(input.durationMinutes)
       : null;
 
+  const phone = normalizeWaitlistPhone(input.phone);
+  if (kind === "garment" && !phone) {
+    throw new Error("A mobile number is required.");
+  }
+
   return prisma.waitlistEntry.create({
     data: {
       shop: input.shop,
@@ -125,6 +160,8 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
       durationMinutes,
       email,
       name: input.name?.trim() || null,
+      pronouns: input.pronouns?.trim() || null,
+      phone,
       notes: input.notes?.trim() || null,
       status: "waiting",
     },
@@ -362,6 +399,8 @@ export async function getWaitlistPageData(
       eventDate: entry.eventDate,
       email: entry.email,
       name: entry.name,
+      pronouns: entry.pronouns,
+      phone: entry.phone,
       notes: entry.notes,
       status: entry.status as WaitlistStatus,
       notifiedAt: entry.notifiedAt,
@@ -397,6 +436,8 @@ export function waitlistEntriesToCsv(entries: WaitlistEntryView[]): string {
   const header = [
     "Email",
     "Name",
+    "Pronouns",
+    "Phone",
     "Status",
     "Product ID",
     "Product title",
@@ -409,6 +450,8 @@ export function waitlistEntriesToCsv(entries: WaitlistEntryView[]): string {
   const rows = entries.map((entry) => [
     entry.email,
     entry.name ?? "",
+    entry.pronouns ?? "",
+    entry.phone ?? "",
     entry.status,
     entry.productId,
     entry.productTitle,

@@ -240,21 +240,57 @@
           data-gk-waitlist-date
           required
         >
-        <label class="gk-drobe-booking__label" for="gk-waitlist-email-{{ block.id }}">{{ 'booking.waitlist_email' | t }}</label>
-        <input
-          id="gk-waitlist-email-{{ block.id }}"
-          class="gk-drobe-booking__event-input"
-          type="email"
-          data-gk-waitlist-email
-          required
-        >
-        <label class="gk-drobe-booking__label" for="gk-waitlist-name-{{ block.id }}">{{ 'booking.waitlist_name' | t }}</label>
-        <input
-          id="gk-waitlist-name-{{ block.id }}"
-          class="gk-drobe-booking__event-input"
-          type="text"
-          data-gk-waitlist-name
-        >
+        <div class="gk-drobe-booking__waitlist-row">
+          <div class="gk-drobe-booking__waitlist-col">
+            <label class="gk-drobe-booking__label" for="gk-waitlist-email-{{ block.id }}">{{ 'booking.waitlist_email' | t }}</label>
+            <input
+              id="gk-waitlist-email-{{ block.id }}"
+              class="gk-drobe-booking__event-input"
+              type="email"
+              data-gk-waitlist-email
+              required
+              autocomplete="email"
+            >
+          </div>
+          <div class="gk-drobe-booking__waitlist-col">
+            <label class="gk-drobe-booking__label" for="gk-waitlist-phone-{{ block.id }}">{{ 'booking.waitlist_phone' | t }}</label>
+            <div class="gk-drobe-booking__phone-field">
+              <span class="gk-drobe-booking__phone-prefix" aria-hidden="true">+61</span>
+              <input
+                id="gk-waitlist-phone-{{ block.id }}"
+                class="gk-drobe-booking__phone-input"
+                type="tel"
+                inputmode="numeric"
+                data-gk-waitlist-phone
+                required
+                autocomplete="tel-national"
+                placeholder="{{ 'booking.waitlist_phone_placeholder' | t }}"
+              >
+            </div>
+          </div>
+        </div>
+        <div class="gk-drobe-booking__waitlist-row">
+          <div class="gk-drobe-booking__waitlist-col">
+            <label class="gk-drobe-booking__label" for="gk-waitlist-name-{{ block.id }}">{{ 'booking.waitlist_name' | t }}</label>
+            <input
+              id="gk-waitlist-name-{{ block.id }}"
+              class="gk-drobe-booking__event-input"
+              type="text"
+              data-gk-waitlist-name
+              autocomplete="name"
+            >
+          </div>
+          <div class="gk-drobe-booking__waitlist-col">
+            <label class="gk-drobe-booking__label" for="gk-waitlist-pronouns-{{ block.id }}">{{ 'booking.waitlist_pronouns' | t }}</label>
+            <input
+              id="gk-waitlist-pronouns-{{ block.id }}"
+              class="gk-drobe-booking__event-input"
+              type="text"
+              data-gk-waitlist-pronouns
+              autocomplete="off"
+            >
+          </div>
+        </div>
         <label class="gk-drobe-booking__label" for="gk-waitlist-notes-{{ block.id }}">{{ 'booking.waitlist_notes' | t }}</label>
         <textarea
           id="gk-waitlist-notes-{{ block.id }}"

@@ -249,7 +249,9 @@
       this.waitlistToggle = this.root.querySelector("[data-gk-waitlist-toggle]");
       this.waitlistForm = this.root.querySelector("[data-gk-waitlist-form]");
       this.waitlistEmailInput = this.root.querySelector("[data-gk-waitlist-email]");
+      this.waitlistPhoneInput = this.root.querySelector("[data-gk-waitlist-phone]");
       this.waitlistNameInput = this.root.querySelector("[data-gk-waitlist-name]");
+      this.waitlistPronounsInput = this.root.querySelector("[data-gk-waitlist-pronouns]");
       this.waitlistNotesInput = this.root.querySelector("[data-gk-waitlist-notes]");
       this.waitlistSubmitButton = this.root.querySelector("[data-gk-waitlist-submit]");
       this.waitlistMessageEl = this.root.querySelector("[data-gk-waitlist-message]");
@@ -582,6 +584,19 @@
         return;
       }
 
+      const phoneRaw = this.waitlistPhoneInput?.value?.trim() || "";
+      if (!phoneRaw) {
+        this.showWaitlistMessage("Please enter your mobile number.", true);
+        this.waitlistPhoneInput?.focus();
+        return;
+      }
+      const phone = this.formatWaitlistPhone(phoneRaw);
+      if (!phone) {
+        this.showWaitlistMessage("Enter a valid Australian mobile number.", true);
+        this.waitlistPhoneInput?.focus();
+        return;
+      }
+
       if (!variant) {
         this.showWaitlistMessage("Select your size and hire duration first.", true);
         return;
@@ -602,7 +617,9 @@
       formData.set("size", this.state.size || "");
       formData.set("eventDate", eventDate);
       formData.set("email", email);
+      formData.set("phone", phone);
       formData.set("name", this.waitlistNameInput?.value || "");
+      formData.set("pronouns", this.waitlistPronounsInput?.value || "");
       formData.set("notes", notes);
 
       try {
@@ -707,6 +724,22 @@
 
     clearWaitlistMessage() {
       this.showWaitlistMessage("");
+    }
+
+    formatWaitlistPhone(raw) {
+      const digits = String(raw || "").replace(/\D/g, "");
+      if (!digits) {
+        return "";
+      }
+      let national = digits;
+      if (national.startsWith("61")) {
+        national = national.slice(2);
+      }
+      national = national.replace(/^0+/, "");
+      if (national.length < 8 || national.length > 10) {
+        return "";
+      }
+      return `+61${national}`;
     }
 
     async loadWaitlistClaimFromUrl() {

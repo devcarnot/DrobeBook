@@ -20,7 +20,10 @@
     "waitlist_copy": "Enter your event date for a booked period and your email — we'll contact you if this gown becomes available.",
     "waitlist_date": "Select date",
     "waitlist_email": "Email address",
+    "waitlist_phone": "Mobile number",
+    "waitlist_phone_placeholder": "4xx xxx xxx",
     "waitlist_name": "Name (optional)",
+    "waitlist_pronouns": "Pronouns (optional)",
     "waitlist_notes": "Notes (optional)",
     "waitlist_submit": "Join waitlist"
   },

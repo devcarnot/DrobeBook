@@ -252,6 +252,14 @@ export default function WaitlistPage() {
                       {entry.name ? (
                         <s-text tone="neutral">{entry.name}</s-text>
                       ) : null}
+                      {entry.phone ? (
+                        <s-text tone="neutral">{entry.phone}</s-text>
+                      ) : null}
+                      {entry.pronouns ? (
+                        <s-text tone="neutral" color="subdued">
+                          {entry.pronouns}
+                        </s-text>
+                      ) : null}
                       <s-text tone="neutral" color="subdued">
                         Submitted {formatDateTime(entry.createdAt)}
                         {entry.claimIsActive && entry.claimExpiresAt

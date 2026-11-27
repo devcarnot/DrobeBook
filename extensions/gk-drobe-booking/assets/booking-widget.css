@@ -547,6 +547,59 @@ dynamic-checkout,
   display: none !important;
 }
 
+.gk-drobe-booking__waitlist-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.gk-drobe-booking__waitlist-col {
+  flex: 1 1 calc(50% - 0.375rem);
+  min-width: min(100%, 10rem);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.gk-drobe-booking__phone-field {
+  display: flex;
+  align-items: stretch;
+  border: 1px solid var(--gk-choice-border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.gk-drobe-booking__phone-prefix {
+  display: flex;
+  align-items: center;
+  padding: 0 0.65rem;
+  font-size: 0.9375rem;
+  color: var(--gk-muted-text);
+  background: rgba(0, 0, 0, 0.04);
+  border-right: 1px solid var(--gk-choice-border);
+  flex-shrink: 0;
+}
+
+.gk-drobe-booking__phone-input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  padding: 0.65rem 0.75rem;
+  font: inherit;
+  font-size: 0.9375rem;
+  background: transparent;
+}
+
+.gk-drobe-booking__phone-input:focus {
+  outline: none;
+}
+
+.gk-drobe-booking__phone-field:focus-within {
+  outline: 2px solid var(--gk-button-bg);
+  outline-offset: 1px;
+}
+
 .gk-drobe-booking__waitlist-form.is-open {
   animation: gk-waitlist-form-in 0.22s ease;
 }
@@ -580,6 +633,12 @@ dynamic-checkout,
   background: transparent;
   color: var(--gk-button-bg);
   border: 1px solid var(--gk-choice-border);
+}
+
+@media (max-width: 560px) {
+  .gk-drobe-booking__waitlist-col {
+    flex-basis: 100%;
+  }
 }
 
 @media (max-width: 480px) {
