@@ -178,6 +178,7 @@
         return;
       }
 
+      this.syncDurationFromConfig();
       this.renderDayButtons();
       this.renderDurationButtons();
       this.updatePrice();
@@ -308,6 +309,18 @@
           label: this.config.duration20Label || "20 minute (Cocktail wear & re-try only)",
         },
       ];
+    }
+
+    syncDurationFromConfig() {
+      const options = this.getDurationOptions();
+      if (!options.length) {
+        return;
+      }
+
+      const allowed = new Set(options.map((entry) => entry.minutes));
+      if (!allowed.has(this.state.durationMinutes)) {
+        this.state.durationMinutes = options[0].minutes;
+      }
     }
 
     renderTryOnTerms() {
