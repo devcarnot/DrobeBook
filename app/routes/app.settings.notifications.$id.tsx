@@ -18,7 +18,7 @@ import {
   type NotificationTemplate,
   type NotificationTrigger,
 } from "../lib/notifications/notification.types";
-import { readFieldValue } from "../lib/read-field-value";
+import { readCheckValue, readFieldValue, readSelectValue } from "../lib/read-field-value";
 import {
   getNotificationsConfig,
   notificationTemplateFromFormData,
@@ -70,12 +70,20 @@ function SettingsSection({
   );
 }
 
-function draftFromTemplate(template: NotificationTemplate): NotificationTemplate {
+function draftFromTemplate(
+  template: NotificationTemplate,
+  options?: { assignNewId?: boolean },
+): NotificationTemplate {
+  const needsClientId =
+    options?.assignNewId && (!template.id || template.id === "new");
   return {
     ...template,
+    id: needsClientId ? crypto.randomUUID() : template.id,
     name: template.name ?? "",
     subject: template.subject ?? "",
     body: template.body ?? "",
+    automated: Boolean(template.automated),
+    active: Boolean(template.active),
     offsetDays: template.offsetDays ?? 0,
     workflowStatus: template.workflowStatus ?? "",
     deliveryMethods: template.deliveryMethods?.length
@@ -109,7 +117,7 @@ export const loader = async ({ request, params }: LoaderFunctionArgs) => {
 
   const template = isNew
     ? {
-        id: crypto.randomUUID(),
+        id: "new",
         name: "",
         category: "rental_created" as NotificationCategory,
         deliveryMethods: ["post", "pickup", "local"] as NotificationDeliveryMethod[],
@@ -135,9 +143,15 @@ export const action = async ({ request, params }: ActionFunctionArgs) => {
   const formData = await request.formData();
   const intent = String(formData.get("intent") ?? "save");
   const notifications = await getNotificationsConfig(session.shop);
-  const existing = notifications.templates.find((entry) => entry.id === params.id);
+  const routeId = params.id ?? "";
+  const existing =
+    routeId === "new"
+      ? undefined
+      : notifications.templates.find(
+          (entry) => entry.id === routeId || entry.id === String(formData.get("id") ?? ""),
+        );
 
-  if (intent === "delete" && existing) {
+  if (intent === "delete" && existing && routeId !== "new") {
     await saveNotificationsConfig(session.shop, {
       ...notifications,
       templates: notifications.templates.filter((entry) => entry.id !== existing.id),
@@ -165,12 +179,17 @@ export default function NotificationEditPage() {
   const navigation = useNavigation();
   const isSaving = navigation.state !== "idle";
   const [showTokens, setShowTokens] = useState(false);
-  const [draft, setDraft] = useState(() => draftFromTemplate(template));
+  const [draft, setDraft] = useState(() =>
+    draftFromTemplate(template, { assignNewId: isNew }),
+  );
   const bodyRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
+    if (isNew) {
+      return;
+    }
     setDraft(draftFromTemplate(template));
-  }, [template.id]);
+  }, [template.id, isNew]);
 
   const deliveryMethods = useMemo(
     () => new Set(draft.deliveryMethods),
@@ -276,7 +295,7 @@ export default function NotificationEditPage() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          category: event.currentTarget.value as NotificationCategory,
+                          category: readSelectValue(event) as NotificationCategory,
                         }))
                       }
                     >
@@ -338,7 +357,7 @@ export default function NotificationEditPage() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          automated: event.currentTarget.checked,
+                          automated: readCheckValue(event, current.automated),
                         }))
                       }
                     />
@@ -362,7 +381,7 @@ export default function NotificationEditPage() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          active: event.currentTarget.checked,
+                          active: readCheckValue(event, current.active),
                         }))
                       }
                     />
@@ -387,7 +406,7 @@ export default function NotificationEditPage() {
                         onChange={(event) =>
                           setDraft((current) => ({
                             ...current,
-                            trigger: event.currentTarget.value as NotificationTrigger,
+                            trigger: readSelectValue(event) as NotificationTrigger,
                           }))
                         }
                       >
@@ -453,7 +472,10 @@ export default function NotificationEditPage() {
                       rows={14}
                       value={draft.body}
                       onChange={(event) =>
-                        setDraft((current) => ({ ...current, body: event.currentTarget.value }))
+                        setDraft((current) => ({
+                          ...current,
+                          body: readFieldValue(event),
+                        }))
                       }
                     />
                     <span className="gk-form-field__hint">

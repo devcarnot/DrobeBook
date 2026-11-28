@@ -278,6 +278,68 @@
   width: 100%;
 }
 
+.gk-list-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin: 0 0 0.85rem;
+  padding: 0.35rem 0;
+}
+
+.gk-notification-templates__table > .gk-list-pagination:last-of-type {
+  margin: 0.85rem 0 0;
+}
+
+.gk-list-pagination__meta {
+  font-size: 13px;
+  color: #8a8a85;
+}
+
+.gk-list-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+}
+
+.gk-list-pagination__page {
+  font-size: 13px;
+  font-weight: 500;
+  color: #5c5c58;
+}
+
+.gk-list-pagination__btn {
+  padding: 0.4rem 0.75rem;
+  border: 1px solid #d8d8d4;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    border-color 140ms ease;
+}
+
+.gk-list-pagination__btn:hover:not(:disabled) {
+  background: #f5f5f3;
+  border-color: #c8c8c4;
+}
+
+.gk-list-pagination__btn:focus-visible {
+  outline: 2px solid #2c6ecb;
+  outline-offset: 2px;
+}
+
+.gk-list-pagination__btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
 @media (max-width: 900px) {
   .gk-notification-top {
     grid-template-columns: 1fr;

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import type {
 
@@ -26,6 +26,10 @@ import {
 
 
 
+import {
+  buildListPagination,
+  ListPaginationBar,
+} from "../components/ListPaginationBar";
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 
 import {
@@ -56,19 +60,11 @@ import { boundary } from "@shopify/shopify-app-react-router/server";
 import notificationsStyles from "../styles/notifications.css?url";
 import type { NotificationTemplate } from "../lib/notifications/notification.types";
 import { isMerchantTemplate } from "../lib/notifications/notification-template-mode";
-
-function readFieldValue(event: {
-  currentTarget: { value?: string } | null;
-  target?: EventTarget | null;
-}) {
-  return (
-    event.currentTarget?.value ??
-    (event.target as HTMLInputElement | null)?.value ??
-    ""
-  );
-}
+import { readCheckValue, readFieldValue } from "../lib/read-field-value";
 
 export const links = () => [{ rel: "stylesheet", href: notificationsStyles }];
+
+const TEMPLATES_PAGE_SIZE = 10;
 
 const MODE_FILTER_ICON_PROPS = {
   width: 18,
@@ -289,6 +285,7 @@ export default function NotificationSettingsPage() {
 
   const [draft, setDraft] = useState(notifications);
   const [modeFilter, setModeFilter] = useState<NotificationTemplateModeKey | "all">("all");
+  const [templatePage, setTemplatePage] = useState(1);
 
   const modeCounts = useMemo(() => {
     const counts: Record<NotificationTemplateModeKey | "all", number> = {
@@ -312,6 +309,26 @@ export default function NotificationSettingsPage() {
       (template) => templateMode(template).key === modeFilter,
     );
   }, [draft.templates, modeFilter]);
+
+  useEffect(() => {
+    setTemplatePage(1);
+  }, [modeFilter]);
+
+  const templatesPagination = useMemo(
+    () => buildListPagination(filteredTemplates.length, templatePage, TEMPLATES_PAGE_SIZE),
+    [filteredTemplates.length, templatePage],
+  );
+
+  const pagedTemplates = useMemo(() => {
+    const start = (templatesPagination.page - 1) * TEMPLATES_PAGE_SIZE;
+    return filteredTemplates.slice(start, start + TEMPLATES_PAGE_SIZE);
+  }, [filteredTemplates, templatesPagination.page]);
+
+  useEffect(() => {
+    if (templatePage > templatesPagination.totalPages) {
+      setTemplatePage(templatesPagination.totalPages);
+    }
+  }, [templatePage, templatesPagination.totalPages]);
 
   if (outlet) {
     return outlet;
@@ -399,9 +416,10 @@ export default function NotificationSettingsPage() {
                     checked={draft.enabled}
 
                     onChange={(event) =>
-
-                      setDraft((current) => ({ ...current, enabled: event.currentTarget.checked }))
-
+                      setDraft((current) => ({
+                        ...current,
+                        enabled: readCheckValue(event, current.enabled),
+                      }))
                     }
 
                   />
@@ -577,6 +595,13 @@ export default function NotificationSettingsPage() {
                 </p>
               ) : (
 
+              <>
+              <ListPaginationBar
+                meta={templatesPagination}
+                label="Notification templates"
+                onPageChange={setTemplatePage}
+              />
+
               <s-table variant="auto">
 
                 <s-table-header-row>
@@ -595,7 +620,7 @@ export default function NotificationSettingsPage() {
 
                 <s-table-body>
 
-                  {filteredTemplates.map((template) => {
+                  {pagedTemplates.map((template) => {
                     const mode = templateMode(template);
                     return (
                     <s-table-row key={template.id}>
@@ -643,6 +668,13 @@ export default function NotificationSettingsPage() {
                 </s-table-body>
 
               </s-table>
+
+              <ListPaginationBar
+                meta={templatesPagination}
+                label="Notification templates"
+                onPageChange={setTemplatePage}
+              />
+              </>
 
               )}
 
