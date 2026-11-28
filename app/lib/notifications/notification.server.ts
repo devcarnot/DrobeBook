@@ -376,6 +376,58 @@ export async function sendRentalNotification(
   };
 }
 
+function resolveMerchantNotificationEmail(config: NotificationsConfig) {
+  const reply = config.replyToEmail.trim();
+  if (reply && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reply)) {
+    return reply;
+  }
+  const from = config.fromEmail.trim();
+  if (from && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from)) {
+    return from;
+  }
+  return "";
+}
+
+export async function sendWaitlistAdminCreatedNotification(
+  shop: string,
+  context: WaitlistNotificationContext,
+  options?: { entryId?: string },
+) {
+  const config = await getNotificationsConfig(shop);
+  const merchantEmail = resolveMerchantNotificationEmail(config);
+  if (!merchantEmail) {
+    console.warn(
+      "[waitlist] Admin alert skipped — set Reply-To or From email in Notifications settings.",
+    );
+    return { sent: 0, skipped: 1, error: "merchant_email_missing" as const };
+  }
+
+  const tokens = buildWaitlistTokenMap(context, config.fromName || shopDisplayName(shop));
+  const templates = config.templates.filter(
+    (template) => template.trigger === "on_waitlist_created" && template.active,
+  );
+
+  let sent = 0;
+  for (const template of templates) {
+    const result = await sendTemplateEmail(
+      shop,
+      config,
+      template,
+      merchantEmail,
+      tokens,
+      {
+        bookingId: options?.entryId,
+        anchorDate: formatIsoDate(new Date()),
+      },
+    );
+    if (result.ok && !wasSkipped(result)) {
+      sent += 1;
+    }
+  }
+
+  return { sent, skipped: templates.length - sent };
+}
+
 export async function sendWaitlistNotification(
   shop: string,
   context: WaitlistNotificationContext,

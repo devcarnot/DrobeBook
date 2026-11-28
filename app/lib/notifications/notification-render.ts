@@ -141,6 +141,39 @@ export function buildAppointmentTokenMap(
 }
 
 function formatWaitlistDetails(context: WaitlistNotificationContext) {
+  if (!context.claimUrl) {
+    if (context.waitlistKind === "try_on") {
+      const date = context.preferredDate
+        ? formatDisplayDate(context.preferredDate)
+        : null;
+      const time = context.preferredTime?.trim();
+      const duration = context.durationMinutes
+        ? `${context.durationMinutes}-minute try-on`
+        : null;
+      return [
+        date ? `Preferred try-on date: ${date}` : "",
+        time ? `Preferred time: ${time}` : "",
+        duration ? `Duration: ${duration}` : "",
+        context.productTitle ? `Gown: ${context.productTitle}` : "",
+        context.phone ? `Phone: ${context.phone}` : "",
+        context.notes ? `Note: ${context.notes}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+
+    if (context.eventDate || context.phone || context.notes || context.size) {
+      return [
+        context.eventDate ? `Event date: ${formatDisplayDate(context.eventDate)}` : "",
+        context.size ? `Size: ${context.size}` : "",
+        context.phone ? `Phone: ${context.phone}` : "",
+        context.notes ? `Customer note: ${context.notes}` : "",
+      ]
+        .filter(Boolean)
+        .join("\n");
+    }
+  }
+
   if (context.waitlistKind === "try_on") {
     const date = context.preferredDate
       ? formatDisplayDate(context.preferredDate)
@@ -168,6 +201,13 @@ function formatWaitlistDetails(context: WaitlistNotificationContext) {
     .join("\n");
 }
 
+function resolveWaitlistAdminUrl() {
+  const base =
+    process.env.SHOPIFY_APP_URL?.replace(/\/$/, "") ||
+    "https://drobebook-production.up.railway.app";
+  return `${base}/app/waitlist`;
+}
+
 export function buildWaitlistTokenMap(
   context: WaitlistNotificationContext,
   shopName: string,
@@ -180,9 +220,14 @@ export function buildWaitlistTokenMap(
     customerLastName: lastName,
     customerName: context.name?.trim() || firstName,
     customerEmail: context.email,
+    customerPhone: context.phone?.trim() || "—",
     rentalStartDate: "",
     rentalEndDate: "",
-    eventDate: "",
+    eventDate: context.eventDate
+      ? formatDisplayDate(context.eventDate)
+      : context.preferredDate
+        ? formatDisplayDate(context.preferredDate)
+        : "",
     products: context.productTitle ?? "your selected gown",
     rentalStatus: "",
     shopifyOrderNumber: "",
@@ -192,6 +237,7 @@ export function buildWaitlistTokenMap(
     shopName,
     claimUrl: context.claimUrl ?? "",
     waitlistDetails,
+    waitlistAdminUrl: resolveWaitlistAdminUrl(),
   };
 }
 

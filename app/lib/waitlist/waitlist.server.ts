@@ -1,6 +1,7 @@
 import prisma from "../../db.server";
 import { parseIsoDate } from "../booking/availability.server";
 import { extractNumericId, shopifyAdminProductUrl } from "../shopify-ids";
+import { sendWaitlistAdminCreatedNotification } from "../notifications/notification.server";
 import { deliveryDateFromWaitlistEvent } from "./waitlist-admin-display";
 import {
   getWaitlistDemandByProduct,
@@ -147,7 +148,7 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
     throw new Error("A mobile number is required.");
   }
 
-  return prisma.waitlistEntry.create({
+  const entry = await prisma.waitlistEntry.create({
     data: {
       shop: input.shop,
       kind,
@@ -167,6 +168,32 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
       status: "waiting",
     },
   });
+
+  void sendWaitlistAdminCreatedNotification(
+    input.shop,
+    {
+      email: entry.email,
+      name: entry.name,
+      productTitle: entry.productTitle,
+      waitlistKind: kind,
+      preferredDate: entry.preferredDate
+        ? entry.preferredDate.toISOString().slice(0, 10)
+        : null,
+      preferredTime: entry.preferredTime,
+      durationMinutes: entry.durationMinutes,
+      phone: entry.phone,
+      size: entry.size,
+      eventDate: entry.eventDate
+        ? entry.eventDate.toISOString().slice(0, 10)
+        : null,
+      notes: entry.notes,
+    },
+    { entryId: entry.id },
+  ).catch((error) => {
+    console.warn("[waitlist] admin created notification failed", error);
+  });
+
+  return entry;
 }
 
 export const WAITLIST_ENTRIES_PAGE_SIZE = 10;

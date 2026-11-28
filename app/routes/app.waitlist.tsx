@@ -232,8 +232,10 @@ export default function WaitlistPage() {
             </div>
             <p className="gk-waitlist-lede">
               Manage hire and try-on waitlist requests in one place. New{" "}
-              <strong>waiting</strong> requests show a count beside{" "}
-              <strong>Waitlist</strong> in the app menu.
+              <strong>waiting</strong> enquiries trigger an admin email (template on in
+              Notifications) and update the count beside <strong>Waitlist</strong> in the app
+              menu. Set <strong>Reply-To email</strong> in Notifications so alerts reach your
+              inbox.
             </p>
           </div>
           <div className="gk-waitlist-info-wrap">

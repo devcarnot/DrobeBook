@@ -102,6 +102,27 @@ function DateValue({ text }: { text: string }) {
   );
 }
 
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg
+      className={`gk-waitlist-card__chevron${open ? " gk-waitlist-card__chevron--open" : ""}`}
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        d="M6 9l6 6 6-6"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function WaitlistEntryCard({
   entry,
   isSubmitting,
@@ -126,7 +147,16 @@ export function WaitlistEntryCard({
       ? `Notified ${formatDateTime(entry.notifiedAt)}`
       : null;
 
+  const [expanded, setExpanded] = useState(false);
   const [removeDialog, setRemoveDialog] = useState<null | "notify" | "silent">(null);
+  const detailsId = `wl-details-${entry.id}`;
+
+  const summaryDate =
+    entry.kind === "garment" && entry.eventDate
+      ? formatDate(entry.eventDate)
+      : entry.kind === "try_on" && entry.preferredDate
+        ? formatDate(entry.preferredDate)
+        : null;
   const removeNotifyRef = useRef<HTMLFormElement>(null);
   const removeSilentRef = useRef<HTMLFormElement>(null);
 
@@ -140,17 +170,38 @@ export function WaitlistEntryCard({
   };
 
   return (
-    <article className="gk-waitlist-card">
+    <article className={`gk-waitlist-card${expanded ? " gk-waitlist-card--open" : ""}`}>
       <div className="gk-waitlist-card__inner">
-        <header className="gk-waitlist-card__top">
-          <div className="gk-waitlist-card__pills">
-            <span className={statusPillClass(entry.status)}>{statusLabel(entry.status)}</span>
-            <span
-              className={`gk-waitlist-pill ${entry.kind === "try_on" ? "gk-waitlist-pill--tryon" : "gk-waitlist-pill--hire"}`}
-            >
-              {bookingType}
-            </span>
-          </div>
+        <div className="gk-waitlist-card__summary-row">
+          <button
+            type="button"
+            className="gk-waitlist-card__toggle"
+            aria-expanded={expanded}
+            aria-controls={detailsId}
+            onClick={() => setExpanded((value) => !value)}
+          >
+            <div className="gk-waitlist-card__pills">
+              <span className={statusPillClass(entry.status)}>{statusLabel(entry.status)}</span>
+              <span
+                className={`gk-waitlist-pill ${entry.kind === "try_on" ? "gk-waitlist-pill--tryon" : "gk-waitlist-pill--hire"}`}
+              >
+                {bookingType}
+              </span>
+            </div>
+            <div className="gk-waitlist-card__summary-text">
+              <span className="gk-waitlist-card__summary-email">{entry.email}</span>
+              {entry.productTitle ? (
+                <span className="gk-waitlist-card__summary-product">{entry.productTitle}</span>
+              ) : null}
+              {summaryDate ? (
+                <span className="gk-waitlist-card__summary-date">
+                  <CalendarIcon />
+                  {summaryDate}
+                </span>
+              ) : null}
+            </div>
+            <ChevronIcon open={expanded} />
+          </button>
 
           <div className="gk-waitlist-card__actions-top">
             {entry.status === "waiting" ? (
@@ -175,8 +226,13 @@ export function WaitlistEntryCard({
               Compose
             </a>
           </div>
-        </header>
+        </div>
 
+        <div
+          id={detailsId}
+          className="gk-waitlist-card__collapse"
+          hidden={!expanded}
+        >
         <section className="gk-waitlist-section" aria-labelledby={`wl-customer-${entry.id}`}>
           <h3 className="gk-waitlist-section__heading" id={`wl-customer-${entry.id}`}>
             Customer
@@ -352,6 +408,7 @@ export function WaitlistEntryCard({
             </>
           ) : null}
         </footer>
+        </div>
       </div>
 
       {removeDialog ? (

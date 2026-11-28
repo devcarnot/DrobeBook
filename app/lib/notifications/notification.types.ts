@@ -8,6 +8,7 @@ export type NotificationCategory =
   | "rental_dispatched"
   | "rental_cancelled"
   | "waitlist_available"
+  | "waitlist_admin_new"
   | "waitlist_removed"
   | "try_on_confirmed"
   | "try_on_reminder"
@@ -22,6 +23,7 @@ export type NotificationTrigger =
   | "on_end_date"
   | "days_after_end"
   | "on_waitlist_notify"
+  | "on_waitlist_created"
   | "on_waitlist_removed"
   | "on_appointment_confirm"
   | "days_before_appointment"
@@ -80,6 +82,10 @@ export type WaitlistNotificationContext = {
   preferredDate?: string | null;
   preferredTime?: string | null;
   durationMinutes?: number | null;
+  phone?: string | null;
+  size?: string | null;
+  eventDate?: string | null;
+  notes?: string | null;
 };
 
 export type AppointmentNotificationContext = {
@@ -100,6 +106,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   rental_dispatched: "Dispatched / tracking",
   rental_cancelled: "Cancellation",
   waitlist_available: "Waitlist availability",
+  waitlist_admin_new: "New waitlist enquiry (admin)",
   waitlist_removed: "Removed from waitlist",
   try_on_confirmed: "Try-on appointment confirmed",
   try_on_reminder: "Try-on appointment reminder",
@@ -115,6 +122,7 @@ export const NOTIFICATION_TRIGGER_LABELS: Record<NotificationTrigger, string> = 
   on_end_date: "On rental end date",
   days_after_end: "Days after rental end",
   on_waitlist_notify: "When waitlist customer is notified",
+  on_waitlist_created: "When a customer joins the waitlist (admin alert)",
   on_waitlist_removed: "When a customer is removed from the waitlist",
   on_appointment_confirm: "When try-on appointment is confirmed",
   days_before_appointment: "Days before try-on appointment",
@@ -139,6 +147,11 @@ export const NOTIFICATION_TOKENS = [
   { token: "{{shopName}}", description: "Your store name" },
   { token: "{{claimUrl}}", description: "Waitlist claim link (waitlist only)" },
   { token: "{{waitlistDetails}}", description: "Hire dates or try-on slot summary" },
+  {
+    token: "{{waitlistAdminUrl}}",
+    description: "Link to the waitlist page in DrobeBook admin",
+  },
+  { token: "{{customerPhone}}", description: "Customer phone (waitlist)" },
   { token: "{{appointmentDate}}", description: "Try-on appointment date" },
   { token: "{{appointmentTime}}", description: "Try-on appointment time" },
   { token: "{{appointmentDuration}}", description: "Try-on duration in minutes" },

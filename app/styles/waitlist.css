@@ -508,13 +508,99 @@
   padding: 1.5rem 1.75rem;
 }
 
-.gk-waitlist-card__top {
+.gk-waitlist-card__summary-row {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  align-items: stretch;
   justify-content: space-between;
   gap: 0.75rem 1rem;
-  margin-bottom: 1.5rem;
+}
+
+.gk-waitlist-card__toggle {
+  display: flex;
+  flex: 1 1 16rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem 1rem;
+  min-height: 2.75rem;
+  margin: 0;
+  padding: 0.35rem 0.5rem 0.35rem 0;
+  border: 0;
+  border-radius: var(--wl-radius-control);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--wl-transition);
+}
+
+.gk-waitlist-card__toggle:hover {
+  background: var(--wl-bg);
+}
+
+.gk-waitlist-card__toggle:focus-visible {
+  outline: 2px solid var(--wl-focus);
+  outline-offset: 2px;
+}
+
+.gk-waitlist-card__summary-text {
+  display: flex;
+  flex: 1 1 12rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.75rem;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--wl-text);
+}
+
+.gk-waitlist-card__summary-email {
+  font-weight: 600;
+  word-break: break-word;
+}
+
+.gk-waitlist-card__summary-product {
+  color: var(--wl-muted);
+  font-size: 13px;
+}
+
+.gk-waitlist-card__summary-product::before {
+  content: "·";
+  margin-right: 0.5rem;
+  color: #c8c8c4;
+}
+
+.gk-waitlist-card__summary-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 13px;
+  color: var(--wl-muted);
+}
+
+.gk-waitlist-card__summary-date::before {
+  content: "·";
+  margin-right: 0.35rem;
+  color: #c8c8c4;
+}
+
+.gk-waitlist-card__chevron {
+  flex-shrink: 0;
+  color: var(--wl-muted);
+  transition: transform 180ms ease;
+}
+
+.gk-waitlist-card__chevron--open {
+  transform: rotate(180deg);
+}
+
+.gk-waitlist-card__collapse {
+  margin-top: 1.25rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid var(--wl-hairline);
+}
+
+.gk-waitlist-card__collapse[hidden] {
+  display: none;
 }
 
 .gk-waitlist-card__pills {

@@ -359,6 +359,31 @@ Kind regards,
     active: true,
   }),
   template({
+    id: "waitlist-admin-new",
+    name: "New waitlist enquiry (admin)",
+    category: "waitlist_admin_new",
+    deliveryMethods: ["post", "pickup", "local"],
+    channel: "email",
+    subject: "New waitlist enquiry — {{customerName}}",
+    body: `Hello {{shopName}} team,
+
+A customer just joined the waitlist.
+
+Customer: {{customerName}} ({{customerEmail}})
+Phone: {{customerPhone}}
+
+{{products}}
+{{waitlistDetails}}
+
+Review in DrobeBook: {{waitlistAdminUrl}}
+
+— DrobeBook`,
+    automated: true,
+    trigger: "on_waitlist_created",
+    offsetDays: 0,
+    active: true,
+  }),
+  template({
     id: "waitlist-available",
     name: "Waitlist availability",
     category: "waitlist_available",
