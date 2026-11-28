@@ -15,6 +15,7 @@
 
 .gk-drobe-search {
   --gk-search-content-max-width: min(1400px, 100%);
+  --gk-search-landing-form-max-width: min(100%, 56rem);
   --gk-search-section-padding-block: 2.5rem;
   --gk-search-section-padding-inline: 1rem;
   --gk-search-title-size: clamp(2rem, 4vw, 2.75rem);
@@ -80,7 +81,7 @@
 .gk-drobe-search__toolbar-wrap {
   width: 100%;
   display: flex;
-  justify-content: center;
+  justify-content: stretch;
   margin: 0 0 1.75rem;
 }
 
@@ -101,8 +102,24 @@
 }
 
 .gk-drobe-search__form--landing {
-  grid-template-columns: minmax(10rem, 1fr) minmax(8rem, 0.7fr) minmax(11rem, auto);
-  width: min(100%, 44rem);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(11.5rem, auto);
+  align-items: end;
+  gap: 1rem 1.25rem;
+  width: 100%;
+  max-width: var(--gk-search-landing-form-max-width, min(100%, 56rem));
+  margin-inline: auto;
+  padding: 1.35rem 1.5rem;
+}
+
+.gk-drobe-search--width-full .gk-drobe-search__form--landing,
+.gk-drobe-search--width-wide .gk-drobe-search__form--landing {
+  max-width: var(--gk-search-landing-form-max-width, 100%);
+}
+
+@media (min-width: 960px) {
+  .gk-drobe-search--width-full .gk-drobe-search__form--landing {
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(14rem, 0.9fr);
+  }
 }
 
 .gk-drobe-search__toolbar {
@@ -117,7 +134,11 @@
 }
 
 .gk-drobe-search__field--action {
-  min-width: 8.5rem;
+  min-width: 0;
+}
+
+.gk-drobe-search__field--action .gk-drobe-search__button {
+  width: 100%;
 }
 
 .gk-drobe-search__label {
@@ -420,7 +441,8 @@
   .gk-drobe-search__form--landing,
   .gk-drobe-search__toolbar {
     grid-template-columns: 1fr;
-    width: min(100%, 24rem);
+    width: 100%;
+    max-width: min(100%, 26rem);
     margin-inline: auto;
   }
 

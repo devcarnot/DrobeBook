@@ -230,6 +230,15 @@
         wide: "87.5rem",
         full: "100%",
       };
+      const landingFormMaxWidthMap = {
+        standard: "min(100%, 56rem)",
+        theme:
+          "min(100%, var(--page-width, var(--container-max-width, var(--max-page-width, 56rem))))",
+        narrow: "min(100%, 42rem)",
+        medium: "min(100%, 56rem)",
+        wide: "min(100%, 72rem)",
+        full: "100%",
+      };
       const paddingMap = {
         compact: { block: "1.5rem", inline: "1rem" },
         default: { block: "2.5rem", inline: "1rem" },
@@ -256,10 +265,26 @@
         );
       }
 
+      const widthKey = layout.contentWidth || "standard";
+
+      this.root.classList.remove(
+        "gk-drobe-search--width-standard",
+        "gk-drobe-search--width-theme",
+        "gk-drobe-search--width-narrow",
+        "gk-drobe-search--width-medium",
+        "gk-drobe-search--width-wide",
+        "gk-drobe-search--width-full",
+      );
+      this.root.classList.add(`gk-drobe-search--width-${widthKey}`);
+
       targets.forEach((element) => {
         element.style.setProperty(
           "--gk-search-content-max-width",
-          contentWidthMap[layout.contentWidth] || contentWidthMap.standard,
+          contentWidthMap[widthKey] || contentWidthMap.standard,
+        );
+        element.style.setProperty(
+          "--gk-search-landing-form-max-width",
+          landingFormMaxWidthMap[widthKey] || landingFormMaxWidthMap.standard,
         );
         element.style.setProperty("--gk-search-section-padding-block", padding.block);
         element.style.setProperty("--gk-search-section-padding-inline", padding.inline);
@@ -315,6 +340,13 @@
       }
       if (config.resultsPageUrl) {
         this.resultsUrl = config.resultsPageUrl;
+      }
+
+      const layout = config.layout;
+      const section =
+        this.root.closest(".gk-drobe-search-section") || this.root.parentElement;
+      if (layout) {
+        this.applySearchLayout(layout, section);
       }
     }
 

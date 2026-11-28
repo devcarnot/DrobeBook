@@ -35,6 +35,17 @@ const CONTENT_WIDTH_VALUES: Record<SearchContentWidth, string> = {
   full: "100%",
 };
 
+/** Max width of the landing search card inside the content column. */
+export const LANDING_FORM_MAX_WIDTH_VALUES: Record<SearchContentWidth, string> = {
+  standard: "min(100%, 56rem)",
+  theme:
+    "min(100%, var(--page-width, var(--container-max-width, var(--max-page-width, 56rem))))",
+  narrow: "min(100%, 42rem)",
+  medium: "min(100%, 56rem)",
+  wide: "min(100%, 72rem)",
+  full: "100%",
+};
+
 const SECTION_PADDING_VALUES: Record<
   SearchSectionPadding,
   { block: string; inline: string }
@@ -73,15 +84,11 @@ export function parseSearchLayout(
   }
 
   return {
-    // Older saved configs used "theme" before 1400px became the default.
-    contentWidth:
-      raw.contentWidth === "theme"
-        ? "standard"
-        : parseEnumField(
-            raw.contentWidth ?? null,
-            ["standard", "theme", "narrow", "medium", "wide", "full"],
-            DEFAULT_SEARCH_LAYOUT.contentWidth,
-          ),
+    contentWidth: parseEnumField(
+      raw.contentWidth ?? null,
+      ["standard", "theme", "narrow", "medium", "wide", "full"],
+      DEFAULT_SEARCH_LAYOUT.contentWidth,
+    ),
     sectionPadding: parseEnumField(
       raw.sectionPadding ?? null,
       ["compact", "default", "spacious"],
@@ -137,6 +144,8 @@ export function searchLayoutToCssVariables(
 
   return {
     "--gk-search-content-max-width": CONTENT_WIDTH_VALUES[layout.contentWidth],
+    "--gk-search-landing-form-max-width":
+      LANDING_FORM_MAX_WIDTH_VALUES[layout.contentWidth],
     "--gk-search-section-padding-block": padding.block,
     "--gk-search-section-padding-inline": padding.inline,
     "--gk-search-title-size": TITLE_SIZE_VALUES[layout.titleSize],

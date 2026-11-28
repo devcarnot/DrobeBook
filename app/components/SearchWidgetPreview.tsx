@@ -1,6 +1,9 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import { searchLayoutToCssVariables } from "../lib/search-layout";
+import {
+  LANDING_FORM_MAX_WIDTH_VALUES,
+  searchLayoutToCssVariables,
+} from "../lib/search-layout";
 import type { SearchConfig } from "../lib/shop-config";
 import { searchColorsToCssVariables } from "../lib/search-colors";
 
@@ -67,16 +70,10 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
         ? "clamp(2.25rem, 5vw, 3.25rem)"
         : "clamp(2rem, 4vw, 2.75rem)";
 
-  const contentMaxWidth =
-    config.layout.contentWidth === "standard" || config.layout.contentWidth === "wide"
-      ? "min(1400px, 100%)"
-      : config.layout.contentWidth === "narrow"
-        ? "42rem"
-        : config.layout.contentWidth === "medium"
-          ? "56rem"
-          : config.layout.contentWidth === "full"
-            ? "100%"
-            : "min(87.5rem, 100%)";
+  const layoutCss = searchLayoutToCssVariables(config.layout);
+  const contentMaxWidth = layoutCss["--gk-search-content-max-width"];
+  const landingFormMaxWidth =
+    LANDING_FORM_MAX_WIDTH_VALUES[config.layout.contentWidth];
 
   const sectionPadding =
     config.layout.sectionPadding === "compact"
@@ -116,18 +113,23 @@ export function SearchWidgetPreview({ config }: { config: SearchConfig }) {
           width: "100%",
           maxWidth: contentMaxWidth,
           margin: "0 auto",
-          display: "flex",
-          justifyContent: "center",
         }}
       >
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr))",
-            gap: "1rem",
+            gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) minmax(11.5rem, auto)",
+            gap: "1rem 1.25rem",
             alignItems: "end",
             width: "100%",
-            maxWidth: "100%",
+            maxWidth: landingFormMaxWidth,
+            marginInline: "auto",
+            padding: "1.35rem 1.5rem",
+            background: "var(--gk-search-panel-bg, #fff)",
+            border: "1px solid var(--gk-search-panel-border, rgba(0,0,0,0.08))",
+            borderRadius: "16px",
+            boxShadow: "var(--gk-search-panel-shadow, 0 10px 30px rgba(17, 17, 17, 0.06))",
+            boxSizing: "border-box",
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "0.35rem", minWidth: 0 }}>
