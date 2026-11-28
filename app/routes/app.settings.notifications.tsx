@@ -30,6 +30,7 @@ import {
   buildListPagination,
   ListPaginationBar,
 } from "../components/ListPaginationBar";
+import { InfoHoverTooltip } from "../components/InfoHoverTooltip";
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 
 import {
@@ -65,6 +66,16 @@ import { readCheckValue, readFieldValue } from "../lib/read-field-value";
 export const links = () => [{ rel: "stylesheet", href: notificationsStyles }];
 
 const TEMPLATES_PAGE_SIZE = 10;
+
+const HIGH_VALUE_THRESHOLD_HELP = (
+  <>
+    Sends the <strong>High-Value Booking</strong> admin alert when a new hire is created and the
+    linked order total is at or above this amount (AUD). Use the template under Mode →{" "}
+    <strong>Admin alert</strong> and set <strong>Admin notification email</strong> above. Leave
+    blank or <strong>0</strong> to disable threshold checks. Totals come from Shopify when an order is
+    linked; manual rentals may not alert until an order is attached.
+  </>
+);
 
 const MODE_FILTER_ICON_PROPS = {
   width: 18,
@@ -482,58 +493,71 @@ export default function NotificationSettingsPage() {
 
 
 
-                <s-text-field
+                <ResponsiveGrid layout="2">
+                  <s-text-field
+                    label="Reply-to email"
+                    name="replyToEmail"
+                    value={draft.replyToEmail}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        replyToEmail: readFieldValue(event),
+                      }))
+                    }
+                  />
 
-                  label="Reply-to email"
+                  <s-text-field
+                    label="Admin notification email"
+                    name="adminNotifyEmail"
+                    value={draft.adminNotifyEmail ?? ""}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...current,
+                        adminNotifyEmail: readFieldValue(event),
+                      }))
+                    }
+                  />
+                </ResponsiveGrid>
 
-                  name="replyToEmail"
-
-                  value={draft.replyToEmail}
-
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      replyToEmail: readFieldValue(event),
-                    }))
-                  }
-
-                />
-
-                <s-text-field
-                  label="Admin notification email"
-                  name="adminNotifyEmail"
-                  value={draft.adminNotifyEmail ?? ""}
-                  onChange={(event) =>
-                    setDraft((current) => ({
-                      ...current,
-                      adminNotifyEmail: readFieldValue(event),
-                    }))
-                  }
-                />
-
-                <input
-                  type="hidden"
-                  name="adminHighValueThresholdCents"
-                  value={String(draft.adminHighValueThresholdCents ?? 0)}
-                />
-
-                <s-text-field
-                  label="High-value alert threshold (AUD, optional)"
-                  value={
-                    draft.adminHighValueThresholdCents
-                      ? String(draft.adminHighValueThresholdCents / 100)
-                      : ""
-                  }
-                  onChange={(event) => {
-                    const dollars = Number.parseFloat(readFieldValue(event));
-                    setDraft((current) => ({
-                      ...current,
-                      adminHighValueThresholdCents: Number.isFinite(dollars)
-                        ? Math.max(0, Math.round(dollars * 100))
-                        : 0,
-                    }));
-                  }}
-                />
+                <ResponsiveGrid layout="2">
+                  <div className="gk-notification-labeled-field">
+                    <div className="gk-notification-field-label-row">
+                      <label
+                        className="gk-form-field__label"
+                        htmlFor="admin-high-value-threshold"
+                      >
+                        High-value alert threshold (AUD, optional)
+                      </label>
+                      <InfoHoverTooltip ariaLabel="How the high-value admin alert threshold works">
+                        {HIGH_VALUE_THRESHOLD_HELP}
+                      </InfoHoverTooltip>
+                    </div>
+                    <input
+                      type="hidden"
+                      name="adminHighValueThresholdCents"
+                      value={String(draft.adminHighValueThresholdCents ?? 0)}
+                    />
+                    <s-text-field
+                      id="admin-high-value-threshold"
+                      label="High-value alert threshold (AUD, optional)"
+                      labelAccessibilityVisibility="exclusive"
+                      value={
+                        draft.adminHighValueThresholdCents
+                          ? String(draft.adminHighValueThresholdCents / 100)
+                          : ""
+                      }
+                      onChange={(event) => {
+                        const dollars = Number.parseFloat(readFieldValue(event));
+                        setDraft((current) => ({
+                          ...current,
+                          adminHighValueThresholdCents: Number.isFinite(dollars)
+                            ? Math.max(0, Math.round(dollars * 100))
+                            : 0,
+                        }));
+                      }}
+                    />
+                  </div>
+                </ResponsiveGrid>
 
               </s-stack>
 
