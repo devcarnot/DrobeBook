@@ -53,6 +53,8 @@ import {
 import { authenticate } from "../shopify.server";
 
 import { boundary } from "@shopify/shopify-app-react-router/server";
+import notificationsStyles from "../styles/notifications.css?url";
+import type { NotificationTemplate } from "../lib/notifications/notification.types";
 
 function readFieldValue(event: {
   currentTarget: { value?: string } | null;
@@ -63,6 +65,40 @@ function readFieldValue(event: {
     (event.target as HTMLInputElement | null)?.value ??
     ""
   );
+}
+
+export const links = () => [{ rel: "stylesheet", href: notificationsStyles }];
+
+const SCHEDULED_RENTAL_TRIGGERS = new Set([
+  "days_before_start",
+  "on_start_date",
+  "days_before_end",
+  "on_end_date",
+  "days_after_end",
+]);
+
+const SCHEDULED_APPOINTMENT_TRIGGERS = new Set(["days_before_appointment"]);
+
+function templateMode(template: NotificationTemplate): {
+  key: "auto" | "scheduled" | "manual" | "admin";
+  label: string;
+} {
+  if (!template.automated) {
+    return { key: "manual", label: "Manual only" };
+  }
+  if (template.category === "waitlist_admin_new") {
+    return { key: "admin", label: "Admin alert" };
+  }
+  if (
+    SCHEDULED_RENTAL_TRIGGERS.has(template.trigger) ||
+    SCHEDULED_APPOINTMENT_TRIGGERS.has(template.trigger)
+  ) {
+    return { key: "scheduled", label: "Scheduled" };
+  }
+  if (template.trigger === "manual") {
+    return { key: "manual", label: "Manual only" };
+  }
+  return { key: "auto", label: "Automatic" };
 }
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
@@ -141,10 +177,12 @@ function scheduleLabel(template: {
 
 }) {
 
-  if (!template.automated || !template.active) {
-
+  if (!template.active) {
     return "Inactive";
+  }
 
+  if (!template.automated) {
+    return "Send manually from admin";
   }
 
 
@@ -197,7 +235,7 @@ export default function NotificationSettingsPage() {
 
     <s-page heading="Email notifications" inlineSize="large">
 
-      <s-stack direction="block" gap="large">
+      <div className="gk-notification-page">
 
         {actionData?.saved ? (
 
@@ -217,83 +255,47 @@ export default function NotificationSettingsPage() {
 
         ) : null}
 
-
-
-        <s-box padding="large" background="subdued" borderRadius="large">
-
-          <div className="gk-notification-hero">
-
-            <div className="gk-notification-hero__icon" aria-hidden="true">
-
-              ✉
-
-            </div>
-
-            <s-stack direction="block" gap="small">
-
-              <s-text type="strong">Automated customer emails</s-text>
-
-              <s-paragraph tone="neutral" color="subdued">
-
-                Send rental confirmations, dispatch updates, return reminders, waitlist alerts, and
-
-                after-rental messages. Templates support tokens like {"{{customerFirstName}}"} and{" "}
-
-                {"{{rentalStartDate}}"}.
-
-              </s-paragraph>
-
-              <s-text tone="neutral" color="subdued">
-
-                {activeCount} active template{activeCount === 1 ? "" : "s"} configured.
-
-              </s-text>
-
-            </s-stack>
-
-          </div>
-
-          {!hasResend ? (
-
-            <s-banner tone="warning">
-
-              Set <s-text type="strong">RESEND_API_KEY</s-text> and{" "}
-
-              <s-text type="strong">NOTIFICATION_FROM_EMAIL</s-text> in your app environment to
-
-              deliver emails. Without them, messages are logged in the server console for testing.
-
-            </s-banner>
-
-          ) : null}
-
-        </s-box>
-
-
-
-        <Form method="post">
+        <Form method="post" style={{ marginTop: "1rem" }}>
 
           <input type="hidden" name="intent" value="save" />
 
-          <s-stack direction="block" gap="large">
+          <div className="gk-notification-top">
+            <section className="gk-notification-panel gk-notification-panel--muted">
+              <span className="gk-notification-intro">
+                <span className="gk-notification-intro__icon" aria-hidden="true">
+                  ✉
+                </span>
+                <span>
+                  <h2 className="gk-notification-panel__title">Automated customer emails</h2>
+                  <p className="gk-notification-panel__lede">
+                    Rental, try-on, and waitlist messages. Tokens include{" "}
+                    <code>{"{{customerFirstName}}"}</code> and{" "}
+                    <code>{"{{rentalStartDate}}"}</code>.
+                  </p>
+                  <p className="gk-notification-intro__meta">
+                    {activeCount} active template{activeCount === 1 ? "" : "s"}
+                  </p>
+                </span>
+              </span>
+              {!hasResend ? (
+                <div className="gk-notification-resend">
+                  <s-banner tone="warning">
+                    Set <s-text type="strong">RESEND_API_KEY</s-text> and{" "}
+                    <s-text type="strong">NOTIFICATION_FROM_EMAIL</s-text> on Railway to deliver
+                    real emails.
+                  </s-banner>
+                </div>
+              ) : null}
+            </section>
 
-            <s-box padding="large" background="base" border="base" borderRadius="large">
+            <section className="gk-notification-panel">
+              <h2 className="gk-notification-panel__title">Sender details</h2>
+              <p className="gk-notification-panel__lede">
+                From / Reply-To for customer emails. <strong>Reply-To</strong> also receives new
+                waitlist admin alerts.
+              </p>
 
               <s-stack direction="block" gap="large">
-
-                <s-stack direction="block" gap="small">
-
-                  <s-text type="strong">Sender details</s-text>
-
-                  <s-paragraph tone="neutral" color="subdued">
-
-                    These details appear in the From and Reply-To headers for customer emails.
-
-                  </s-paragraph>
-
-                </s-stack>
-
-
 
                 <label className="gk-toggle-row">
 
@@ -394,25 +396,20 @@ export default function NotificationSettingsPage() {
 
               </s-stack>
 
-            </s-box>
+            </section>
+          </div>
 
+            <section className="gk-notification-panel gk-notification-templates">
 
+              <div className="gk-notification-templates__head">
 
-            <s-box padding="large" background="base" border="base" borderRadius="large">
-
-              <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
-
-                <s-stack direction="block" gap="small">
-
-                  <s-text type="strong">Notification templates</s-text>
-
-                  <s-text tone="neutral" color="subdued">
-
-                    Click a template to edit its schedule, delivery methods, and email copy.
-
-                  </s-text>
-
-                </s-stack>
+                <div>
+                  <h2 className="gk-notification-panel__title">Notification templates</h2>
+                  <p className="gk-notification-panel__lede" style={{ marginBottom: 0 }}>
+                    Click a template to edit delivery methods, triggers, and copy.{" "}
+                    <strong>Mode</strong> shows whether DrobeBook sends it automatically.
+                  </p>
+                </div>
 
                 <s-link href="/app/settings/notifications/new">
 
@@ -420,9 +417,7 @@ export default function NotificationSettingsPage() {
 
                 </s-link>
 
-              </s-stack>
-
-
+              </div>
 
               <s-table variant="auto">
 
@@ -430,9 +425,11 @@ export default function NotificationSettingsPage() {
 
                   <s-table-header listSlot="primary">Name</s-table-header>
 
+                  <s-table-header listSlot="labeled">Mode</s-table-header>
+
                   <s-table-header listSlot="labeled">Category</s-table-header>
 
-                  <s-table-header listSlot="labeled">Schedule</s-table-header>
+                  <s-table-header listSlot="labeled">When it sends</s-table-header>
 
                   <s-table-header listSlot="secondary">Status</s-table-header>
 
@@ -440,8 +437,9 @@ export default function NotificationSettingsPage() {
 
                 <s-table-body>
 
-                  {draft.templates.map((template) => (
-
+                  {draft.templates.map((template) => {
+                    const mode = templateMode(template);
+                    return (
                     <s-table-row key={template.id}>
 
                       <s-table-cell>
@@ -452,6 +450,14 @@ export default function NotificationSettingsPage() {
 
                         </s-link>
 
+                      </s-table-cell>
+
+                      <s-table-cell>
+                        <span
+                          className={`gk-notification-mode gk-notification-mode--${mode.key}`}
+                        >
+                          {mode.label}
+                        </span>
                       </s-table-cell>
 
                       <s-table-cell>
@@ -473,14 +479,14 @@ export default function NotificationSettingsPage() {
                       </s-table-cell>
 
                     </s-table-row>
-
-                  ))}
+                    );
+                  })}
 
                 </s-table-body>
 
               </s-table>
 
-            </s-box>
+            </section>
 
 
 
@@ -498,29 +504,24 @@ export default function NotificationSettingsPage() {
 
             </s-stack>
 
-          </s-stack>
-
         </Form>
 
-
-
-        <Form method="post">
+        <Form method="post" className="gk-notification-scheduled-foot">
 
           <input type="hidden" name="intent" value="run-scheduled" />
 
-          <s-box padding="large" background="subdued" borderRadius="large">
+          <section className="gk-notification-panel gk-notification-panel--muted">
 
-            <s-stack direction="block" gap="base">
+              <h2 className="gk-notification-panel__title">Scheduled reminders</h2>
 
-              <s-text type="strong">Scheduled reminders</s-text>
+              <div className="gk-notification-templates__head" style={{ marginBottom: 0 }}>
 
-              <s-stack direction="inline" gap="base" alignItems="center" justifyContent="space-between">
+                <p className="gk-notification-panel__lede" style={{ margin: 0, flex: 1 }}>
 
-                <s-text tone="neutral" color="subdued">
+                  Date-based rental and try-on reminders run when you open this page or use the
+                  button below. Set up a daily cron to catch these even if you do not open the app.
 
-                  Run due date-based reminders now (return reminders, rental start info, after-rental).
-
-                </s-text>
+                </p>
 
                 <s-button type="submit" variant="secondary">
 
@@ -528,15 +529,13 @@ export default function NotificationSettingsPage() {
 
                 </s-button>
 
-              </s-stack>
+              </div>
 
-            </s-stack>
-
-          </s-box>
+          </section>
 
         </Form>
 
-      </s-stack>
+      </div>
 
     </s-page>
 

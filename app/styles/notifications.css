@@ -1,0 +1,124 @@
+/* Email notifications admin */
+
+.gk-notification-page {
+  max-width: 75rem;
+  margin: 0 auto;
+}
+
+.gk-notification-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+  gap: 1.25rem;
+  align-items: stretch;
+  margin-bottom: 1.25rem;
+}
+
+.gk-notification-panel {
+  height: 100%;
+  padding: 1.35rem 1.5rem;
+  border: 1px solid #ececea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.gk-notification-panel--muted {
+  background: #fafaf9;
+}
+
+.gk-notification-panel__title {
+  margin: 0 0 0.35rem;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.gk-notification-panel__lede {
+  margin: 0 0 1rem;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #8a8a85;
+}
+
+.gk-notification-intro {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+}
+
+.gk-notification-intro__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 10px;
+  background: #f3f3f1;
+  color: #1a1a1a;
+  flex-shrink: 0;
+  font-size: 1.1rem;
+}
+
+.gk-notification-intro__meta {
+  margin: 0.75rem 0 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c5c58;
+}
+
+.gk-notification-resend {
+  margin-top: 1rem;
+}
+
+.gk-notification-templates {
+  margin-bottom: 1.25rem;
+}
+
+.gk-notification-templates__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+  margin-bottom: 1rem;
+}
+
+.gk-notification-mode {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.gk-notification-mode--auto {
+  background: #ecf8f1;
+  color: #1a6b42;
+}
+
+.gk-notification-mode--scheduled {
+  background: #eef4fc;
+  color: #1e4d8c;
+}
+
+.gk-notification-mode--manual {
+  background: #f3f3f1;
+  color: #5c5c58;
+}
+
+.gk-notification-mode--admin {
+  background: #f8f4ed;
+  color: #5c4b32;
+}
+
+.gk-notification-scheduled-foot {
+  margin-top: 1.25rem;
+}
+
+@media (max-width: 900px) {
+  .gk-notification-top {
+    grid-template-columns: 1fr;
+  }
+}
