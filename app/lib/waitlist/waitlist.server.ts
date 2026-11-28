@@ -169,14 +169,43 @@ export async function createWaitlistEntry(input: WaitlistCreateInput) {
   });
 }
 
-export async function listWaitlistEntries(shop: string, status?: WaitlistStatus | "all") {
+export const WAITLIST_ENTRIES_PAGE_SIZE = 10;
+export const WAITLIST_DEMAND_PAGE_SIZE = 8;
+
+function waitlistEntriesWhere(shop: string, status?: WaitlistStatus | "all") {
+  return {
+    shop,
+    ...(status && status !== "all" ? { status } : {}),
+  };
+}
+
+export async function countWaitlistEntries(
+  shop: string,
+  status?: WaitlistStatus | "all",
+): Promise<number> {
+  return prisma.waitlistEntry.count({
+    where: waitlistEntriesWhere(shop, status),
+  });
+}
+
+export async function listWaitlistEntries(
+  shop: string,
+  status?: WaitlistStatus | "all",
+  options?: { skip?: number; take?: number; unlimited?: boolean },
+) {
+  const take = options?.unlimited ? undefined : (options?.take ?? WAITLIST_ENTRIES_PAGE_SIZE);
+
   return prisma.waitlistEntry.findMany({
-    where: {
-      shop,
-      ...(status && status !== "all" ? { status } : {}),
-    },
+    where: waitlistEntriesWhere(shop, status),
     orderBy: { createdAt: "desc" },
-    take: 200,
+    skip: options?.skip ?? 0,
+    ...(take != null ? { take } : {}),
+  });
+}
+
+export async function countWaitlistWaiting(shop: string): Promise<number> {
+  return prisma.waitlistEntry.count({
+    where: { shop, status: "waiting" },
   });
 }
 
@@ -358,14 +387,71 @@ function formatClaimWindow(claimExpiresAt: Date | null | undefined) {
   return `${hours} hour${hours === 1 ? "" : "s"}`;
 }
 
+export type WaitlistPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+function buildPagination(total: number, page: number, pageSize: number): WaitlistPagination {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const safePage = Math.min(Math.max(1, page), totalPages);
+  return {
+    page: safePage,
+    pageSize,
+    total,
+    totalPages,
+  };
+}
+
 export async function getWaitlistPageData(
   shop: string,
   admin: AdminGraphqlClient,
-  options: { status?: WaitlistStatus | "all" } = {},
+  options: {
+    status?: WaitlistStatus | "all";
+    entriesPage?: number;
+    demandPage?: number;
+    exportAllEntries?: boolean;
+  } = {},
 ) {
-  const [entries, summary] = await Promise.all([
-    listWaitlistEntries(shop, options.status),
+  const entriesPage = Math.max(1, options.entriesPage ?? 1);
+  const demandPage = Math.max(1, options.demandPage ?? 1);
+
+  const entriesPageSize = WAITLIST_ENTRIES_PAGE_SIZE;
+  const demandPageSize = WAITLIST_DEMAND_PAGE_SIZE;
+
+  const [entriesTotal, summary, demandPack] = await Promise.all([
+    countWaitlistEntries(shop, options.status),
     getWaitlistSummary(shop),
+    getWaitlistDemandByProduct(shop, {
+      skip: (demandPage - 1) * demandPageSize,
+      take: demandPageSize,
+    }),
+  ]);
+
+  const entriesPagination = buildPagination(
+    entriesTotal,
+    entriesPage,
+    entriesPageSize,
+  );
+
+  const demandPagination = buildPagination(
+    demandPack.total,
+    demandPage,
+    demandPageSize,
+  );
+
+  const entriesSkip = options.exportAllEntries
+    ? 0
+    : (entriesPagination.page - 1) * entriesPageSize;
+
+  const [entries] = await Promise.all([
+    listWaitlistEntries(shop, options.status, {
+      skip: entriesSkip,
+      take: options.exportAllEntries ? undefined : entriesPageSize,
+      unlimited: options.exportAllEntries,
+    }),
   ]);
 
   const productDetails = await resolveProductDetails(
@@ -426,9 +512,13 @@ export async function getWaitlistPageData(
     return view;
   });
 
-  const demand = await getWaitlistDemandByProduct(shop);
-
-  return { entries: enriched, summary, demand };
+  return {
+    entries: enriched,
+    summary,
+    demand: demandPack.rows,
+    entriesPagination,
+    demandPagination,
+  };
 }
 
 export type { WaitlistDemandRow };

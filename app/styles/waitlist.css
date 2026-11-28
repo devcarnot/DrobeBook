@@ -431,6 +431,69 @@
   gap: 1.25rem;
 }
 
+.gk-waitlist-pagination {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.gk-waitlist-pagination__meta {
+  font-size: 13px;
+  color: var(--wl-muted);
+}
+
+.gk-waitlist-pagination__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.gk-waitlist-pagination__page {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wl-text);
+  padding: 0 0.35rem;
+}
+
+.gk-waitlist-pagination__btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.75rem;
+  border: 1px solid var(--wl-border);
+  border-radius: var(--wl-radius-control);
+  background: var(--wl-card);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--wl-text);
+  text-decoration: none;
+  transition: background var(--wl-transition);
+}
+
+.gk-waitlist-pagination__btn:hover {
+  background: var(--wl-bg);
+}
+
+.gk-waitlist-pagination__btn:focus-visible {
+  outline: 2px solid var(--wl-focus);
+  outline-offset: 2px;
+}
+
+.gk-waitlist-pagination__btn--disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.gk-waitlist-pagination--top {
+  margin-top: 0;
+  margin-bottom: 1rem;
+}
+
 /* Entry card */
 
 .gk-waitlist-card {

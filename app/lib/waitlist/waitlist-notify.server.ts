@@ -296,10 +296,17 @@ export type WaitlistDemandRow = {
 
 export async function getWaitlistDemandByProduct(
   shop: string,
-): Promise<WaitlistDemandRow[]> {
+  options?: { skip?: number; take?: number },
+): Promise<{ rows: WaitlistDemandRow[]; total: number }> {
   const entries = await prisma.waitlistEntry.findMany({
     where: { shop, kind: "garment", status: { not: "removed" } },
     orderBy: { createdAt: "desc" },
+    select: {
+      productId: true,
+      productTitle: true,
+      status: true,
+      notifiedAt: true,
+    },
   });
 
   const byProduct = new Map<string, WaitlistDemandRow>();
@@ -331,7 +338,15 @@ export async function getWaitlistDemandByProduct(
     byProduct.set(key, row);
   }
 
-  return [...byProduct.values()].sort((a, b) => b.total - a.total);
+  const all = [...byProduct.values()].sort((a, b) => b.total - a.total);
+  const skip = options?.skip ?? 0;
+  const take = options?.take;
+
+  if (take != null) {
+    return { rows: all.slice(skip, skip + take), total: all.length };
+  }
+
+  return { rows: all.slice(skip), total: all.length };
 }
 
 export async function validateWaitlistClaim(

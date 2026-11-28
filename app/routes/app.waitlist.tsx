@@ -17,6 +17,7 @@ import {
   removeWaitlistEntry,
 } from "../lib/waitlist/waitlist-notify.server";
 import { WaitlistEntryCard } from "../components/WaitlistEntryCard";
+import { WaitlistPaginationBar } from "../components/WaitlistPagination";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import waitlistStyles from "../styles/waitlist.css?url";
@@ -44,6 +45,30 @@ function parseStatusFilter(value: string | null): WaitlistStatus | "all" {
     return value;
   }
   return "all";
+}
+
+function parsePage(value: string | null): number {
+  const parsed = Number.parseInt(value ?? "1", 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+}
+
+export function buildWaitlistUrl(options: {
+  status: WaitlistStatus | "all";
+  page?: number;
+  demandPage?: number;
+}): string {
+  const params = new URLSearchParams();
+  if (options.status !== "all") {
+    params.set("status", options.status);
+  }
+  if (options.page && options.page > 1) {
+    params.set("page", String(options.page));
+  }
+  if (options.demandPage && options.demandPage > 1) {
+    params.set("demandPage", String(options.demandPage));
+  }
+  const query = params.toString();
+  return query ? `/app/waitlist?${query}` : "/app/waitlist";
 }
 
 function filterCount(summary: WaitlistSummary, id: WaitlistStatus | "all"): number {
@@ -124,8 +149,14 @@ export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
   const url = new URL(request.url);
   const status = parseStatusFilter(url.searchParams.get("status"));
+  const entriesPage = parsePage(url.searchParams.get("page"));
+  const demandPage = parsePage(url.searchParams.get("demandPage"));
 
-  return getWaitlistPageData(session.shop, admin, { status });
+  return getWaitlistPageData(session.shop, admin, {
+    status,
+    entriesPage,
+    demandPage,
+  });
 };
 
 export const action = async ({ request }: ActionFunctionArgs) => {
@@ -136,7 +167,10 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   if (intent === "export-csv") {
     const status = parseStatusFilter(String(formData.get("status") ?? "all"));
-    const data = await getWaitlistPageData(session.shop, admin, { status });
+    const data = await getWaitlistPageData(session.shop, admin, {
+      status,
+      exportAllEntries: true,
+    });
     const csv = waitlistEntriesToCsv(data.entries);
 
     return new Response(csv, {
@@ -178,7 +212,8 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 };
 
 export default function WaitlistPage() {
-  const { entries, summary, demand } = useLoaderData<typeof loader>();
+  const { entries, summary, demand, entriesPagination, demandPagination } =
+    useLoaderData<typeof loader>();
   const navigation = useNavigation();
   const [searchParams] = useSearchParams();
   const activeStatus = parseStatusFilter(searchParams.get("status"));
@@ -196,7 +231,9 @@ export default function WaitlistPage() {
               </span>
             </div>
             <p className="gk-waitlist-lede">
-              Manage hire and try-on waitlist requests in one place.
+              Manage hire and try-on waitlist requests in one place. New{" "}
+              <strong>waiting</strong> requests show a count beside{" "}
+              <strong>Waitlist</strong> in the app menu.
             </p>
           </div>
           <div className="gk-waitlist-info-wrap">
@@ -284,6 +321,17 @@ export default function WaitlistPage() {
                 </article>
               ))}
             </div>
+            <WaitlistPaginationBar
+              meta={demandPagination}
+              label="Demand by product"
+              buildHref={(page) =>
+                buildWaitlistUrl({
+                  status: activeStatus,
+                  page: entriesPagination.page,
+                  demandPage: page,
+                })
+              }
+            />
           </section>
         ) : null}
 
@@ -291,10 +339,10 @@ export default function WaitlistPage() {
           <nav className="gk-waitlist-tabs" aria-label="Filter by status">
             {STATUS_FILTERS.map((filter) => {
               const active = activeStatus === filter.id;
-              const href =
-                filter.id === "all"
-                  ? "/app/waitlist"
-                  : `/app/waitlist?status=${filter.id}`;
+              const href = buildWaitlistUrl({
+                status: filter.id,
+                demandPage: demandPagination.page,
+              });
               const count = filterCount(summary, filter.id);
 
               return (
@@ -336,15 +384,39 @@ export default function WaitlistPage() {
             </p>
           </div>
         ) : (
-          <div className="gk-waitlist-entries">
-            {entries.map((entry) => (
-              <WaitlistEntryCard
-                key={entry.id}
-                entry={entry}
-                isSubmitting={isSubmitting}
-              />
-            ))}
-          </div>
+          <>
+            <WaitlistPaginationBar
+              meta={entriesPagination}
+              label="Waitlist entries"
+              buildHref={(page) =>
+                buildWaitlistUrl({
+                  status: activeStatus,
+                  page,
+                  demandPage: demandPagination.page,
+                })
+              }
+            />
+            <div className="gk-waitlist-entries">
+              {entries.map((entry) => (
+                <WaitlistEntryCard
+                  key={entry.id}
+                  entry={entry}
+                  isSubmitting={isSubmitting}
+                />
+              ))}
+            </div>
+            <WaitlistPaginationBar
+              meta={entriesPagination}
+              label="Waitlist entries"
+              buildHref={(page) =>
+                buildWaitlistUrl({
+                  status: activeStatus,
+                  page,
+                  demandPage: demandPagination.page,
+                })
+              }
+            />
+          </>
         )}
       </div>
     </s-page>

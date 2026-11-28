@@ -3,20 +3,23 @@ import { Outlet, useLoaderData, useRouteError } from "react-router";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import { AppProvider } from "@shopify/shopify-app-react-router/react";
 
+import { countWaitlistWaiting } from "../lib/waitlist/waitlist.server";
 import { authenticate } from "../shopify.server";
 import responsiveStyles from "../styles/responsive.css?url";
 
 export const links = () => [{ rel: "stylesheet", href: responsiveStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
-  await authenticate.admin(request);
+  const { session } = await authenticate.admin(request);
+
+  const waitlistWaiting = await countWaitlistWaiting(session.shop);
 
   // eslint-disable-next-line no-undef
-  return { apiKey: process.env.SHOPIFY_API_KEY || "" };
+  return { apiKey: process.env.SHOPIFY_API_KEY || "", waitlistWaiting };
 };
 
 export default function App() {
-  const { apiKey } = useLoaderData<typeof loader>();
+  const { apiKey, waitlistWaiting } = useLoaderData<typeof loader>();
 
   return (
     <AppProvider embedded apiKey={apiKey}>
@@ -30,7 +33,9 @@ export default function App() {
         <s-link href="/app/blocked-dates">Blocked dates</s-link>
         <s-link href="/app/inventory">Inventory & Bookings</s-link>
         <s-link href="/app/bookings">Rental calendar</s-link>
-        <s-link href="/app/waitlist">Waitlist</s-link>
+        <s-link href="/app/waitlist">
+          Waitlist{waitlistWaiting > 0 ? ` (${waitlistWaiting})` : ""}
+        </s-link>
         <s-link href="/app/settings/notifications">Notifications</s-link>
       </s-app-nav>
       <Outlet />
