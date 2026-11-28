@@ -15,6 +15,7 @@ import {
   notifyWaitlistEntryById,
   removeWaitlistEntry,
 } from "../lib/waitlist/waitlist-notify.server";
+import { WaitlistEntryCard } from "../components/WaitlistEntryCard";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
@@ -94,42 +95,6 @@ export const action = async ({ request }: ActionFunctionArgs) => {
 
   return { ok: true };
 };
-
-function formatDate(value: Date | null | undefined) {
-  if (!value) {
-    return "—";
-  }
-
-  return value.toLocaleDateString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  });
-}
-
-function formatDateTime(value: Date) {
-  return value.toLocaleString("en-AU", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
-
-function statusTone(status: WaitlistStatus): "warning" | "info" | "success" | "neutral" {
-  if (status === "fulfilled") {
-    return "success";
-  }
-  if (status === "contacted") {
-    return "info";
-  }
-  if (status === "removed") {
-    return "neutral";
-  }
-  return "warning";
-}
 
 export default function WaitlistPage() {
   const { entries, summary, demand } = useLoaderData<typeof loader>();
@@ -227,164 +192,11 @@ export default function WaitlistPage() {
         ) : (
           <s-stack direction="block" gap="base">
             {entries.map((entry) => (
-              <s-box
+              <WaitlistEntryCard
                 key={entry.id}
-                padding="large"
-                background="base"
-                border="base"
-                borderRadius="large"
-              >
-                <s-stack direction="block" gap="base">
-                  <s-stack
-                    direction="inline"
-                    gap="large"
-                    alignItems="start"
-                    justifyContent="space-between"
-                  >
-                    <s-stack direction="block" gap="small">
-                      <s-stack direction="inline" gap="small" alignItems="center">
-                        <s-text type="strong">{entry.email}</s-text>
-                        <s-badge tone={statusTone(entry.status)}>{entry.status}</s-badge>
-                        <s-badge tone={entry.kind === "try_on" ? "info" : "neutral"}>
-                          {entry.kind === "try_on" ? "Try-on" : "Hire"}
-                        </s-badge>
-                      </s-stack>
-                      {entry.name ? (
-                        <s-text tone="neutral">{entry.name}</s-text>
-                      ) : null}
-                      {entry.phone ? (
-                        <s-text tone="neutral">{entry.phone}</s-text>
-                      ) : null}
-                      {entry.pronouns ? (
-                        <s-text tone="neutral" color="subdued">
-                          {entry.pronouns}
-                        </s-text>
-                      ) : null}
-                      <s-text tone="neutral" color="subdued">
-                        Submitted {formatDateTime(entry.createdAt)}
-                        {entry.claimIsActive && entry.claimExpiresAt
-                          ? ` · Priority access until ${formatDateTime(entry.claimExpiresAt)}`
-                          : entry.notifiedAt
-                            ? ` · Notified ${formatDateTime(entry.notifiedAt)}`
-                            : ""}
-                      </s-text>
-                    </s-stack>
-
-                    <s-stack direction="inline" gap="small">
-                      {entry.status === "waiting" ? (
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="notify-availability" />
-                          <input type="hidden" name="id" value={entry.id} />
-                          <s-button
-                            type="submit"
-                            variant="primary"
-                            {...(isSubmitting ? { loading: true } : {})}
-                          >
-                            Send availability email
-                          </s-button>
-                        </Form>
-                      ) : null}
-                      <s-link href={entry.mailtoUrl} target="_blank">
-                        <s-button variant="secondary" icon="email">
-                          Compose
-                        </s-button>
-                      </s-link>
-                    </s-stack>
-                  </s-stack>
-
-                  <s-box padding="base" background="subdued" borderRadius="base">
-                    <s-stack direction="block" gap="small">
-                      <s-text type="strong">{entry.productTitle}</s-text>
-                      <s-text tone="neutral" color="subdued">
-                        Product ID {entry.productId}
-                        {entry.size ? ` · Size ${entry.size}` : ""}
-                        {entry.eventDate ? ` · Event ${formatDate(entry.eventDate)}` : ""}
-                        {entry.preferredDate
-                          ? ` · Try-on ${formatDate(entry.preferredDate)}${entry.preferredTime ? ` ${entry.preferredTime}` : ""}`
-                          : ""}
-                        {entry.durationMinutes ? ` · ${entry.durationMinutes} min` : ""}
-                      </s-text>
-                      <s-stack direction="inline" gap="small">
-                        <s-link href={entry.adminProductUrl} target="_blank">
-                          Open in Shopify
-                        </s-link>
-                        {entry.storefrontProductUrl ? (
-                          <s-link href={entry.storefrontProductUrl} target="_blank">
-                            View on storefront
-                          </s-link>
-                        ) : null}
-                        <s-link href={`/app/inventory/detail?productId=${entry.productId}${entry.variantId ? `&variantId=${entry.variantId}` : ""}`}>
-                          Inventory calendar
-                        </s-link>
-                      </s-stack>
-                    </s-stack>
-                  </s-box>
-
-                  {entry.notes ? (
-                    <s-box padding="base" background="subdued" borderRadius="base">
-                      <s-text tone="neutral">{entry.notes}</s-text>
-                    </s-box>
-                  ) : null}
-
-                  <s-stack direction="inline" gap="small">
-                    {entry.status !== "contacted" && entry.status !== "fulfilled" ? (
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="mark-contacted" />
-                        <input type="hidden" name="id" value={entry.id} />
-                        <s-button
-                          type="submit"
-                          variant="secondary"
-                          {...(isSubmitting ? { loading: true } : {})}
-                        >
-                          Mark contacted
-                        </s-button>
-                      </Form>
-                    ) : null}
-                    {entry.status !== "fulfilled" ? (
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="mark-fulfilled" />
-                        <input type="hidden" name="id" value={entry.id} />
-                        <s-button
-                          type="submit"
-                          variant="tertiary"
-                          {...(isSubmitting ? { loading: true } : {})}
-                        >
-                          Mark fulfilled
-                        </s-button>
-                      </Form>
-                    ) : null}
-                    {entry.status !== "waiting" && entry.status !== "removed" ? (
-                      <Form method="post">
-                        <input type="hidden" name="intent" value="mark-waiting" />
-                        <input type="hidden" name="id" value={entry.id} />
-                        <s-button type="submit" variant="tertiary">
-                          Reopen
-                        </s-button>
-                      </Form>
-                    ) : null}
-                    {entry.status !== "removed" ? (
-                      <>
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="remove-entry" />
-                          <input type="hidden" name="id" value={entry.id} />
-                          <input type="hidden" name="notifyCustomer" value="true" />
-                          <s-button type="submit" variant="tertiary">
-                            Remove &amp; notify
-                          </s-button>
-                        </Form>
-                        <Form method="post">
-                          <input type="hidden" name="intent" value="remove-entry" />
-                          <input type="hidden" name="id" value={entry.id} />
-                          <input type="hidden" name="notifyCustomer" value="false" />
-                          <s-button type="submit" variant="tertiary">
-                            Remove silently
-                          </s-button>
-                        </Form>
-                      </>
-                    ) : null}
-                  </s-stack>
-                </s-stack>
-              </s-box>
+                entry={entry}
+                isSubmitting={isSubmitting}
+              />
             ))}
           </s-stack>
         )}

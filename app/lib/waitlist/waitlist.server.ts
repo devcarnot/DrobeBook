@@ -1,6 +1,7 @@
 import prisma from "../../db.server";
 import { parseIsoDate } from "../booking/availability.server";
 import { extractNumericId, shopifyAdminProductUrl } from "../shopify-ids";
+import { deliveryDateFromWaitlistEvent } from "./waitlist-admin-display";
 import {
   getWaitlistDemandByProduct,
   type WaitlistDemandRow,
@@ -438,6 +439,7 @@ export function waitlistEntriesToCsv(entries: WaitlistEntryView[]): string {
     "Name",
     "Pronouns",
     "Phone",
+    "Delivery date",
     "Status",
     "Product ID",
     "Product title",
@@ -447,11 +449,20 @@ export function waitlistEntriesToCsv(entries: WaitlistEntryView[]): string {
     "Submitted",
   ];
 
-  const rows = entries.map((entry) => [
+  const rows = entries.map((entry) => {
+    const deliveryDate =
+      entry.kind === "garment" && entry.eventDate
+        ? deliveryDateFromWaitlistEvent(entry.eventDate)
+        : null;
+    const delivery = deliveryDate
+      ? deliveryDate.toISOString().slice(0, 10)
+      : "";
+    return [
     entry.email,
     entry.name ?? "",
     entry.pronouns ?? "",
     entry.phone ?? "",
+    delivery,
     entry.status,
     entry.productId,
     entry.productTitle,
@@ -461,7 +472,8 @@ export function waitlistEntriesToCsv(entries: WaitlistEntryView[]): string {
       : "",
     entry.notes ?? "",
     entry.createdAt.toISOString(),
-  ]);
+  ];
+  });
 
   return [header, ...rows]
     .map((row) =>
