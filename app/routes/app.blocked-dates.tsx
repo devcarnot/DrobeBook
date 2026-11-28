@@ -5,7 +5,9 @@ import type {
 } from "react-router";
 import { Form, useActionData, useLoaderData, useNavigation } from "react-router";
 
+import { Link } from "react-router";
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
+import adminPagesStyles from "../styles/admin-pages.css?url";
 import {
   formatWeekdayMask,
   parseWeekdayMaskFromForm,
@@ -22,6 +24,8 @@ import {
 } from "../lib/blocked-dates.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const links = () => [{ rel: "stylesheet", href: adminPagesStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { session } = await authenticate.admin(request);
@@ -164,7 +168,7 @@ export default function BlockedDatesPage() {
 
   return (
     <s-page heading="Blocked dates" inlineSize="large">
-      <s-stack direction="block" gap="large">
+      <div className="gk-admin-page">
         {actionData?.error ? (
           <s-banner tone="critical">{actionData.error}</s-banner>
         ) : null}
@@ -178,167 +182,151 @@ export default function BlockedDatesPage() {
           <s-banner tone="success">Blocked rule removed.</s-banner>
         ) : null}
 
-        <s-box padding="large" background="subdued" borderRadius="large">
-          <s-stack direction="inline" gap="large" alignItems="start">
-            <s-icon type="calendar" />
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">Shop-wide blackouts</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                Block specific dates or recurring weekdays. Hire rules stop
-                delivery starting on those days for the methods you select
-                (the dress may still be out on a blocked weekday in between).
-                Try-on rules close appointment days. These rules do not change
-                buffer / lead-time settings (those are under Booking buffers).
-              </s-paragraph>
-              <s-link href="/app/inventory">Garment-specific hire holds</s-link>
-            </s-stack>
-          </s-stack>
-        </s-box>
+        <div className="gk-admin-hero">
+          <span className="gk-admin-hero__icon" aria-hidden="true">
+            📅
+          </span>
+          <div className="gk-admin-hero__body">
+            <h2 className="gk-admin-hero__title">Shop-wide blackouts</h2>
+            <p className="gk-admin-hero__lede">
+              Block specific dates or recurring weekdays. Hire rules stop delivery
+              starting on those days for the methods you select (the dress may still
+              be out on a blocked weekday in between). Try-on rules close appointment
+              days. Buffer / lead-time settings live under Booking buffers.
+            </p>
+            <Link className="gk-admin-hero__link" to="/app/inventory">
+              Garment-specific hire holds →
+            </Link>
+          </div>
+        </div>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="large">
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">Block date range</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                For holidays, maintenance, or closures. Choose which booking
-                types this applies to.
-              </s-paragraph>
-            </s-stack>
+        <div className="gk-admin-split">
+          <section className="gk-admin-panel" aria-label="Block date range">
+            <div className="gk-admin-panel__head">
+              <div>
+                <h3 className="gk-admin-panel__title">Block date range</h3>
+                <p className="gk-admin-panel__lede">
+                  Holidays, maintenance, or closures. Choose which booking types
+                  this applies to.
+                </p>
+              </div>
+            </div>
 
-            <Form method="post">
+            <Form method="post" className="gk-admin-form-stack">
               <input type="hidden" name="intent" value="create-range" />
-              <s-stack direction="block" gap="large">
-                <ResponsiveGrid layout="form-actions" alignItems="end">
-                  <s-date-field label="Start date" name="startDate" required />
-                  <s-date-field label="End date" name="endDate" />
-                  <s-text-field
-                    label="Reason (optional)"
-                    name="reason"
-                    placeholder="e.g. Public holiday"
-                  />
-                </ResponsiveGrid>
-                <s-stack direction="inline" gap="large">
-                  <label>
-                    <input type="checkbox" name="appliesToHire" defaultChecked />{" "}
-                    Hire bookings
-                  </label>
-                  <label>
-                    <input type="checkbox" name="appliesToTryOn" defaultChecked />{" "}
-                    Try-on appointments
-                  </label>
-                </s-stack>
-                <s-stack direction="inline" gap="large">
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="appliesToPost"
-                      defaultChecked
-                    />{" "}
-                    Express postage hire
-                  </label>
-                  <label>
-                    <input type="checkbox" name="appliesToPickup" /> Studio pickup
-                    hire
-                  </label>
-                </s-stack>
-                <s-box>
-                  <s-button
-                    type="submit"
-                    variant="primary"
-                    {...(isSubmitting ? { loading: true } : {})}
-                  >
-                    Add date range
-                  </s-button>
-                </s-box>
-              </s-stack>
+              <ResponsiveGrid layout="form-actions" alignItems="end">
+                <s-date-field label="Start date" name="startDate" required />
+                <s-date-field label="End date" name="endDate" />
+                <s-text-field
+                  label="Reason (optional)"
+                  name="reason"
+                  placeholder="e.g. Public holiday"
+                />
+              </ResponsiveGrid>
+              <div className="gk-admin-check-row">
+                <label>
+                  <input type="checkbox" name="appliesToHire" defaultChecked />
+                  Hire bookings
+                </label>
+                <label>
+                  <input type="checkbox" name="appliesToTryOn" defaultChecked />
+                  Try-on appointments
+                </label>
+              </div>
+              <div className="gk-admin-check-row">
+                <label>
+                  <input type="checkbox" name="appliesToPost" defaultChecked />
+                  Express postage hire
+                </label>
+                <label>
+                  <input type="checkbox" name="appliesToPickup" />
+                  Studio pickup hire
+                </label>
+              </div>
+              <s-button
+                type="submit"
+                variant="primary"
+                {...(isSubmitting ? { loading: true } : {})}
+              >
+                Add date range
+              </s-button>
             </Form>
-          </s-stack>
-        </s-box>
+          </section>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="large">
-            <s-stack direction="block" gap="small">
-              <s-text type="strong">Block weekdays (recurring)</s-text>
-              <s-paragraph tone="neutral" color="subdued">
-                Select days such as Saturday and Sunday for express postage (post
-                office closed). Studio pickup stays open unless you tick Studio
-                pickup hire below. Optional valid-from / valid-until dates limit
-                how long the rule runs.
-              </s-paragraph>
-            </s-stack>
+          <section className="gk-admin-panel" aria-label="Block weekdays">
+            <div className="gk-admin-panel__head">
+              <div>
+                <h3 className="gk-admin-panel__title">Block weekdays (recurring)</h3>
+                <p className="gk-admin-panel__lede">
+                  e.g. weekends for express post. Optional valid-from / valid-until
+                  dates limit how long the rule runs.
+                </p>
+              </div>
+            </div>
 
-            <Form method="post">
+            <Form method="post" className="gk-admin-form-stack">
               <input type="hidden" name="intent" value="create-weekly" />
-              <s-stack direction="block" gap="large">
-                <s-stack direction="block" gap="small">
-                  <s-text type="strong">Days of week</s-text>
-                  <s-stack direction="inline" gap="large">
-                    {WEEKDAY_LABELS.map((label, index) => (
-                      <label key={label}>
-                        <input type="checkbox" name="weekdays" value={index} />{" "}
-                        {label}
-                      </label>
-                    ))}
-                  </s-stack>
-                </s-stack>
-                <ResponsiveGrid layout="form-actions" alignItems="end">
-                  <s-date-field label="Valid from (optional)" name="validFrom" />
-                  <s-date-field label="Valid until (optional)" name="validUntil" />
-                  <s-text-field
-                    label="Reason (optional)"
-                    name="reason"
-                    placeholder="e.g. Closed weekends"
-                  />
-                </ResponsiveGrid>
-                <s-stack direction="inline" gap="large">
-                  <label>
-                    <input type="checkbox" name="appliesToHire" defaultChecked />{" "}
-                    Hire bookings
-                  </label>
-                  <label>
-                    <input type="checkbox" name="appliesToTryOn" defaultChecked />{" "}
-                    Try-on appointments
-                  </label>
-                </s-stack>
-                <s-stack direction="inline" gap="large">
-                  <label>
-                    <input
-                      type="checkbox"
-                      name="appliesToPost"
-                      defaultChecked
-                    />{" "}
-                    Express postage hire
-                  </label>
-                  <label>
-                    <input type="checkbox" name="appliesToPickup" /> Studio pickup
-                    hire
-                  </label>
-                </s-stack>
-                <s-box>
-                  <s-button type="submit" variant="primary">
-                    Add weekday rule
-                  </s-button>
-                </s-box>
-              </s-stack>
+              <div>
+                <p className="gk-admin-panel__subheading">Days of week</p>
+                <div className="gk-admin-check-row">
+                  {WEEKDAY_LABELS.map((label, index) => (
+                    <label key={label}>
+                      <input type="checkbox" name="weekdays" value={index} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <ResponsiveGrid layout="form-actions" alignItems="end">
+                <s-date-field label="Valid from (optional)" name="validFrom" />
+                <s-date-field label="Valid until (optional)" name="validUntil" />
+                <s-text-field
+                  label="Reason (optional)"
+                  name="reason"
+                  placeholder="e.g. Closed weekends"
+                />
+              </ResponsiveGrid>
+              <div className="gk-admin-check-row">
+                <label>
+                  <input type="checkbox" name="appliesToHire" defaultChecked />
+                  Hire bookings
+                </label>
+                <label>
+                  <input type="checkbox" name="appliesToTryOn" defaultChecked />
+                  Try-on appointments
+                </label>
+              </div>
+              <div className="gk-admin-check-row">
+                <label>
+                  <input type="checkbox" name="appliesToPost" defaultChecked />
+                  Express postage hire
+                </label>
+                <label>
+                  <input type="checkbox" name="appliesToPickup" />
+                  Studio pickup hire
+                </label>
+              </div>
+              <s-button type="submit" variant="primary">
+                Add weekday rule
+              </s-button>
             </Form>
-          </s-stack>
-        </s-box>
+          </section>
+        </div>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="large">
-            <s-text type="strong">Current blocked rules</s-text>
+        <section className="gk-admin-panel" aria-label="Current blocked rules">
+          <div className="gk-admin-panel__head">
+            <h3 className="gk-admin-panel__title">Current blocked rules</h3>
+          </div>
 
-            {blockedDates.length === 0 ? (
-              <s-box padding="large" background="subdued" borderRadius="base">
-                <s-stack direction="block" gap="small">
-                  <s-text type="strong">No blocked rules yet</s-text>
-                  <s-paragraph tone="neutral" color="subdued">
-                    Add a date range or weekday rule above.
-                  </s-paragraph>
-                </s-stack>
-              </s-box>
-            ) : (
-              <s-table variant="auto">
+          {blockedDates.length === 0 ? (
+            <div className="gk-admin-empty">
+              <p className="gk-admin-empty__title">No blocked rules yet</p>
+              <p className="gk-admin-empty__lede">
+                Add a date range or weekday rule above.
+              </p>
+            </div>
+          ) : (
+            <s-table variant="auto">
                 <s-table-header-row>
                   <s-table-header listSlot="primary">Rule</s-table-header>
                   <s-table-header listSlot="labeled">Type</s-table-header>
@@ -374,11 +362,10 @@ export default function BlockedDatesPage() {
                     </s-table-row>
                   ))}
                 </s-table-body>
-              </s-table>
-            )}
-          </s-stack>
-        </s-box>
-      </s-stack>
+            </s-table>
+          )}
+        </section>
+      </div>
     </s-page>
   );
 }

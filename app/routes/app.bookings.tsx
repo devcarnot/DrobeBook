@@ -8,6 +8,7 @@ import { useMemo } from "react";
 
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import { RentalCalendar } from "../components/RentalCalendar";
+import adminPagesStyles from "../styles/admin-pages.css?url";
 import rentalCalendarStyles from "../styles/rental-calendar.css?url";
 import { currentCalendarMonth } from "../lib/garment/garment.server";
 import { getRentalCalendar } from "../lib/booking/rental-calendar.server";
@@ -15,7 +16,10 @@ import { syncRecentOrderBookings } from "../lib/order-booking.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 
-export const links = () => [{ rel: "stylesheet", href: rentalCalendarStyles }];
+export const links = () => [
+  { rel: "stylesheet", href: adminPagesStyles },
+  { rel: "stylesheet", href: rentalCalendarStyles },
+];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -150,8 +154,8 @@ function BookingsCalendarPage() {
 
   return (
     <s-page heading="Rental calendar" inlineSize="large">
-      <div className="gk-calendar-page">
-        <p className="gk-calendar-guide">
+      <div className="gk-admin-page gk-calendar-page">
+        <p className="gk-admin-guide gk-calendar-guide">
           Color-coded rentals and blackouts for this month. Click any bar for
           details, buffers, or the garment page.
         </p>
@@ -171,7 +175,7 @@ function BookingsCalendarPage() {
           </s-banner>
         ) : null}
 
-        <div className="gk-calendar-metrics">
+        <div className="gk-admin-metrics gk-admin-metrics--2 gk-calendar-metrics">
           <CalendarMetricCard
             label="Confirmed hires"
             value={stats.confirmed}
@@ -184,9 +188,9 @@ function BookingsCalendarPage() {
           />
         </div>
 
-        <section className="gk-calendar-panel" aria-label="Calendar filters">
-          <div className="gk-calendar-panel__toolbar">
-            <span className="gk-calendar-panel__toolbar-meta">
+        <section className="gk-admin-panel gk-calendar-panel" aria-label="Calendar filters">
+          <div className="gk-admin-panel__toolbar gk-calendar-panel__toolbar">
+            <span className="gk-admin-panel__toolbar-meta gk-calendar-panel__toolbar-meta">
               {hasActiveFilters ? "Filters active" : "Showing all rentals this month"}
             </span>
             <Form method="post">
@@ -234,7 +238,7 @@ function BookingsCalendarPage() {
         </section>
 
         <section
-          className="gk-calendar-panel gk-calendar-panel--flush"
+          className="gk-admin-panel gk-calendar-panel gk-calendar-panel--flush"
           aria-label="Month calendar"
         >
           <RentalCalendar

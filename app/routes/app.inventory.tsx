@@ -15,7 +15,12 @@ import {
   useSearchParams,
 } from "react-router";
 
+import {
+  buildListPagination,
+  ListPaginationBar,
+} from "../components/ListPaginationBar";
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
+import adminPagesStyles from "../styles/admin-pages.css?url";
 import {
   exportInventoryGarmentsCsv,
   getInventorySummary,
@@ -34,6 +39,8 @@ import {
 } from "../lib/rental/rental.types";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const links = () => [{ rel: "stylesheet", href: adminPagesStyles }];
 
 const INVENTORY_PAGE_SIZE = 10;
 
@@ -301,7 +308,7 @@ function formatDisplayDate(iso: string | null) {
   });
 }
 
-function MetricCard({
+function AdminMetricCard({
   label,
   value,
 }: {
@@ -309,14 +316,10 @@ function MetricCard({
   value: string | number;
 }) {
   return (
-    <s-box padding="base" border="base" borderRadius="large" background="base">
-      <s-stack direction="block" gap="small-200">
-        <s-text tone="neutral" color="subdued">
-          {label}
-        </s-text>
-        <s-text type="strong">{String(value)}</s-text>
-      </s-stack>
-    </s-box>
+    <article className="gk-admin-metric">
+      <span className="gk-admin-metric__label">{label}</span>
+      <span className="gk-admin-metric__value">{String(value)}</span>
+    </article>
   );
 }
 
@@ -466,22 +469,15 @@ function InventoryListPage() {
   const isSyncing = submitIntent === "sync";
   const isExporting = submitIntent === "export";
 
-  const pageLinks = useMemo(() => {
-    const makeUrl = (nextPage: number) => {
-      const next = new URLSearchParams(searchParams);
-      next.set("page", String(nextPage));
-      return `/app/inventory?${next.toString()}`;
-    };
-    return {
-      prev: page > 1 ? makeUrl(page - 1) : null,
-      next: page < totalPages ? makeUrl(page + 1) : null,
-    };
-  }, [page, totalPages, searchParams]);
+  const listPagination = useMemo(
+    () => buildListPagination(total, page, INVENTORY_PAGE_SIZE),
+    [total, page],
+  );
 
   return (
     <s-page heading="Inventory & Bookings" inlineSize="large">
-      <s-stack direction="block" gap="large">
-        <p className="gk-page-guide">
+      <div className="gk-admin-page">
+        <p className="gk-admin-guide">
           Open a garment to view its calendar, booking history, and try-on holds.
           Online hires sync here automatically; manual holds block those dates on
           the storefront.
@@ -510,89 +506,97 @@ function InventoryListPage() {
           </s-banner>
         ) : null}
 
-        <div className="gk-inventory-metrics">
-          <MetricCard label="Garments" value={summary.variantCount} />
-          <MetricCard
+        <div className="gk-admin-metrics gk-admin-metrics--5">
+          <AdminMetricCard label="Garments" value={summary.variantCount} />
+          <AdminMetricCard
             label={datePreset !== "all" ? "Times rented (period)" : "Times rented"}
             value={summary.totalTimesRented}
           />
-          <MetricCard label="Try-on holds" value={summary.activeHolds} />
-          <MetricCard
+          <AdminMetricCard label="Try-on holds" value={summary.activeHolds} />
+          <AdminMetricCard
             label={datePreset !== "all" ? "Revenue (period)" : "Revenue"}
             value={summary.totalRevenueLabel}
           />
-          <MetricCard
+          <AdminMetricCard
             label={datePreset !== "all" ? "Profit (period)" : "Profit"}
             value={summary.totalProfitLabel}
           />
         </div>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="base">
-            <div className="gk-inventory-toolbar">
-              <span className="gk-inventory-toolbar__count">
-                {total === 0
-                  ? "No garments in this view"
-                  : totalPages > 1
-                    ? `Showing ${pageStart}–${pageEnd} of ${total} garments`
-                    : `${total} garment${total === 1 ? "" : "s"} in this view`}
-              </span>
-              <div className="gk-inventory-toolbar__actions">
-                <Form method="post">
-                  <input type="hidden" name="intent" value="sync" />
-                  <s-button
-                    type="submit"
-                    variant="secondary"
-                    {...(isSyncing ? { loading: true } : {})}
-                  >
-                    Sync orders
-                  </s-button>
-                </Form>
-                <Form method="post">
-                  <input type="hidden" name="intent" value="export" />
-                  <input type="hidden" name="q" value={search} />
-                  <input type="hidden" name="sort" value={sort} />
-                  <input type="hidden" name="filter" value={filter} />
-                  <input type="hidden" name="dateField" value={dateField} />
-                  <input type="hidden" name="datePreset" value={datePreset} />
-                  <input type="hidden" name="dateFrom" value={dateFrom} />
-                  <input type="hidden" name="dateTo" value={dateTo} />
-                  <s-button
-                    type="submit"
-                    variant="secondary"
-                    {...(isExporting ? { loading: true } : {})}
-                  >
-                    Export CSV
-                  </s-button>
-                </Form>
-              </div>
+        <section className="gk-admin-panel" aria-label="Inventory filters">
+          <div className="gk-admin-panel__toolbar">
+            <span className="gk-admin-panel__toolbar-meta">
+              {total === 0
+                ? "No garments in this view"
+                : totalPages > 1
+                  ? `Showing ${pageStart}–${pageEnd} of ${total} garments`
+                  : `${total} garment${total === 1 ? "" : "s"} in this view`}
+            </span>
+            <div className="gk-admin-panel__toolbar-actions">
+              <Form method="post">
+                <input type="hidden" name="intent" value="sync" />
+                <s-button
+                  type="submit"
+                  variant="secondary"
+                  {...(isSyncing ? { loading: true } : {})}
+                >
+                  Sync orders
+                </s-button>
+              </Form>
+              <Form method="post">
+                <input type="hidden" name="intent" value="export" />
+                <input type="hidden" name="q" value={search} />
+                <input type="hidden" name="sort" value={sort} />
+                <input type="hidden" name="filter" value={filter} />
+                <input type="hidden" name="dateField" value={dateField} />
+                <input type="hidden" name="datePreset" value={datePreset} />
+                <input type="hidden" name="dateFrom" value={dateFrom} />
+                <input type="hidden" name="dateTo" value={dateTo} />
+                <s-button
+                  type="submit"
+                  variant="secondary"
+                  {...(isExporting ? { loading: true } : {})}
+                >
+                  Export CSV
+                </s-button>
+              </Form>
             </div>
+          </div>
 
-            <InventoryFiltersForm
-              search={search}
-              sort={sort}
-              filter={filter}
-              datePreset={datePreset}
-              dateField={dateField}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              dateRangeLabel={dateRangeLabel}
-              dateRangeFrom={dateRangeFrom}
-              dateRangeTo={dateRangeTo}
-              onClearDates={() => navigate(buildInventoryClearDatesUrl(searchParams))}
-            />
-          </s-stack>
-        </s-box>
+          <InventoryFiltersForm
+            search={search}
+            sort={sort}
+            filter={filter}
+            datePreset={datePreset}
+            dateField={dateField}
+            dateFrom={dateFrom}
+            dateTo={dateTo}
+            dateRangeLabel={dateRangeLabel}
+            dateRangeFrom={dateRangeFrom}
+            dateRangeTo={dateRangeTo}
+            onClearDates={() => navigate(buildInventoryClearDatesUrl(searchParams))}
+          />
+        </section>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
+        <section className="gk-admin-panel" aria-label="Garment list">
           {total === 0 ? (
-            <s-box padding="large" background="subdued" borderRadius="base">
-              <s-text tone="neutral" color="subdued">
-                No garments match your search or filter.
-              </s-text>
-            </s-box>
+            <div className="gk-admin-empty">
+              <p className="gk-admin-empty__title">No garments match</p>
+              <p className="gk-admin-empty__lede">
+                Try another search, filter, or date range.
+              </p>
+            </div>
           ) : (
-            <s-stack direction="block" gap="base">
+            <>
+              <ListPaginationBar
+                meta={listPagination}
+                label="Garments"
+                onPageChange={(nextPage) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("page", String(nextPage));
+                  navigate(`/app/inventory?${next.toString()}`);
+                }}
+              />
               <s-table variant="auto">
                 <s-table-header-row>
                   <s-table-header listSlot="primary">Garment</s-table-header>
@@ -663,32 +667,19 @@ function InventoryListPage() {
                   ))}
                 </s-table-body>
               </s-table>
-
-              {totalPages > 1 ? (
-                <s-stack direction="inline" gap="base" alignItems="center">
-                  {pageLinks.prev ? (
-                    <Link to={pageLinks.prev}>
-                      <s-button>Previous</s-button>
-                    </Link>
-                  ) : (
-                    <s-button disabled>Previous</s-button>
-                  )}
-                  <s-text tone="neutral" color="subdued">
-                    Page {page} of {totalPages}
-                  </s-text>
-                  {pageLinks.next ? (
-                    <Link to={pageLinks.next}>
-                      <s-button>Next</s-button>
-                    </Link>
-                  ) : (
-                    <s-button disabled>Next</s-button>
-                  )}
-                </s-stack>
-              ) : null}
-            </s-stack>
+              <ListPaginationBar
+                meta={listPagination}
+                label="Garments"
+                onPageChange={(nextPage) => {
+                  const next = new URLSearchParams(searchParams);
+                  next.set("page", String(nextPage));
+                  navigate(`/app/inventory?${next.toString()}`);
+                }}
+              />
+            </>
           )}
-        </s-box>
-      </s-stack>
+        </section>
+      </div>
     </s-page>
   );
 }
