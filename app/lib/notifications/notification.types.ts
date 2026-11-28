@@ -9,6 +9,7 @@ export type NotificationCategory =
   | "rental_cancelled"
   | "waitlist_available"
   | "waitlist_admin_new"
+  | "admin_alert"
   | "waitlist_removed"
   | "try_on_confirmed"
   | "try_on_reminder"
@@ -25,6 +26,8 @@ export type NotificationTrigger =
   | "on_waitlist_notify"
   | "on_waitlist_created"
   | "on_waitlist_removed"
+  | "on_booking_updated"
+  | "on_backup_dress_issue"
   | "on_appointment_confirm"
   | "days_before_appointment"
   | "on_appointment_item_unavailable"
@@ -45,6 +48,8 @@ export type NotificationTemplate = {
   /** Required workflow status when trigger is on_status_change */
   workflowStatus?: string;
   active: boolean;
+  /** merchant = Reply-To / admin email; default customer */
+  recipient?: "customer" | "merchant";
 };
 
 export type NotificationsConfig = {
@@ -52,6 +57,10 @@ export type NotificationsConfig = {
   fromName: string;
   fromEmail: string;
   replyToEmail: string;
+  /** Primary inbox for admin alert templates */
+  adminNotifyEmail?: string;
+  /** Order total (cents) that triggers high-value admin alert; 0 = off */
+  adminHighValueThresholdCents?: number;
   templates: NotificationTemplate[];
 };
 
@@ -71,6 +80,17 @@ export type RentalNotificationContext = {
   rentalCreatedAt: string;
   fulfillmentTrackingLink: string | null;
   returnTrackingLink: string | null;
+  customerPhone?: string | null;
+  orderTotal?: string | null;
+  hireDuration?: string | null;
+  hireDates?: string | null;
+  previousHireDates?: string | null;
+  updatedHireDates?: string | null;
+  bookingReference?: string | null;
+  bookingType?: string | null;
+  bookingDate?: string | null;
+  cancellationDate?: string | null;
+  adminBookingUrl?: string | null;
 };
 
 export type WaitlistNotificationContext = {
@@ -107,6 +127,7 @@ export const NOTIFICATION_CATEGORY_LABELS: Record<NotificationCategory, string> 
   rental_cancelled: "Cancellation",
   waitlist_available: "Waitlist availability",
   waitlist_admin_new: "New waitlist enquiry (admin)",
+  admin_alert: "Admin alert",
   waitlist_removed: "Removed from waitlist",
   try_on_confirmed: "Try-on appointment confirmed",
   try_on_reminder: "Try-on appointment reminder",
@@ -124,6 +145,8 @@ export const NOTIFICATION_TRIGGER_LABELS: Record<NotificationTrigger, string> = 
   on_waitlist_notify: "When waitlist customer is notified",
   on_waitlist_created: "When a customer joins the waitlist (admin alert)",
   on_waitlist_removed: "When a customer is removed from the waitlist",
+  on_booking_updated: "When a booking is updated in admin",
+  on_backup_dress_issue: "When backup dress pricing issue is detected",
   on_appointment_confirm: "When try-on appointment is confirmed",
   days_before_appointment: "Days before try-on appointment",
   on_appointment_item_unavailable: "When a requested try-on item is unavailable",

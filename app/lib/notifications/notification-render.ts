@@ -87,22 +87,45 @@ export function buildRentalTokenMap(
     context.pickupCollectionWindow?.trim() ||
     "We will confirm your collection time — reply if you need a specific window.";
 
+  const productName = context.productTitle?.trim() || "";
+  const productSize = context.size?.trim() || "";
+  const hireDates = [
+    formatDisplayDate(context.rentalStart),
+    formatDisplayDate(context.rentalEnd),
+  ]
+    .filter(Boolean)
+    .join(" – ");
+
   return {
     customerFirstName: firstName,
     customerLastName: lastName,
     customerName: context.customerName?.trim() || firstName,
     customerEmail: context.customerEmail ?? "",
+    customerPhone: context.customerPhone?.trim() || "",
     pickupCollectionWindow,
     rentalStartDate: formatDisplayDate(context.rentalStart),
     rentalEndDate: formatDisplayDate(context.rentalEnd),
     eventDate: formatDisplayDate(context.eventDate),
     products,
+    productName,
+    productSize,
     rentalStatus: context.rentalStatus,
     shopifyOrderNumber: context.shopifyOrderNumber ?? "",
+    orderTotal: context.orderTotal?.trim() || "",
+    hireDuration: context.hireDuration?.trim() || "",
+    hireDates,
+    previousHireDates: context.previousHireDates?.trim() || "",
+    updatedHireDates: context.updatedHireDates?.trim() || "",
+    bookingReference: context.bookingReference?.trim() || context.bookingId,
+    bookingType: context.bookingType?.trim() || "Hire",
+    bookingDate: context.bookingDate?.trim() || formatDisplayDate(context.rentalStart),
+    cancellationDate: context.cancellationDate?.trim() || "",
+    adminBookingUrl: context.adminBookingUrl?.trim() || "",
     rentalCreatedAt: formatCreatedAt(context.rentalCreatedAt),
     trackingLink: context.fulfillmentTrackingLink ?? "",
     returnTrackingLink: context.returnTrackingLink ?? "",
     shopName,
+    merchantName: shopName,
     claimUrl: "",
   };
 }
@@ -137,6 +160,10 @@ export function buildAppointmentTokenMap(
     appointmentDate: formatDisplayDate(context.appointmentDate),
     appointmentTime: context.appointmentTime,
     appointmentDuration: String(context.durationMinutes),
+    merchantName: shopName,
+    adminAppointmentUrl: "",
+    customerPhone: "",
+    productName: products,
   };
 }
 
@@ -238,6 +265,11 @@ export function buildWaitlistTokenMap(
     claimUrl: context.claimUrl ?? "",
     waitlistDetails,
     waitlistAdminUrl: resolveWaitlistAdminUrl(),
+    productName: context.productTitle?.trim() || "",
+    productSize: context.size?.trim() || "",
+    submissionDate: formatCreatedAt(new Date().toISOString()),
+    waitlistStatus: "waiting",
+    merchantName: shopName,
   };
 }
 

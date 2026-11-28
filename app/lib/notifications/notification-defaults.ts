@@ -1,7 +1,8 @@
+import { ADMIN_ALERT_TEMPLATES } from "./admin-alert-templates";
 import type { NotificationTemplate, NotificationsConfig } from "./notification.types";
 
 function template(partial: NotificationTemplate): NotificationTemplate {
-  return partial;
+  return { recipient: "customer", ...partial };
 }
 
 export const DEFAULT_NOTIFICATION_TEMPLATES: NotificationTemplate[] = [
@@ -359,31 +360,6 @@ Kind regards,
     active: true,
   }),
   template({
-    id: "waitlist-admin-new",
-    name: "New waitlist enquiry (admin)",
-    category: "waitlist_admin_new",
-    deliveryMethods: ["post", "pickup", "local"],
-    channel: "email",
-    subject: "New waitlist enquiry — {{customerName}}",
-    body: `Hello {{shopName}} team,
-
-A customer just joined the waitlist.
-
-Customer: {{customerName}} ({{customerEmail}})
-Phone: {{customerPhone}}
-
-{{products}}
-{{waitlistDetails}}
-
-Review in DrobeBook: {{waitlistAdminUrl}}
-
-— DrobeBook`,
-    automated: true,
-    trigger: "on_waitlist_created",
-    offsetDays: 0,
-    active: true,
-  }),
-  template({
     id: "waitlist-available",
     name: "Waitlist availability",
     category: "waitlist_available",
@@ -425,6 +401,7 @@ Kind regards,
     offsetDays: 0,
     active: true,
   }),
+  ...ADMIN_ALERT_TEMPLATES,
 ];
 
 export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
@@ -432,5 +409,7 @@ export const DEFAULT_NOTIFICATIONS_CONFIG: NotificationsConfig = {
   fromName: "GK.Drobe",
   fromEmail: "",
   replyToEmail: "",
+  adminNotifyEmail: "",
+  adminHighValueThresholdCents: 0,
   templates: DEFAULT_NOTIFICATION_TEMPLATES.map((entry) => ({ ...entry })),
 };

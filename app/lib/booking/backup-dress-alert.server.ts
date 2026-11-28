@@ -1,3 +1,4 @@
+import { sendBackupDressAdminAlert } from "../notifications/merchant-backup-alert.server";
 import type { BackupOrderViolationDetail } from "./backup-dress-order-verify.server";
 
 export async function notifyBackupDressViolation(params: {
@@ -35,4 +36,10 @@ export async function notifyBackupDressViolation(params: {
   } catch (error) {
     console.warn("[backup-dress-alert]", error);
   }
+
+  void sendBackupDressAdminAlert({
+    shop: params.shop,
+    orderId: params.orderId,
+    violations: params.violations,
+  }).catch((error) => console.warn("[backup-dress-alert] email", error));
 }

@@ -27,6 +27,8 @@ import {
   getShopBufferConfig,
 } from "../lib/booking/buffer.server";
 import { parseIsoDate } from "../lib/booking/availability.server";
+import { bookingToNotificationContext } from "../lib/notifications/notification.server";
+import { notifyMerchantForRentalEvent } from "../lib/notifications/merchant-rental-notify.server";
 import prisma from "../db.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
@@ -175,6 +177,14 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   const useDefaultBefore = formData.get("useDefaultBefore") === "on";
   const useDefaultAfter = formData.get("useDefaultAfter") === "on";
 
+  const existing = await prisma.booking.findFirst({
+    where: { id: bookingId, shop: session.shop },
+  });
+
+  if (!existing) {
+    return { error: "Booking not found." };
+  }
+
   await prisma.booking.updateMany({
     where: { id: bookingId, shop: session.shop },
     data: {
@@ -195,6 +205,25 @@ export const action = async ({ request }: ActionFunctionArgs) => {
         : parseOptionalUnit(formData.get("bufferAfterUnit")),
     },
   });
+
+  const prevStart = existing.startDate.toISOString().slice(0, 10);
+  const prevEnd = existing.endDate.toISOString().slice(0, 10);
+  const newStart = rentalStart.toISOString().slice(0, 10);
+  const newEnd = rentalEnd.toISOString().slice(0, 10);
+
+  const context = bookingToNotificationContext({
+    ...existing,
+    startDate: rentalStart,
+    endDate: rentalEnd,
+    deliveryMethod,
+  });
+  context.previousHireDates = `${prevStart} – ${prevEnd}`;
+  context.updatedHireDates = `${newStart} – ${newEnd}`;
+  context.cancellationDate = "";
+
+  void notifyMerchantForRentalEvent(session.shop, context, "on_booking_updated").catch(
+    () => undefined,
+  );
 
   return { saved: true };
 };

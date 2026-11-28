@@ -55,6 +55,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import notificationsStyles from "../styles/notifications.css?url";
 import type { NotificationTemplate } from "../lib/notifications/notification.types";
+import { isMerchantTemplate } from "../lib/notifications/merchant-notify.server";
 
 function readFieldValue(event: {
   currentTarget: { value?: string } | null;
@@ -103,7 +104,7 @@ function templateMode(template: NotificationTemplate): {
   if (!template.automated) {
     return { key: "manual", label: "Manual only" };
   }
-  if (template.category === "waitlist_admin_new") {
+  if (isMerchantTemplate(template)) {
     return { key: "admin", label: "Admin alert" };
   }
   if (
@@ -424,6 +425,42 @@ export default function NotificationSettingsPage() {
                     }))
                   }
 
+                />
+
+                <s-text-field
+                  label="Admin notification email"
+                  name="adminNotifyEmail"
+                  value={draft.adminNotifyEmail ?? ""}
+                  onChange={(event) =>
+                    setDraft((current) => ({
+                      ...current,
+                      adminNotifyEmail: readFieldValue(event),
+                    }))
+                  }
+                />
+
+                <input
+                  type="hidden"
+                  name="adminHighValueThresholdCents"
+                  value={String(draft.adminHighValueThresholdCents ?? 0)}
+                />
+
+                <s-text-field
+                  label="High-value alert threshold (AUD, optional)"
+                  value={
+                    draft.adminHighValueThresholdCents
+                      ? String(draft.adminHighValueThresholdCents / 100)
+                      : ""
+                  }
+                  onChange={(event) => {
+                    const dollars = Number.parseFloat(readFieldValue(event));
+                    setDraft((current) => ({
+                      ...current,
+                      adminHighValueThresholdCents: Number.isFinite(dollars)
+                        ? Math.max(0, Math.round(dollars * 100))
+                        : 0,
+                    }));
+                  }}
                 />
 
               </s-stack>

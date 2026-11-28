@@ -5,7 +5,12 @@ import {
 import type { NotificationTemplate, NotificationsConfig } from "./notification.types";
 
 function coerceEmailChannel(template: NotificationTemplate): NotificationTemplate {
-  return { ...template, channel: "email" };
+  const recipient =
+    template.recipient ??
+    (template.category === "admin_alert" || template.category === "waitlist_admin_new"
+      ? "merchant"
+      : "customer");
+  return { ...template, channel: "email", recipient };
 }
 
 function mergeTemplates(templates: NotificationTemplate[] | undefined) {
@@ -46,6 +51,12 @@ export function normalizeNotificationsConfig(
     fromName: String(merged.fromName ?? DEFAULT_NOTIFICATIONS_CONFIG.fromName),
     fromEmail: String(merged.fromEmail ?? ""),
     replyToEmail: String(merged.replyToEmail ?? ""),
+    adminNotifyEmail: String(merged.adminNotifyEmail ?? ""),
+    adminHighValueThresholdCents: Number.isFinite(
+      Number(merged.adminHighValueThresholdCents),
+    )
+      ? Math.max(0, Math.round(Number(merged.adminHighValueThresholdCents)))
+      : 0,
   };
 }
 

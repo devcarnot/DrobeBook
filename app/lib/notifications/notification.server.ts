@@ -9,6 +9,13 @@ import {
   sendNotificationEmail,
   type SendEmailResult,
 } from "./notification-email.server";
+import {
+  adminAppBaseUrl,
+  isCustomerTemplate,
+  isMerchantTemplate,
+  sendMerchantNotifications,
+} from "./merchant-notify.server";
+import { notifyMerchantForRentalEvent } from "./merchant-rental-notify.server";
 
 type TemplateSendResult = SendEmailResult | { ok: boolean; skipped: true };
 
@@ -289,6 +296,10 @@ export async function sendRentalNotification(
       return template.trigger === "manual";
     }
 
+    if (!isCustomerTemplate(template)) {
+      return false;
+    }
+
     if (template.trigger !== options.trigger) {
       return false;
     }
@@ -368,6 +379,19 @@ export async function sendRentalNotification(
     };
   }
 
+  if (
+    !options.templateId &&
+    (options.trigger === "on_create" || options.trigger === "on_status_change")
+  ) {
+    void notifyMerchantForRentalEvent(shop, context, options.trigger, {
+      workflowStatus: options.workflowStatus,
+      deliveryMethod,
+      anchorDate: options.anchorDate,
+    }).catch((error) => {
+      console.warn("[merchant-notify] rental", error);
+    });
+  }
+
   return {
     sent,
     skipped: templatesToSend.length - sent,
@@ -376,56 +400,19 @@ export async function sendRentalNotification(
   };
 }
 
-function resolveMerchantNotificationEmail(config: NotificationsConfig) {
-  const reply = config.replyToEmail.trim();
-  if (reply && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(reply)) {
-    return reply;
-  }
-  const from = config.fromEmail.trim();
-  if (from && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(from)) {
-    return from;
-  }
-  return "";
-}
-
 export async function sendWaitlistAdminCreatedNotification(
   shop: string,
   context: WaitlistNotificationContext,
   options?: { entryId?: string },
 ) {
   const config = await getNotificationsConfig(shop);
-  const merchantEmail = resolveMerchantNotificationEmail(config);
-  if (!merchantEmail) {
-    console.warn(
-      "[waitlist] Admin alert skipped — set Reply-To or From email in Notifications settings.",
-    );
-    return { sent: 0, skipped: 1, error: "merchant_email_missing" as const };
-  }
-
   const tokens = buildWaitlistTokenMap(context, config.fromName || shopDisplayName(shop));
-  const templates = config.templates.filter(
-    (template) => template.trigger === "on_waitlist_created" && template.active,
-  );
-
-  let sent = 0;
-  for (const template of templates) {
-    const result = await sendTemplateEmail(
-      shop,
-      config,
-      template,
-      merchantEmail,
-      tokens,
-      {
-        bookingId: options?.entryId,
-        anchorDate: formatIsoDate(new Date()),
-      },
-    );
-    if (result.ok && !wasSkipped(result)) {
-      sent += 1;
-    }
-  }
-
-  return { sent, skipped: templates.length - sent };
+  return sendMerchantNotifications(shop, {
+    trigger: "on_waitlist_created",
+    tokens,
+    bookingId: options?.entryId,
+    anchorDate: formatIsoDate(new Date()),
+  });
 }
 
 export async function sendWaitlistNotification(
@@ -440,7 +427,8 @@ export async function sendWaitlistNotification(
 
   const tokens = buildWaitlistTokenMap(context, config.fromName || shopDisplayName(shop));
   const templates = config.templates.filter(
-    (template) => template.trigger === "on_waitlist_notify",
+    (template) =>
+      template.trigger === "on_waitlist_notify" && isCustomerTemplate(template),
   );
 
   let sent = 0;
@@ -468,7 +456,10 @@ export async function sendWaitlistRemovedNotification(
 
   const tokens = buildWaitlistTokenMap(context, config.fromName || shopDisplayName(shop));
   const templates = config.templates.filter(
-    (template) => template.trigger === "on_waitlist_removed" && template.active,
+    (template) =>
+      template.trigger === "on_waitlist_removed" &&
+      template.active &&
+      isCustomerTemplate(template),
   );
 
   let sent = 0;
@@ -508,7 +499,9 @@ export async function sendAppointmentNotification(
     if (options?.templateId) {
       return template.id === options.templateId;
     }
-    return template.trigger === trigger && template.active;
+    return (
+      template.trigger === trigger && template.active && isCustomerTemplate(template)
+    );
   });
 
   let sent = 0;
@@ -522,6 +515,19 @@ export async function sendAppointmentNotification(
     if (result.ok && !wasSkipped(result)) {
       sent += 1;
     }
+  }
+
+  if (!options?.templateId) {
+    const adminTokens = {
+      ...tokens,
+      adminAppointmentUrl: `${adminAppBaseUrl()}/app/inventory`,
+    };
+    void sendMerchantNotifications(shop, {
+      trigger,
+      tokens: adminTokens,
+      bookingId: context.appointmentId,
+      anchorDate: options?.anchorDate ?? context.appointmentDate,
+    }).catch((error) => console.warn("[merchant-notify] appointment", error));
   }
 
   return { sent, skipped: templates.length - sent };
@@ -627,11 +633,16 @@ export async function processScheduledRentalNotifications(shop: string) {
       }
 
       processed += 1;
-      const result = await sendRentalNotification(shop, context, {
-        trigger: template.trigger,
-        anchorDate,
-        templateId: template.id,
-      });
+      const result = isMerchantTemplate(template)
+        ? await notifyMerchantForRentalEvent(shop, context, template.trigger, {
+            deliveryMethod,
+            anchorDate,
+          })
+        : await sendRentalNotification(shop, context, {
+            trigger: template.trigger,
+            anchorDate,
+            templateId: template.id,
+          });
       sent += result.sent;
     }
   }
@@ -732,6 +743,9 @@ export function notificationsConfigFromFormData(formData: FormData): Notificatio
     fromName: String(formData.get("fromName") ?? DEFAULT_NOTIFICATIONS_CONFIG.fromName),
     fromEmail: String(formData.get("fromEmail") ?? ""),
     replyToEmail: String(formData.get("replyToEmail") ?? ""),
+    adminNotifyEmail: String(formData.get("adminNotifyEmail") ?? ""),
+    adminHighValueThresholdCents:
+      Number.parseInt(String(formData.get("adminHighValueThresholdCents") ?? "0"), 10) || 0,
     templates,
   });
 }
@@ -760,5 +774,9 @@ export function notificationTemplateFromFormData(
     offsetDays: Number.parseInt(String(formData.get("offsetDays") ?? "0"), 10) || 0,
     workflowStatus: String(formData.get("workflowStatus") ?? "") || undefined,
     active: String(formData.get("active") ?? "false") === "true",
+    recipient:
+      String(formData.get("recipient") ?? existing?.recipient ?? "customer") === "merchant"
+        ? "merchant"
+        : "customer",
   };
 }

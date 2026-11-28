@@ -6,7 +6,10 @@ import {
   loadVariantAvailabilityData,
   normalizeShopifyResourceId,
 } from "../booking/availability.server";
+import { buildWaitlistTokenMap } from "../notifications/notification-render";
+import { sendMerchantNotifications } from "../notifications/merchant-notify.server";
 import {
+  getNotificationsConfig,
   sendWaitlistNotification,
   sendWaitlistRemovedNotification,
 } from "../notifications/notification.server";
@@ -124,6 +127,21 @@ async function promoteWaitlistEntry(
     shop,
     entryToNotificationContext(updated, resolvedClaimUrl),
   ).catch(() => undefined);
+
+  const notifyConfig = await getNotificationsConfig(shop);
+  const customerTokens = buildWaitlistTokenMap(
+    entryToNotificationContext(updated, resolvedClaimUrl),
+    notifyConfig.fromName || shop.replace(/\.myshopify\.com$/i, ""),
+  );
+  void sendMerchantNotifications(shop, {
+    trigger: "on_waitlist_notify",
+    tokens: {
+      ...customerTokens,
+      sentAt: new Date().toLocaleString("en-AU"),
+      notificationStatus: "Sent",
+    },
+    bookingId: updated.id,
+  }).catch(() => undefined);
 
   return updated;
 }
