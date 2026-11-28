@@ -555,8 +555,7 @@ export default function NotificationSettingsPage() {
                         }));
                       }}
                     />
-                  </div>
-                </ResponsiveGrid>
+                </div>
 
               </s-stack>
 

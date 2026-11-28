@@ -347,6 +347,15 @@
   min-width: 0;
 }
 
+.gk-notification-labeled-field--full {
+  width: 100%;
+}
+
+.gk-notification-labeled-field--full s-text-field {
+  display: block;
+  width: 100%;
+}
+
 .gk-notification-field-label-row {
   display: flex;
   align-items: center;
