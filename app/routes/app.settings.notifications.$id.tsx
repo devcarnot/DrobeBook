@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type {
   ActionFunctionArgs,
   HeadersFunction,
@@ -15,8 +15,10 @@ import {
   NOTIFICATION_TRIGGER_LABELS,
   type NotificationCategory,
   type NotificationDeliveryMethod,
+  type NotificationTemplate,
   type NotificationTrigger,
 } from "../lib/notifications/notification.types";
+import { readFieldValue } from "../lib/read-field-value";
 import {
   getNotificationsConfig,
   notificationTemplateFromFormData,
@@ -66,6 +68,20 @@ function SettingsSection({
       </s-stack>
     </s-box>
   );
+}
+
+function draftFromTemplate(template: NotificationTemplate): NotificationTemplate {
+  return {
+    ...template,
+    name: template.name ?? "",
+    subject: template.subject ?? "",
+    body: template.body ?? "",
+    offsetDays: template.offsetDays ?? 0,
+    workflowStatus: template.workflowStatus ?? "",
+    deliveryMethods: template.deliveryMethods?.length
+      ? template.deliveryMethods
+      : ["post", "pickup", "local"],
+  };
 }
 
 function scheduleSummary(template: {
@@ -149,8 +165,12 @@ export default function NotificationEditPage() {
   const navigation = useNavigation();
   const isSaving = navigation.state !== "idle";
   const [showTokens, setShowTokens] = useState(false);
-  const [draft, setDraft] = useState(template);
+  const [draft, setDraft] = useState(() => draftFromTemplate(template));
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setDraft(draftFromTemplate(template));
+  }, [template.id]);
 
   const deliveryMethods = useMemo(
     () => new Set(draft.deliveryMethods),
@@ -241,7 +261,7 @@ export default function NotificationEditPage() {
                     name="name"
                     value={draft.name}
                     onChange={(event) =>
-                      setDraft((current) => ({ ...current, name: event.currentTarget.value }))
+                      setDraft((current) => ({ ...current, name: readFieldValue(event) }))
                     }
                   />
                   <div className="gk-form-field">
@@ -386,7 +406,7 @@ export default function NotificationEditPage() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          offsetDays: Number.parseInt(event.currentTarget.value, 10) || 0,
+                          offsetDays: Number.parseInt(readFieldValue(event), 10) || 0,
                         }))
                       }
                     />
@@ -401,7 +421,7 @@ export default function NotificationEditPage() {
                       onChange={(event) =>
                         setDraft((current) => ({
                           ...current,
-                          workflowStatus: event.currentTarget.value,
+                          workflowStatus: readFieldValue(event),
                         }))
                       }
                     />
@@ -417,7 +437,7 @@ export default function NotificationEditPage() {
                     name="subject"
                     value={draft.subject}
                     onChange={(event) =>
-                      setDraft((current) => ({ ...current, subject: event.currentTarget.value }))
+                      setDraft((current) => ({ ...current, subject: readFieldValue(event) }))
                     }
                   />
 
