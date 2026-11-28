@@ -1,24 +1,16 @@
 import type { ReactNode } from "react";
+import { useRef, useState } from "react";
 import { Form, Link } from "react-router";
 
-import { ResponsiveGrid } from "./ResponsiveGrid";
+import { WaitlistConfirmDialog } from "./WaitlistConfirmDialog";
 import {
   deliveryDateFromWaitlistEvent,
   parseWaitlistEntryNotes,
 } from "../lib/waitlist/waitlist-admin-display";
 import type { WaitlistEntryView, WaitlistStatus } from "../lib/waitlist/waitlist.server";
 
-function statusTone(status: WaitlistStatus): "warning" | "info" | "success" | "neutral" {
-  if (status === "fulfilled") {
-    return "success";
-  }
-  if (status === "contacted") {
-    return "info";
-  }
-  if (status === "removed") {
-    return "neutral";
-  }
-  return "warning";
+function statusPillClass(status: WaitlistStatus): string {
+  return `gk-waitlist-pill gk-waitlist-pill--${status}`;
 }
 
 function formatDate(value: Date | null | undefined) {
@@ -54,24 +46,59 @@ function statusLabel(status: WaitlistStatus): string {
   return labels[status];
 }
 
-function LabeledValue({
+function CalendarIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.75" />
+      <path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function LinkIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M10 14a3.5 3.5 0 0 0 5 0l2-2a3.5 3.5 0 0 0-5-5l-.5.5M14 10a3.5 3.5 0 0 0-5 0l-2 2a3.5 3.5 0 0 0 5 5l.5-.5"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinecap="round"
+      />
+    </svg>
+  );
+}
+
+function WaitlistField({
   label,
   children,
+  mono,
 }: {
   label: string;
   children: ReactNode;
+  mono?: boolean;
 }) {
   if (children == null || children === "") {
     return null;
   }
 
   return (
-    <s-stack direction="block" gap="small-100">
-      <s-text tone="neutral" color="subdued">
-        {label}
-      </s-text>
-      <s-text>{children}</s-text>
-    </s-stack>
+    <div className="gk-waitlist-field">
+      <span className="gk-waitlist-field__label">{label}</span>
+      <div
+        className={`gk-waitlist-field__value${mono ? " gk-waitlist-field__value--mono" : ""}`}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function DateValue({ text }: { text: string }) {
+  return (
+    <span className="gk-waitlist-date">
+      <CalendarIcon />
+      {text}
+    </span>
   );
 }
 
@@ -86,190 +113,264 @@ export function WaitlistEntryCard({
   const deliveryDate = deliveryDateFromWaitlistEvent(entry.eventDate);
   const bookingType = entry.kind === "try_on" ? "Try-on" : "Hire";
 
-  const priorityText =
-    entry.claimIsActive && entry.claimExpiresAt
-      ? `Priority access until ${formatDateTime(entry.claimExpiresAt)}`
-      : entry.notifiedAt
-        ? `Notified ${formatDateTime(entry.notifiedAt)}`
-        : null;
+  const priorityChip =
+    entry.claimIsActive && entry.claimExpiresAt ? (
+      <span className="gk-waitlist-chip">
+        <CalendarIcon />
+        Priority until {formatDateTime(entry.claimExpiresAt)}
+      </span>
+    ) : null;
+
+  const followUpText =
+    entry.notifiedAt && !entry.claimIsActive
+      ? `Notified ${formatDateTime(entry.notifiedAt)}`
+      : null;
+
+  const [removeDialog, setRemoveDialog] = useState<null | "notify" | "silent">(null);
+  const removeNotifyRef = useRef<HTMLFormElement>(null);
+  const removeSilentRef = useRef<HTMLFormElement>(null);
+
+  const confirmRemove = () => {
+    if (removeDialog === "notify") {
+      removeNotifyRef.current?.requestSubmit();
+    } else if (removeDialog === "silent") {
+      removeSilentRef.current?.requestSubmit();
+    }
+    setRemoveDialog(null);
+  };
 
   return (
-    <s-box padding="large" background="base" border="base" borderRadius="large">
-      <s-stack direction="block" gap="large">
-        <s-stack
-          direction="inline"
-          gap="large"
-          alignItems="start"
-          justifyContent="space-between"
-        >
-          <s-stack direction="inline" gap="small" alignItems="center">
-            <s-badge tone={statusTone(entry.status)}>{statusLabel(entry.status)}</s-badge>
-            <s-badge tone={entry.kind === "try_on" ? "info" : "neutral"}>
+    <article className="gk-waitlist-card">
+      <div className="gk-waitlist-card__inner">
+        <header className="gk-waitlist-card__top">
+          <div className="gk-waitlist-card__pills">
+            <span className={statusPillClass(entry.status)}>{statusLabel(entry.status)}</span>
+            <span
+              className={`gk-waitlist-pill ${entry.kind === "try_on" ? "gk-waitlist-pill--tryon" : "gk-waitlist-pill--hire"}`}
+            >
               {bookingType}
-            </s-badge>
-          </s-stack>
+            </span>
+          </div>
 
-          <s-stack direction="inline" gap="small">
+          <div className="gk-waitlist-card__actions-top">
             {entry.status === "waiting" ? (
               <Form method="post">
                 <input type="hidden" name="intent" value="notify-availability" />
                 <input type="hidden" name="id" value={entry.id} />
-                <s-button
+                <button
                   type="submit"
-                  variant="primary"
-                  {...(isSubmitting ? { loading: true } : {})}
+                  className="gk-waitlist-btn gk-waitlist-btn--send"
+                  disabled={isSubmitting}
                 >
                   Send availability email
-                </s-button>
+                </button>
               </Form>
             ) : null}
-            <s-link href={entry.mailtoUrl} target="_blank">
-              <s-button variant="secondary" icon="email">
-                Compose
-              </s-button>
-            </s-link>
-          </s-stack>
-        </s-stack>
+            <a
+              href={entry.mailtoUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="gk-waitlist-btn gk-waitlist-btn--secondary"
+            >
+              Compose
+            </a>
+          </div>
+        </header>
 
-        <s-box padding="base" background="subdued" borderRadius="base">
-          <s-stack direction="block" gap="large">
-            <s-text type="strong">Customer</s-text>
-            <ResponsiveGrid layout="2" gap="large" alignItems="start">
-              <LabeledValue label="Waitlist status">{statusLabel(entry.status)}</LabeledValue>
-              <LabeledValue label="Booking type">{bookingType}</LabeledValue>
-              <LabeledValue label="Email address">{entry.email}</LabeledValue>
-              <LabeledValue label="Customer name">{entry.name}</LabeledValue>
-              <LabeledValue label="Phone number">{entry.phone}</LabeledValue>
-              <LabeledValue label="Pronouns">{entry.pronouns}</LabeledValue>
-              <LabeledValue label="Submission date & time">
-                {formatDateTime(entry.createdAt)}
-              </LabeledValue>
-              {priorityText ? (
-                <LabeledValue label="Follow-up">{priorityText}</LabeledValue>
-              ) : null}
-            </ResponsiveGrid>
-            {customerMessage ? (
-              <LabeledValue label="Customer message / notes">{customerMessage}</LabeledValue>
+        <section className="gk-waitlist-section" aria-labelledby={`wl-customer-${entry.id}`}>
+          <h3 className="gk-waitlist-section__heading" id={`wl-customer-${entry.id}`}>
+            Customer
+          </h3>
+          <div className="gk-waitlist-fields">
+            <WaitlistField label="Email address">{entry.email}</WaitlistField>
+            <WaitlistField label="Customer name">{entry.name}</WaitlistField>
+            <WaitlistField label="Phone number">{entry.phone}</WaitlistField>
+            <WaitlistField label="Pronouns">{entry.pronouns}</WaitlistField>
+            <WaitlistField label="Submission date & time">
+              <DateValue text={formatDateTime(entry.createdAt)} />
+            </WaitlistField>
+            {followUpText ? (
+              <WaitlistField label="Follow-up">{followUpText}</WaitlistField>
             ) : null}
-          </s-stack>
-        </s-box>
+            {priorityChip ? (
+              <div className="gk-waitlist-field">
+                <span className="gk-waitlist-field__label">Priority access</span>
+                <div className="gk-waitlist-field__value">{priorityChip}</div>
+              </div>
+            ) : null}
+          </div>
+          {customerMessage ? (
+            <blockquote className="gk-waitlist-quote">
+              <span className="gk-waitlist-quote__label">Customer message</span>
+              {customerMessage}
+            </blockquote>
+          ) : null}
+        </section>
 
-        <s-box padding="base" background="subdued" borderRadius="base">
-          <s-stack direction="block" gap="large">
-            <s-text type="strong">Product & booking</s-text>
-            <ResponsiveGrid layout="2" gap="large" alignItems="start">
-              <LabeledValue label="Product name">{entry.productTitle}</LabeledValue>
-              <LabeledValue label="Product ID">{entry.productId}</LabeledValue>
-              {entry.variantId ? (
-                <LabeledValue label="Variant ID">{entry.variantId}</LabeledValue>
-              ) : null}
-              <LabeledValue label="Selected size">{entry.size}</LabeledValue>
-              {entry.kind === "garment" && entry.eventDate ? (
-                <>
-                  <LabeledValue label="Requested event date">
-                    {formatDate(entry.eventDate)}
-                  </LabeledValue>
-                  <LabeledValue label="Requested delivery date">
-                    {formatDate(deliveryDate)}
-                  </LabeledValue>
-                </>
-              ) : null}
-              {entry.kind === "try_on" ? (
-                <>
-                  <LabeledValue label="Waitlist selected date">
-                    {formatDate(entry.preferredDate)}
-                  </LabeledValue>
-                  <LabeledValue label="Preferred time">{entry.preferredTime}</LabeledValue>
-                  <LabeledValue label="Appointment duration">
-                    {entry.durationMinutes
-                      ? `${entry.durationMinutes} minutes`
-                      : null}
-                  </LabeledValue>
-                </>
-              ) : null}
-            </ResponsiveGrid>
+        <section className="gk-waitlist-section" aria-labelledby={`wl-booking-${entry.id}`}>
+          <h3 className="gk-waitlist-section__heading" id={`wl-booking-${entry.id}`}>
+            Product &amp; booking
+          </h3>
+          <div className="gk-waitlist-fields">
+            <WaitlistField label="Product name">{entry.productTitle}</WaitlistField>
+            <WaitlistField label="Product ID" mono>
+              {entry.productId}
+            </WaitlistField>
+            {entry.variantId ? (
+              <WaitlistField label="Variant ID" mono>
+                {entry.variantId}
+              </WaitlistField>
+            ) : null}
+            <WaitlistField label="Selected size">{entry.size}</WaitlistField>
+            {entry.kind === "garment" && entry.eventDate ? (
+              <>
+                <WaitlistField label="Requested event date">
+                  <DateValue text={formatDate(entry.eventDate) ?? ""} />
+                </WaitlistField>
+                <WaitlistField label="Requested delivery date">
+                  <DateValue text={formatDate(deliveryDate) ?? ""} />
+                </WaitlistField>
+              </>
+            ) : null}
+            {entry.kind === "try_on" ? (
+              <>
+                <WaitlistField label="Waitlist selected date">
+                  <DateValue text={formatDate(entry.preferredDate) ?? ""} />
+                </WaitlistField>
+                <WaitlistField label="Preferred time">{entry.preferredTime}</WaitlistField>
+                <WaitlistField label="Appointment duration">
+                  {entry.durationMinutes ? `${entry.durationMinutes} minutes` : null}
+                </WaitlistField>
+              </>
+            ) : null}
+          </div>
 
-            <s-stack direction="inline" gap="small">
-              <s-link href={entry.adminProductUrl} target="_blank">
-                Open in Shopify
-              </s-link>
-              {entry.storefrontProductUrl ? (
-                <s-link href={entry.storefrontProductUrl} target="_blank">
-                  View on storefront
-                </s-link>
-              ) : null}
-              <s-link
-                href={`/app/inventory/detail?productId=${entry.productId}${entry.variantId ? `&variantId=${entry.variantId}` : ""}`}
+          <nav className="gk-waitlist-links" aria-label="Product links">
+            <a
+              href={entry.adminProductUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="gk-waitlist-link"
+            >
+              <LinkIcon />
+              Open in Shopify
+            </a>
+            {entry.storefrontProductUrl ? (
+              <a
+                href={entry.storefrontProductUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="gk-waitlist-link"
               >
-                Inventory calendar
-              </s-link>
-              {entry.claimIsActive && entry.claimStorefrontUrl ? (
-                <s-link href={entry.claimStorefrontUrl} target="_blank">
-                  Priority booking link
-                </s-link>
-              ) : null}
-            </s-stack>
-          </s-stack>
-        </s-box>
+                <LinkIcon />
+                View on storefront
+              </a>
+            ) : null}
+            <Link
+              to={`/app/inventory/detail?productId=${entry.productId}${entry.variantId ? `&variantId=${entry.variantId}` : ""}`}
+              className="gk-waitlist-link"
+            >
+              <CalendarIcon />
+              Inventory calendar
+            </Link>
+            {entry.claimIsActive && entry.claimStorefrontUrl ? (
+              <a
+                href={entry.claimStorefrontUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="gk-waitlist-link"
+              >
+                <LinkIcon />
+                Priority booking link
+              </a>
+            ) : null}
+          </nav>
+        </section>
 
-        <s-stack direction="inline" gap="small">
+        <footer className="gk-waitlist-card__footer">
           {entry.status !== "contacted" && entry.status !== "fulfilled" ? (
             <Form method="post">
               <input type="hidden" name="intent" value="mark-contacted" />
               <input type="hidden" name="id" value={entry.id} />
-              <s-button
+              <button
                 type="submit"
-                variant="secondary"
-                {...(isSubmitting ? { loading: true } : {})}
+                className="gk-waitlist-btn gk-waitlist-btn--secondary"
+                disabled={isSubmitting}
               >
                 Mark contacted
-              </s-button>
+              </button>
             </Form>
           ) : null}
           {entry.status !== "fulfilled" ? (
             <Form method="post">
               <input type="hidden" name="intent" value="mark-fulfilled" />
               <input type="hidden" name="id" value={entry.id} />
-              <s-button
+              <button
                 type="submit"
-                variant="tertiary"
-                {...(isSubmitting ? { loading: true } : {})}
+                className="gk-waitlist-btn gk-waitlist-btn--primary"
+                disabled={isSubmitting}
               >
                 Mark fulfilled
-              </s-button>
+              </button>
             </Form>
           ) : null}
           {entry.status !== "waiting" && entry.status !== "removed" ? (
             <Form method="post">
               <input type="hidden" name="intent" value="mark-waiting" />
               <input type="hidden" name="id" value={entry.id} />
-              <s-button type="submit" variant="tertiary">
+              <button type="submit" className="gk-waitlist-btn gk-waitlist-btn--secondary">
                 Reopen
-              </s-button>
+              </button>
             </Form>
           ) : null}
           {entry.status !== "removed" ? (
             <>
-              <Form method="post">
+              <button
+                type="button"
+                className="gk-waitlist-btn gk-waitlist-btn--danger"
+                onClick={() => setRemoveDialog("notify")}
+              >
+                Remove &amp; notify
+              </button>
+              <button
+                type="button"
+                className="gk-waitlist-btn gk-waitlist-btn--danger"
+                onClick={() => setRemoveDialog("silent")}
+              >
+                Remove silently
+              </button>
+              <Form method="post" ref={removeNotifyRef} className="gk-waitlist-sr-only">
                 <input type="hidden" name="intent" value="remove-entry" />
                 <input type="hidden" name="id" value={entry.id} />
                 <input type="hidden" name="notifyCustomer" value="true" />
-                <s-button type="submit" variant="tertiary">
-                  Remove &amp; notify
-                </s-button>
               </Form>
-              <Form method="post">
+              <Form method="post" ref={removeSilentRef} className="gk-waitlist-sr-only">
                 <input type="hidden" name="intent" value="remove-entry" />
                 <input type="hidden" name="id" value={entry.id} />
                 <input type="hidden" name="notifyCustomer" value="false" />
-                <s-button type="submit" variant="tertiary">
-                  Remove silently
-                </s-button>
               </Form>
             </>
           ) : null}
-        </s-stack>
-      </s-stack>
-    </s-box>
+        </footer>
+      </div>
+
+      {removeDialog ? (
+        <WaitlistConfirmDialog
+          title={
+            removeDialog === "notify"
+              ? "Remove and notify customer?"
+              : "Remove without notifying?"
+          }
+          description={
+            removeDialog === "notify"
+              ? `This will remove ${entry.email} from the waitlist and send them an email. This cannot be undone.`
+              : `This will silently remove ${entry.email} from the waitlist. The customer will not receive an email.`
+          }
+          confirmLabel={removeDialog === "notify" ? "Remove & notify" : "Remove silently"}
+          onCancel={() => setRemoveDialog(null)}
+          onConfirm={confirmRemove}
+        />
+      ) : null}
+    </article>
   );
 }
