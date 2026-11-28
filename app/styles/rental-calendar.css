@@ -1,0 +1,314 @@
+/* Rental calendar admin */
+
+.gk-calendar-page {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.gk-calendar-guide {
+  margin: 0;
+  padding: 0.85rem 1rem;
+  border: 1px solid #e8e8e4;
+  border-radius: 12px;
+  background: #fafaf9;
+  font-size: 13px;
+  line-height: 1.55;
+  color: #5c5c58;
+}
+
+.gk-calendar-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.gk-calendar-metric {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 0;
+  padding: 1.1rem 1.25rem;
+  border: 1px solid #ececea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  overflow: hidden;
+}
+
+.gk-calendar-metric__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #8a8a85;
+}
+
+.gk-calendar-metric__value {
+  font-size: 1.65rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #1a1a1a;
+  letter-spacing: -0.02em;
+}
+
+.gk-calendar-metric__icon {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  opacity: 0.95;
+}
+
+.gk-calendar-metric__icon--confirmed {
+  background: #ecf8f1;
+  background-image: linear-gradient(
+    to top,
+    #1a6b42 0,
+    #1a6b42 35%,
+    transparent 35%,
+    transparent 45%,
+    #1a6b42 45%,
+    #1a6b42 65%,
+    transparent 65%,
+    transparent 75%,
+    #1a6b42 75%,
+    #1a6b42 100%
+  );
+  background-size: 14px 14px;
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.gk-calendar-metric__icon--blackout {
+  background: #fff8e6;
+  border: 2px solid #d4a72c;
+  border-radius: 4px;
+  width: 1.35rem;
+  height: 1.35rem;
+}
+
+.gk-calendar-panel {
+  padding: 1.25rem 1.35rem;
+  border: 1px solid #ececea;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.gk-calendar-panel--flush {
+  padding: 0;
+  overflow: hidden;
+}
+
+.gk-calendar-panel__toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #efefec;
+}
+
+.gk-calendar-panel__toolbar-meta {
+  font-size: 13px;
+  color: #8a8a85;
+}
+
+.gk-rental-calendar {
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.gk-rental-calendar__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem 1.5rem;
+  padding: 1.15rem 1.35rem;
+  border-bottom: 1px solid #efefec;
+  background: #fafaf9;
+}
+
+.gk-rental-calendar__month {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1a1a1a;
+}
+
+.gk-rental-calendar__sub {
+  margin: 0.25rem 0 0;
+  font-size: 13px;
+  color: #8a8a85;
+}
+
+.gk-rental-calendar__nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+}
+
+.gk-rental-calendar__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.85rem 1.35rem;
+  padding: 0.85rem 1.35rem;
+  border-bottom: 1px solid #efefec;
+  background: #fff;
+}
+
+.gk-rental-calendar__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 12px;
+  font-weight: 600;
+  color: #5c5c58;
+}
+
+.gk-rental-calendar__legend-swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 2px;
+}
+
+.gk-rental-calendar__weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  border-bottom: 1px solid #efefec;
+  background: #f5f5f3;
+}
+
+.gk-rental-calendar__weekday {
+  padding: 0.65rem 0.5rem;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #8a8a85;
+}
+
+.gk-rental-calendar__week {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  position: relative;
+  border-bottom: 1px solid #efefec;
+}
+
+.gk-rental-calendar__week:last-child {
+  border-bottom: none;
+}
+
+.gk-rental-calendar__day {
+  border-right: 1px solid #efefec;
+  padding: 0.65rem 0.55rem 0.5rem;
+  min-height: 6.75rem;
+  background: #fff;
+}
+
+.gk-rental-calendar__day:last-child {
+  border-right: none;
+}
+
+.gk-rental-calendar__day--muted {
+  background: #fafaf9;
+}
+
+.gk-rental-calendar__day-num {
+  margin-bottom: 0.5rem;
+  padding-left: 0.15rem;
+  font-size: 13px;
+  font-weight: 650;
+  color: #1a1a1a;
+}
+
+.gk-rental-calendar__day-num--empty {
+  color: transparent;
+}
+
+.gk-rental-calendar__lanes {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 1.75rem;
+  bottom: 0.35rem;
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-auto-rows: 24px;
+  gap: 2px 0;
+  padding: 0 2px;
+  pointer-events: none;
+}
+
+.gk-rental-calendar__bar {
+  pointer-events: auto;
+  margin: 0 2px;
+  height: 22px;
+  border: 0;
+  border-radius: 5px;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: left;
+  padding: 0 8px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+  transition:
+    transform 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.gk-rental-calendar__bar:hover {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.2),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.gk-rental-calendar__bar--selected {
+  border: 2px solid #1a1a1a;
+  box-shadow: 0 0 0 1px #fff;
+  transform: scale(1.01);
+  z-index: 2;
+}
+
+.gk-rental-calendar__bar--pattern {
+  background-image: repeating-linear-gradient(
+    -45deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0.14) 4px,
+    transparent 4px,
+    transparent 8px
+  );
+}
+
+.gk-rental-calendar__empty {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  background: #fafaf9;
+  border-top: 1px solid #efefec;
+}
+
+@media (max-width: 720px) {
+  .gk-calendar-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .gk-rental-calendar__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

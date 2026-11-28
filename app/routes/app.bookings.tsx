@@ -8,11 +8,14 @@ import { useMemo } from "react";
 
 import { ResponsiveGrid } from "../components/ResponsiveGrid";
 import { RentalCalendar } from "../components/RentalCalendar";
+import rentalCalendarStyles from "../styles/rental-calendar.css?url";
 import { currentCalendarMonth } from "../lib/garment/garment.server";
 import { getRentalCalendar } from "../lib/booking/rental-calendar.server";
 import { syncRecentOrderBookings } from "../lib/order-booking.server";
 import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
+
+export const links = () => [{ rel: "stylesheet", href: rentalCalendarStyles }];
 
 export const loader = async ({ request }: LoaderFunctionArgs) => {
   const { admin, session } = await authenticate.admin(request);
@@ -99,22 +102,21 @@ export const action = async ({ request }: ActionFunctionArgs) => {
   }
 };
 
-function MetricCard({
+function CalendarMetricCard({
   label,
   value,
+  tone,
 }: {
   label: string;
   value: number;
+  tone: "confirmed" | "blackout";
 }) {
   return (
-    <s-box padding="base" border="base" borderRadius="large" background="base">
-      <s-stack direction="block" gap="small-200">
-        <s-text tone="neutral" color="subdued">
-          {label}
-        </s-text>
-        <s-text type="strong">{String(value)}</s-text>
-      </s-stack>
-    </s-box>
+    <article className={`gk-calendar-metric gk-calendar-metric--${tone}`}>
+      <span className="gk-calendar-metric__label">{label}</span>
+      <span className="gk-calendar-metric__value">{value}</span>
+      <span className={`gk-calendar-metric__icon gk-calendar-metric__icon--${tone}`} aria-hidden />
+    </article>
   );
 }
 
@@ -148,8 +150,8 @@ function BookingsCalendarPage() {
 
   return (
     <s-page heading="Rental calendar" inlineSize="large">
-      <s-stack direction="block" gap="large">
-        <p className="gk-page-guide">
+      <div className="gk-calendar-page">
+        <p className="gk-calendar-guide">
           Color-coded rentals and blackouts for this month. Click any bar for
           details, buffers, or the garment page.
         </p>
@@ -170,75 +172,78 @@ function BookingsCalendarPage() {
         ) : null}
 
         <div className="gk-calendar-metrics">
-          <MetricCard label="Confirmed hires" value={stats.confirmed} />
-          <MetricCard label="Blackout periods" value={stats.blackouts} />
+          <CalendarMetricCard
+            label="Confirmed hires"
+            value={stats.confirmed}
+            tone="confirmed"
+          />
+          <CalendarMetricCard
+            label="Blackout periods"
+            value={stats.blackouts}
+            tone="blackout"
+          />
         </div>
 
-        <s-box padding="large" border="base" borderRadius="large" background="base">
-          <s-stack direction="block" gap="base">
-            <div className="gk-inventory-toolbar">
-              <span className="gk-inventory-toolbar__count">
-                {hasActiveFilters ? "Filters active" : "Showing all rentals this month"}
-              </span>
-              <Form method="post">
-                <s-button
-                  type="submit"
-                  variant="secondary"
-                  {...(isSyncing ? { loading: true } : {})}
-                >
-                  Sync orders
-                </s-button>
-              </Form>
-            </div>
-
-            <Form method="get">
-              <ResponsiveGrid layout="filter-row" alignItems="end" gap="base">
-                <input type="hidden" name="year" value={calendar.year} />
-                <input type="hidden" name="month" value={calendar.month} />
-                <s-text-field
-                  label="Search"
-                  name="q"
-                  value={filters.search}
-                  placeholder="Product, size, order…"
-                />
-                <s-select label="Status" name="status" value={filters.status}>
-                  <s-option value="">All statuses</s-option>
-                  <s-option value="confirmed">Confirmed</s-option>
-                  <s-option value="cancelled">Cancelled</s-option>
-                </s-select>
-                <s-select
-                  label="Delivery method"
-                  name="deliveryMethod"
-                  value={filters.deliveryMethod}
-                >
-                  <s-option value="">All methods</s-option>
-                  <s-option value="post">Post</s-option>
-                  <s-option value="pickup">Pickup</s-option>
-                </s-select>
-                <s-box paddingBlockStart="large-300">
-                  <s-button type="submit" variant="primary">
-                    Apply
-                  </s-button>
-                </s-box>
-              </ResponsiveGrid>
+        <section className="gk-calendar-panel" aria-label="Calendar filters">
+          <div className="gk-calendar-panel__toolbar">
+            <span className="gk-calendar-panel__toolbar-meta">
+              {hasActiveFilters ? "Filters active" : "Showing all rentals this month"}
+            </span>
+            <Form method="post">
+              <s-button
+                type="submit"
+                variant="secondary"
+                {...(isSyncing ? { loading: true } : {})}
+              >
+                Sync orders
+              </s-button>
             </Form>
-          </s-stack>
-        </s-box>
+          </div>
 
-        <s-box padding="none" border="base" borderRadius="large" background="base">
+          <Form method="get">
+            <ResponsiveGrid layout="filter-row" alignItems="end" gap="base">
+              <input type="hidden" name="year" value={calendar.year} />
+              <input type="hidden" name="month" value={calendar.month} />
+              <s-text-field
+                label="Search"
+                name="q"
+                value={filters.search}
+                placeholder="Product, size, order…"
+              />
+              <s-select label="Status" name="status" value={filters.status}>
+                <s-option value="">All statuses</s-option>
+                <s-option value="confirmed">Confirmed</s-option>
+                <s-option value="cancelled">Cancelled</s-option>
+              </s-select>
+              <s-select
+                label="Delivery method"
+                name="deliveryMethod"
+                value={filters.deliveryMethod}
+              >
+                <s-option value="">All methods</s-option>
+                <s-option value="post">Post</s-option>
+                <s-option value="pickup">Pickup</s-option>
+              </s-select>
+              <s-box paddingBlockStart="large-300">
+                <s-button type="submit" variant="primary">
+                  Apply
+                </s-button>
+              </s-box>
+            </ResponsiveGrid>
+          </Form>
+        </section>
+
+        <section
+          className="gk-calendar-panel gk-calendar-panel--flush"
+          aria-label="Month calendar"
+        >
           <RentalCalendar
             calendar={calendar}
             shop={shop}
             filtersQuery={filtersQuery}
           />
-        </s-box>
-
-        <div className="gk-calendar-legend">
-          <s-badge tone="success">Confirmed</s-badge>
-          <s-badge tone="info">Pending</s-badge>
-          <s-badge tone="warning">Blackout</s-badge>
-        </div>
-      </s-stack>
+        </section>
+      </div>
     </s-page>
   );
 }

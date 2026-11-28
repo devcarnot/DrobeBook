@@ -1,9 +1,4 @@
-import {
-  useEffect,
-  useMemo,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router";
 
@@ -13,11 +8,6 @@ import type {
 } from "../lib/booking/rental-calendar.server";
 
 const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-
-const GRID_7: CSSProperties = {
-  display: "grid",
-  gridTemplateColumns: "repeat(7, minmax(0, 1fr))",
-};
 
 type RentalCalendarProps = {
   calendar: RentalCalendarPayload;
@@ -166,24 +156,10 @@ function orderAdminUrl(shop: string, orderId: string) {
 
 function LegendItem({ color, label }: { color: string; label: string }) {
   return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        gap: "8px",
-        fontSize: "12px",
-        fontWeight: 550,
-        color: "#616161",
-      }}
-    >
+    <span className="gk-rental-calendar__legend-item">
       <span
-        style={{
-          width: "10px",
-          height: "10px",
-          background: color,
-          flexShrink: 0,
-          borderRadius: "2px",
-        }}
+        className="gk-rental-calendar__legend-swatch"
+        style={{ background: color }}
       />
       {label}
     </span>
@@ -834,25 +810,15 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
   }, [calendar.segments]);
 
   return (
-    <div style={{ background: "#fff" }}>
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "28px",
-          padding: "24px 28px",
-          borderBottom: "1px solid #e1e3e5",
-          background: "#fafbfb",
-        }}
-      >
-        <s-stack direction="block" gap="small">
-          <s-text type="strong">{calendar.monthLabel}</s-text>
-          <s-text tone="neutral" color="subdued">
-            {calendar.events.length} events this month
-          </s-text>
-        </s-stack>
-        <s-stack direction="inline" gap="small">
+    <div className="gk-rental-calendar">
+      <header className="gk-rental-calendar__header">
+        <div>
+          <h2 className="gk-rental-calendar__month">{calendar.monthLabel}</h2>
+          <p className="gk-rental-calendar__sub">
+            {calendar.events.length} event{calendar.events.length === 1 ? "" : "s"} this month
+          </p>
+        </div>
+        <div className="gk-rental-calendar__nav">
           <s-button
             variant="tertiary"
             icon="chevron-left"
@@ -885,19 +851,10 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
           >
             Next
           </s-button>
-        </s-stack>
-      </div>
+        </div>
+      </header>
 
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "28px",
-          padding: "18px 28px",
-          borderBottom: "1px solid #e1e3e5",
-          background: "#fff",
-        }}
-      >
+      <div className="gk-rental-calendar__legend">
         <LegendItem color="#008060" label="Confirmed hire" />
         <LegendItem color="#449da7" label="Pending hire" />
         <LegendItem color="#e67700" label="Try-on appointment" />
@@ -905,26 +862,9 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
         <LegendItem color="#b98900" label="Blackout" />
       </div>
 
-      <div
-        style={{
-          ...GRID_7,
-          background: "#f6f6f7",
-          borderBottom: "1px solid #e1e3e5",
-        }}
-      >
+      <div className="gk-rental-calendar__weekdays">
         {WEEKDAYS.map((day) => (
-          <div
-            key={day}
-            style={{
-              padding: "16px 14px",
-              textAlign: "center",
-              fontSize: "11px",
-              fontWeight: 700,
-              letterSpacing: "0.06em",
-              textTransform: "uppercase",
-              color: "#616161",
-            }}
-          >
+          <div key={day} className="gk-rental-calendar__weekday">
             {day}
           </div>
         ))}
@@ -938,101 +878,42 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
         return (
           <div
             key={`week-${weekIndex}`}
-            style={{
-              ...GRID_7,
-              borderBottom:
-                weekIndex === calendar.weeks.length - 1 ? "none" : "1px solid #edf0f2",
-              position: "relative",
-              minHeight,
-            }}
+            className="gk-rental-calendar__week"
+            style={{ minHeight }}
           >
             {week.map((day, dayIndex) => (
               <div
                 key={`${weekIndex}-${dayIndex}`}
-                style={{
-                  borderRight: dayIndex < 6 ? "1px solid #edf0f2" : "none",
-                  padding: "14px 14px 12px",
-                  minHeight: "108px",
-                  background: day.iso ? "#fff" : "#fafbfb",
-                }}
+                className={`gk-rental-calendar__day${day.iso ? "" : " gk-rental-calendar__day--muted"}`}
               >
                 {day.dayNumber ? (
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 650,
-                      color: "#202223",
-                      marginBottom: "10px",
-                      paddingLeft: "4px",
-                    }}
-                  >
-                    {day.dayNumber}
-                  </div>
+                  <div className="gk-rental-calendar__day-num">{day.dayNumber}</div>
                 ) : (
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 650,
-                      color: "#b5b5b5",
-                      marginBottom: "10px",
-                      paddingLeft: "4px",
-                    }}
-                  >
-                    {" "}
+                  <div className="gk-rental-calendar__day-num gk-rental-calendar__day-num--empty">
+                    —
                   </div>
                 )}
               </div>
             ))}
 
             <div
-              style={{
-                position: "absolute",
-                left: 0,
-                right: 0,
-                top: "28px",
-                bottom: "6px",
-                ...GRID_7,
-                gridAutoRows: "24px",
-                gap: "2px 0",
-                pointerEvents: "none",
-                padding: "0 2px",
-                minHeight: laneCount * 26,
-              }}
+              className="gk-rental-calendar__lanes"
+              style={{ minHeight: laneCount * 26 }}
             >
               {weekSegments.map((segment) => {
                 const isSelected = segment.event.id === selectedEventId;
+                const isPattern =
+                  segment.event.type === "block" ||
+                  segment.event.type === "appointment_hold";
                 return (
                   <button
                     key={`${segment.event.id}-${weekIndex}-${segment.lane}`}
                     type="button"
+                    className={`gk-rental-calendar__bar${isSelected ? " gk-rental-calendar__bar--selected" : ""}${isPattern ? " gk-rental-calendar__bar--pattern" : ""}`}
                     style={{
-                      pointerEvents: "auto",
-                      margin: "0 2px",
-                      height: "22px",
-                      border: isSelected ? "2px solid #202223" : 0,
-                      borderRadius: "4px",
-                      color: "#fff",
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      textAlign: "left",
-                      padding: "0 8px",
-                      overflow: "hidden",
-                      whiteSpace: "nowrap",
-                      textOverflow: "ellipsis",
-                      cursor: "pointer",
-                      boxShadow: isSelected
-                        ? "0 0 0 2px #fff, 0 2px 8px rgba(0,0,0,0.2)"
-                        : "inset 0 0 0 1px rgba(255, 255, 255, 0.12)",
                       gridColumn: `${segment.colStart} / ${segment.colEnd + 1}`,
                       gridRow: segment.lane + 1,
                       backgroundColor: segment.event.color,
-                      backgroundImage:
-                        segment.event.type === "block" ||
-                        segment.event.type === "appointment_hold"
-                          ? "repeating-linear-gradient(-45deg, rgba(255,255,255,0.14), rgba(255,255,255,0.14) 4px, transparent 4px, transparent 8px)"
-                          : undefined,
-                      transform: isSelected ? "scale(1.02)" : undefined,
-                      zIndex: isSelected ? 2 : 1,
                     }}
                     title={`${segment.event.label} · ${segment.event.sublabel}`}
                     onClick={() => setSelectedEventId(segment.event.id)}
@@ -1047,7 +928,7 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
       })}
 
       {calendar.events.length === 0 ? (
-        <s-box padding="large" background="subdued">
+        <div className="gk-rental-calendar__empty">
           <s-stack direction="block" gap="base" alignItems="center">
             <s-icon type="calendar" />
             <s-text type="strong">No events this month</s-text>
@@ -1055,7 +936,7 @@ export function RentalCalendar({ calendar, shop, filtersQuery }: RentalCalendarP
               Try another month or clear your filters.
             </s-text>
           </s-stack>
-        </s-box>
+        </div>
       ) : null}
 
       {selectedEvent ? (
