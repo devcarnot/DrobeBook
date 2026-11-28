@@ -189,6 +189,35 @@
   gap: 1.15rem;
 }
 
+.gk-blocked-dates-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  min-width: 0;
+}
+
+.gk-blocked-dates-fields .gk-grid {
+  min-width: 0;
+}
+
+.gk-blocked-dates-fields .gk-grid > * {
+  min-width: 0;
+}
+
+/* Side-by-side panels are too narrow for 3+ column form-actions — stack dates */
+.gk-admin-split .gk-blocked-dates-fields .gk-grid--2 {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.gk-admin-panel .gk-grid > s-date-field,
+.gk-admin-panel .gk-grid > s-text-field,
+.gk-blocked-dates-fields > s-text-field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
 .gk-admin-check-row {
   display: flex;
   flex-wrap: wrap;
@@ -237,6 +266,11 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 1.25rem;
   align-items: start;
+}
+
+.gk-admin-split .gk-admin-panel {
+  min-width: 0;
+  overflow: visible;
 }
 
 @media (max-width: 1024px) {

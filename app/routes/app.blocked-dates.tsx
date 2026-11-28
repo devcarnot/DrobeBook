@@ -214,15 +214,17 @@ export default function BlockedDatesPage() {
 
             <Form method="post" className="gk-admin-form-stack">
               <input type="hidden" name="intent" value="create-range" />
-              <ResponsiveGrid layout="form-actions" alignItems="end">
-                <s-date-field label="Start date" name="startDate" required />
-                <s-date-field label="End date" name="endDate" />
+              <div className="gk-blocked-dates-fields">
+                <ResponsiveGrid layout="2" gap="base" alignItems="end">
+                  <s-date-field label="Start date" name="startDate" required />
+                  <s-date-field label="End date" name="endDate" />
+                </ResponsiveGrid>
                 <s-text-field
                   label="Reason (optional)"
                   name="reason"
                   placeholder="e.g. Public holiday"
                 />
-              </ResponsiveGrid>
+              </div>
               <div className="gk-admin-check-row">
                 <label>
                   <input type="checkbox" name="appliesToHire" defaultChecked />
@@ -277,15 +279,17 @@ export default function BlockedDatesPage() {
                   ))}
                 </div>
               </div>
-              <ResponsiveGrid layout="form-actions" alignItems="end">
-                <s-date-field label="Valid from (optional)" name="validFrom" />
-                <s-date-field label="Valid until (optional)" name="validUntil" />
+              <div className="gk-blocked-dates-fields">
+                <ResponsiveGrid layout="2" gap="base" alignItems="end">
+                  <s-date-field label="Valid from (optional)" name="validFrom" />
+                  <s-date-field label="Valid until (optional)" name="validUntil" />
+                </ResponsiveGrid>
                 <s-text-field
                   label="Reason (optional)"
                   name="reason"
                   placeholder="e.g. Closed weekends"
                 />
-              </ResponsiveGrid>
+              </div>
               <div className="gk-admin-check-row">
                 <label>
                   <input type="checkbox" name="appliesToHire" defaultChecked />
