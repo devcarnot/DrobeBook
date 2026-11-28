@@ -70,6 +70,60 @@ function readFieldValue(event: {
 
 export const links = () => [{ rel: "stylesheet", href: notificationsStyles }];
 
+const MODE_FILTER_ICON_PROPS = {
+  width: 18,
+  height: 18,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: 1.75,
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  "aria-hidden": true,
+} as const;
+
+function ModeFilterIcon({ modeId }: { modeId: NotificationTemplateModeKey | "all" }) {
+  switch (modeId) {
+    case "all":
+      return (
+        <svg {...MODE_FILTER_ICON_PROPS}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M2 12h20" />
+          <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+        </svg>
+      );
+    case "auto":
+      return (
+        <svg {...MODE_FILTER_ICON_PROPS}>
+          <path d="M13 2 3 14h9l-1 8 10-12h-9l1-8z" />
+        </svg>
+      );
+    case "scheduled":
+      return (
+        <svg {...MODE_FILTER_ICON_PROPS}>
+          <circle cx="12" cy="12" r="10" />
+          <path d="M12 6v6l4 2" />
+        </svg>
+      );
+    case "admin":
+      return (
+        <svg {...MODE_FILTER_ICON_PROPS}>
+          <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+          <path d="M12 9v4" />
+          <path d="M12 17h.01" />
+        </svg>
+      );
+    case "manual":
+      return (
+        <svg {...MODE_FILTER_ICON_PROPS}>
+          <path d="M3 3 14.07 14.97 11.56 22.36 8.5 15.5 3 3z" />
+        </svg>
+      );
+    default:
+      return null;
+  }
+}
+
 const SCHEDULED_RENTAL_TRIGGERS = new Set([
   "days_before_start",
   "on_start_date",
@@ -501,7 +555,12 @@ export default function NotificationSettingsPage() {
                       aria-pressed={active}
                       onClick={() => setModeFilter(filter.id)}
                     >
-                      <span>{filter.label}</span>
+                      <span className="gk-notification-mode-filter__main">
+                        <span className="gk-notification-mode-filter__icon">
+                          <ModeFilterIcon modeId={filter.id} />
+                        </span>
+                        <span className="gk-notification-mode-filter__label">{filter.label}</span>
+                      </span>
                       <span className="gk-notification-mode-filter__count">
                         {modeCounts[filter.id]}
                       </span>
