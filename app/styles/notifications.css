@@ -3,23 +3,42 @@
 .gk-notification-page {
   max-width: 75rem;
   margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.gk-notification-form {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+}
+
+.gk-notification-form__body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .gk-notification-top {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
   gap: 1.25rem;
-  align-items: stretch;
-  margin-bottom: 1.25rem;
+  align-items: start;
 }
 
 .gk-notification-panel {
-  height: 100%;
+  min-width: 0;
   padding: 1.35rem 1.5rem;
   border: 1px solid #ececea;
   border-radius: 12px;
   background: #fff;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  overflow: visible;
 }
 
 .gk-notification-panel--muted {
@@ -38,6 +57,10 @@
   font-size: 13px;
   line-height: 1.55;
   color: #8a8a85;
+}
+
+.gk-notification-panel__lede--tight {
+  margin-bottom: 0;
 }
 
 .gk-notification-intro {
@@ -66,12 +89,20 @@
   color: #5c5c58;
 }
 
-.gk-notification-resend {
-  margin-top: 1rem;
+.gk-notification-inline-warn {
+  margin: 1rem 0 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px solid #f4e4b8;
+  border-radius: 8px;
+  background: #fef6e8;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #6b4e00;
 }
 
 .gk-notification-templates {
-  margin-bottom: 1.25rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .gk-notification-templates__head {
@@ -83,6 +114,95 @@
   margin-bottom: 1rem;
 }
 
+.gk-notification-templates__layout {
+  display: grid;
+  grid-template-columns: minmax(9.5rem, 11rem) minmax(0, 1fr);
+  gap: 1.25rem;
+  align-items: start;
+  min-width: 0;
+}
+
+.gk-notification-mode-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  border: 1px solid #1a1a1a;
+  border-radius: 12px;
+  background: #0a0a0a;
+  overflow: hidden;
+}
+
+.gk-notification-mode-filters__title {
+  padding: 0.55rem 0.85rem;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #a8a8a3;
+  border-bottom: 1px solid #2a2a28;
+}
+
+.gk-notification-mode-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  margin: 0;
+  padding: 0.6rem 0.85rem;
+  border: 0;
+  border-bottom: 1px solid #2a2a28;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  color: #f5f5f4;
+  text-align: left;
+  cursor: pointer;
+  transition: background 140ms ease;
+}
+
+.gk-notification-mode-filter:last-child {
+  border-bottom: 0;
+}
+
+.gk-notification-mode-filter:hover {
+  background: #1f1f1d;
+}
+
+.gk-notification-mode-filter:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -2px;
+}
+
+.gk-notification-mode-filter--active {
+  background: #2a2a28;
+  font-weight: 600;
+}
+
+.gk-notification-mode-filter__count {
+  font-size: 11px;
+  font-weight: 600;
+  color: #a8a8a3;
+}
+
+.gk-notification-templates__table {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.gk-notification-empty-filter {
+  margin: 0;
+  padding: 2rem 1rem;
+  border: 1px dashed #e0e0dc;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  color: #8a8a85;
+}
+
 .gk-notification-mode {
   display: inline-flex;
   align-items: center;
@@ -91,6 +211,7 @@
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.02em;
+  white-space: nowrap;
 }
 
 .gk-notification-mode--auto {
@@ -113,12 +234,59 @@
   color: #5c4b32;
 }
 
+.gk-notification-form__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-top: 0.25rem;
+}
+
 .gk-notification-scheduled-foot {
-  margin-top: 1.25rem;
+  margin: 0;
+  width: 100%;
 }
 
 @media (max-width: 900px) {
   .gk-notification-top {
     grid-template-columns: 1fr;
+  }
+
+  .gk-notification-templates__layout {
+    grid-template-columns: 1fr;
+  }
+
+  .gk-notification-mode-filters {
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-radius: 10px;
+  }
+
+  .gk-notification-mode-filters__title {
+    width: 100%;
+    border-bottom: 1px solid #2a2a28;
+  }
+
+  .gk-notification-mode-filter {
+    flex: 1 1 auto;
+    min-width: calc(50% - 1px);
+    border-bottom: 0;
+    border-right: 1px solid #2a2a28;
+    justify-content: center;
+  }
+
+  .gk-notification-mode-filter:nth-child(odd) {
+    border-right: 1px solid #2a2a28;
+  }
+}
+
+@media (max-width: 520px) {
+  .gk-notification-mode-filter {
+    min-width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid #2a2a28;
+  }
+
+  .gk-notification-mode-filter:last-child {
+    border-bottom: 0;
   }
 }

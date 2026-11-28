@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import type {
 
@@ -79,8 +79,25 @@ const SCHEDULED_RENTAL_TRIGGERS = new Set([
 
 const SCHEDULED_APPOINTMENT_TRIGGERS = new Set(["days_before_appointment"]);
 
+export type NotificationTemplateModeKey =
+  | "auto"
+  | "scheduled"
+  | "manual"
+  | "admin";
+
+const MODE_FILTERS: Array<{
+  id: NotificationTemplateModeKey | "all";
+  label: string;
+}> = [
+  { id: "all", label: "All" },
+  { id: "auto", label: "Automatic" },
+  { id: "scheduled", label: "Scheduled" },
+  { id: "admin", label: "Admin alert" },
+  { id: "manual", label: "Manual only" },
+];
+
 function templateMode(template: NotificationTemplate): {
-  key: "auto" | "scheduled" | "manual" | "admin";
+  key: NotificationTemplateModeKey;
   label: string;
 } {
   if (!template.automated) {
@@ -216,20 +233,36 @@ export default function NotificationSettingsPage() {
   const isSaving = navigation.state !== "idle";
 
   const [draft, setDraft] = useState(notifications);
+  const [modeFilter, setModeFilter] = useState<NotificationTemplateModeKey | "all">("all");
 
+  const modeCounts = useMemo(() => {
+    const counts: Record<NotificationTemplateModeKey | "all", number> = {
+      all: draft.templates.length,
+      auto: 0,
+      scheduled: 0,
+      admin: 0,
+      manual: 0,
+    };
+    for (const template of draft.templates) {
+      counts[templateMode(template).key] += 1;
+    }
+    return counts;
+  }, [draft.templates]);
 
+  const filteredTemplates = useMemo(() => {
+    if (modeFilter === "all") {
+      return draft.templates;
+    }
+    return draft.templates.filter(
+      (template) => templateMode(template).key === modeFilter,
+    );
+  }, [draft.templates, modeFilter]);
 
   if (outlet) {
-
     return outlet;
-
   }
 
-
-
   const activeCount = draft.templates.filter((template) => template.active).length;
-
-
 
   return (
 
@@ -255,9 +288,11 @@ export default function NotificationSettingsPage() {
 
         ) : null}
 
-        <Form method="post" style={{ marginTop: "1rem" }}>
+        <Form method="post" className="gk-notification-form">
 
           <input type="hidden" name="intent" value="save" />
+
+          <div className="gk-notification-form__body">
 
           <div className="gk-notification-top">
             <section className="gk-notification-panel gk-notification-panel--muted">
@@ -278,13 +313,10 @@ export default function NotificationSettingsPage() {
                 </span>
               </span>
               {!hasResend ? (
-                <div className="gk-notification-resend">
-                  <s-banner tone="warning">
-                    Set <s-text type="strong">RESEND_API_KEY</s-text> and{" "}
-                    <s-text type="strong">NOTIFICATION_FROM_EMAIL</s-text> on Railway to deliver
-                    real emails.
-                  </s-banner>
-                </div>
+                <p className="gk-notification-inline-warn" role="status">
+                  Set <strong>RESEND_API_KEY</strong> and <strong>NOTIFICATION_FROM_EMAIL</strong> on
+                  Railway to deliver real emails.
+                </p>
               ) : null}
             </section>
 
@@ -405,9 +437,8 @@ export default function NotificationSettingsPage() {
 
                 <div>
                   <h2 className="gk-notification-panel__title">Notification templates</h2>
-                  <p className="gk-notification-panel__lede" style={{ marginBottom: 0 }}>
-                    Click a template to edit delivery methods, triggers, and copy.{" "}
-                    <strong>Mode</strong> shows whether DrobeBook sends it automatically.
+                  <p className="gk-notification-panel__lede gk-notification-panel__lede--tight">
+                    Filter by how each email is sent. Click a row to edit copy and triggers.
                   </p>
                 </div>
 
@@ -418,6 +449,37 @@ export default function NotificationSettingsPage() {
                 </s-link>
 
               </div>
+
+              <div className="gk-notification-templates__layout">
+
+              <nav className="gk-notification-mode-filters" aria-label="Filter templates by mode">
+                <span className="gk-notification-mode-filters__title">Mode</span>
+                {MODE_FILTERS.map((filter) => {
+                  const active = modeFilter === filter.id;
+                  return (
+                    <button
+                      key={filter.id}
+                      type="button"
+                      className={`gk-notification-mode-filter${active ? " gk-notification-mode-filter--active" : ""}`}
+                      aria-pressed={active}
+                      onClick={() => setModeFilter(filter.id)}
+                    >
+                      <span>{filter.label}</span>
+                      <span className="gk-notification-mode-filter__count">
+                        {modeCounts[filter.id]}
+                      </span>
+                    </button>
+                  );
+                })}
+              </nav>
+
+              <div className="gk-notification-templates__table">
+
+              {filteredTemplates.length === 0 ? (
+                <p className="gk-notification-empty-filter">
+                  No templates in this mode. Choose another filter or add a notification.
+                </p>
+              ) : (
 
               <s-table variant="auto">
 
@@ -437,7 +499,7 @@ export default function NotificationSettingsPage() {
 
                 <s-table-body>
 
-                  {draft.templates.map((template) => {
+                  {filteredTemplates.map((template) => {
                     const mode = templateMode(template);
                     return (
                     <s-table-row key={template.id}>
@@ -486,6 +548,12 @@ export default function NotificationSettingsPage() {
 
               </s-table>
 
+              )}
+
+              </div>
+
+              </div>
+
             </section>
 
 
@@ -494,7 +562,7 @@ export default function NotificationSettingsPage() {
 
 
 
-            <s-stack direction="inline" gap="base">
+            <div className="gk-notification-form__actions">
 
               <s-button type="submit" variant="primary" {...(isSaving ? { loading: true } : {})}>
 
@@ -502,7 +570,9 @@ export default function NotificationSettingsPage() {
 
               </s-button>
 
-            </s-stack>
+            </div>
+
+          </div>
 
         </Form>
 
