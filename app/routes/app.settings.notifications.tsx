@@ -519,8 +519,7 @@ export default function NotificationSettingsPage() {
                   />
                 </ResponsiveGrid>
 
-                <ResponsiveGrid layout="2">
-                  <div className="gk-notification-labeled-field">
+                <div className="gk-notification-labeled-field gk-notification-labeled-field--full">
                     <div className="gk-notification-field-label-row">
                       <label
                         className="gk-form-field__label"
