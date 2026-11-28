@@ -4,12 +4,18 @@ import { normalizeNotificationsConfig } from "./notification-config";
 import { renderNotificationEmail } from "./notification-render";
 import { sendNotificationEmail } from "./notification-email.server";
 import { withNotificationTokenAliases } from "./notification-token-aliases";
+import {
+  isCustomerTemplate,
+  isMerchantTemplate,
+} from "./notification-template-mode";
 import type {
   NotificationDeliveryMethod,
   NotificationTemplate,
   NotificationTrigger,
   NotificationsConfig,
 } from "./notification.types";
+
+export { isCustomerTemplate, isMerchantTemplate };
 
 function shopDisplayName(shop: string) {
   return shop.replace(/\.myshopify\.com$/i, "").replace(/[-_]/g, " ");
@@ -136,18 +142,6 @@ async function sendMerchantTemplate(
   });
 
   return result;
-}
-
-export function isMerchantTemplate(template: NotificationTemplate) {
-  return (
-    template.recipient === "merchant" ||
-    template.category === "admin_alert" ||
-    template.category === "waitlist_admin_new"
-  );
-}
-
-export function isCustomerTemplate(template: NotificationTemplate) {
-  return !isMerchantTemplate(template);
 }
 
 async function getNotificationsConfig(shop: string) {

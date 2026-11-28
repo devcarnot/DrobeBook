@@ -55,7 +55,7 @@ import { authenticate } from "../shopify.server";
 import { boundary } from "@shopify/shopify-app-react-router/server";
 import notificationsStyles from "../styles/notifications.css?url";
 import type { NotificationTemplate } from "../lib/notifications/notification.types";
-import { isMerchantTemplate } from "../lib/notifications/merchant-notify.server";
+import { isMerchantTemplate } from "../lib/notifications/notification-template-mode";
 
 function readFieldValue(event: {
   currentTarget: { value?: string } | null;
