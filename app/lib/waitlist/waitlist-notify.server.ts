@@ -2,10 +2,20 @@ import type { WaitlistEntry } from "@prisma/client";
 
 import prisma from "../../db.server";
 import {
+  evaluateProductAvailability,
+  loadVariantAvailabilityData,
+  normalizeShopifyResourceId,
+} from "../booking/availability.server";
+import {
   sendWaitlistNotification,
   sendWaitlistRemovedNotification,
 } from "../notifications/notification.server";
 import { getShopConfig } from "../shop-settings.server";
+import { extractNumericId } from "../shopify-ids";
+import {
+  buildClaimStorefrontUrl as resolveClaimStorefrontUrl,
+  deliveryDateFromWaitlistEvent,
+} from "./waitlist-claim-url.server";
 
 const DEFAULT_CLAIM_WINDOW_HOURS = 48;
 
@@ -42,10 +52,6 @@ function entryToNotificationContext(
   };
 }
 
-function buildGarmentClaimProxyUrl(shop: string, claimToken: string) {
-  return `https://${shop}/apps/gk-drobe/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`;
-}
-
 export function buildStorefrontClaimUrl(
   shop: string,
   productHandle: string,
@@ -58,6 +64,35 @@ export function buildStorefrontClaimUrl(
     params.set("gk_tryon_date", options.tryOnDate);
   }
   return `https://${shop}/products/${productHandle}?${params.toString()}`;
+}
+
+export async function isGarmentWaitlistDateAvailable(
+  shop: string,
+  entry: WaitlistEntry,
+): Promise<boolean> {
+  if (!entry.eventDate || !entry.variantId?.trim()) {
+    return false;
+  }
+
+  const shopConfig = await getShopConfig(shop);
+  const durationDays = shopConfig.search.defaultDurationDays || 4;
+  const productId = normalizeShopifyResourceId(entry.productId);
+  const variantId = normalizeShopifyResourceId(entry.variantId);
+  const deliveryDate = deliveryDateFromWaitlistEvent(entry.eventDate);
+
+  const data = await loadVariantAvailabilityData(shop, productId, variantId);
+  const result = evaluateProductAvailability(
+    {
+      productId,
+      variantId,
+      deliveryDate,
+      durationDays,
+      deliveryMethod: "post",
+    },
+    data,
+  );
+
+  return result.available;
 }
 
 async function promoteWaitlistEntry(
@@ -83,7 +118,7 @@ async function promoteWaitlistEntry(
   });
 
   const resolvedClaimUrl =
-    claimUrl ?? buildGarmentClaimProxyUrl(shop, claimToken);
+    claimUrl ?? (await resolveClaimStorefrontUrl(shop, updated, claimToken));
 
   void sendWaitlistNotification(
     shop,
@@ -113,25 +148,33 @@ export async function notifyNextWaitlistForGarment(
 ) {
   const now = new Date();
 
+  const normalizedProductId = extractNumericId(productId);
+  const normalizedVariantId = variantId
+    ? extractNumericId(variantId)
+    : null;
+
   const candidates = await prisma.waitlistEntry.findMany({
     where: {
       shop,
       kind: "garment",
-      productId,
+      productId: normalizedProductId,
       status: "waiting",
       OR: [{ claimExpiresAt: null }, { claimExpiresAt: { lt: now } }],
-      ...(variantId ? { variantId } : {}),
+      ...(normalizedVariantId ? { variantId: normalizedVariantId } : {}),
     },
     orderBy: { createdAt: "asc" },
-    take: 1,
+    take: 25,
   });
 
-  const entry = candidates[0];
-  if (!entry) {
-    return null;
+  for (const entry of candidates) {
+    const dateOk = await isGarmentWaitlistDateAvailable(shop, entry);
+    if (!dateOk) {
+      continue;
+    }
+    return promoteWaitlistEntry(shop, entry, null);
   }
 
-  return promoteWaitlistEntry(shop, entry, null);
+  return null;
 }
 
 export async function notifyNextWaitlistForTryOnSlot(

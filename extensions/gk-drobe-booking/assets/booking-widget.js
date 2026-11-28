@@ -751,7 +751,7 @@
 
       try {
         const response = await fetch(
-          `${this.proxyBase}/api/waitlist-claim?token=${encodeURIComponent(claimToken)}`,
+          `${this.proxyBase}/api/waitlist-claim?token=${encodeURIComponent(claimToken)}&format=json`,
         );
         const data = await readJsonResponse(response);
         if (!data.valid) {

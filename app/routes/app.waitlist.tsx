@@ -146,7 +146,7 @@ export default function WaitlistPage() {
             <s-text type="strong">Customer waitlist requests</s-text>
             <s-paragraph tone="neutral" color="subdued">
               Customers join from hire or try-on widgets when dates or slots are unavailable.
-              Send automated availability emails, remove entries with notification, and track status.
+              Availability emails go out automatically when a hire opens for the customer&apos;s event date (after cancellations, or hourly via cron). You can still send manually. Book-now links open the product page.
             </s-paragraph>
           </s-stack>
         </s-box>
